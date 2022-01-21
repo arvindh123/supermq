@@ -9,9 +9,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/signal"
-	"sync"
-	"syscall"
 
 	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
 	"github.com/jmoiron/sqlx"
@@ -25,11 +22,13 @@ import (
 	"github.com/mainflux/mainflux/auth/postgres"
 	"github.com/mainflux/mainflux/auth/tracing"
 	"github.com/mainflux/mainflux/logger"
+	"github.com/mainflux/mainflux/pkg/errors"
 	"github.com/mainflux/mainflux/pkg/uuid"
 	"github.com/opentracing/opentracing-go"
 	acl "github.com/ory/keto/proto/ory/keto/acl/v1alpha1"
 	stdprometheus "github.com/prometheus/client_golang/prometheus"
 	jconfig "github.com/uber/jaeger-client-go/config"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
@@ -97,9 +96,9 @@ type tokenConfig struct {
 }
 
 func main() {
-	wg := new(sync.WaitGroup)
 	cfg := loadConfig()
 	ctx, cancel := context.WithCancel(context.Background())
+	g, ctx := errgroup.WithContext(ctx)
 	logger, err := logger.New(os.Stdout, cfg.logLevel)
 	if err != nil {
 		log.Fatalf(err.Error())
@@ -117,23 +116,24 @@ func main() {
 	readerConn, writerConn := initKeto(cfg.ketoHost, cfg.ketoReadPort, cfg.ketoWritePort, logger)
 
 	svc := newService(db, dbTracer, cfg.secret, logger, readerConn, writerConn)
-	errs := make(chan error, 2)
 
-	wg.Add(2)
-	go startHTTPServer(ctx, wg, tracer, svc, cfg.httpPort, cfg.serverCert, cfg.serverKey, logger, errs)
-	go startGRPCServer(ctx, wg, tracer, svc, cfg.grpcPort, cfg.serverCert, cfg.serverKey, logger, errs)
+	g.Go(func() error {
+		return startHTTPServer(ctx, tracer, svc, cfg.httpPort, cfg.serverCert, cfg.serverKey, logger)
+	})
+	g.Go(func() error {
+		return startGRPCServer(ctx, tracer, svc, cfg.grpcPort, cfg.serverCert, cfg.serverKey, logger)
+	})
 
-	go func() {
-		c := make(chan os.Signal)
-		signal.Notify(c, syscall.SIGINT)
-		errs <- fmt.Errorf("%s", <-c)
-		cancel()
-	}()
-
-	err = <-errs
-	cancel()
-	wg.Wait()
-	logger.Error(fmt.Sprintf("Authentication service terminated: %s", err))
+	g.Go(func() error {
+		if sig := errors.KillSignalHandler(ctx); sig != "" {
+			cancel()
+			logger.Info(fmt.Sprintf("Authentication service shutdown by signal: %s", sig))
+		}
+		return nil
+	})
+	if err := g.Wait(); err != nil {
+		logger.Error(fmt.Sprintf("Authentication service terminated: %s", err))
+	}
 }
 
 func loadConfig() config {
@@ -247,36 +247,45 @@ func newService(db *sqlx.DB, tracer opentracing.Tracer, secret string, logger lo
 	return svc
 }
 
-func startHTTPServer(ctx context.Context, wg *sync.WaitGroup, tracer opentracing.Tracer, svc auth.Service, port string, certFile string, keyFile string, logger logger.Logger, errs chan error) {
-	defer wg.Done()
+func startHTTPServer(ctx context.Context, tracer opentracing.Tracer, svc auth.Service, port string, certFile string, keyFile string, logger logger.Logger) error {
 	p := fmt.Sprintf(":%s", port)
 	server := &http.Server{Addr: p, Handler: httpapi.MakeHandler(svc, tracer)}
+	errCh := make(chan error)
+	proto := "http"
 	switch {
 	case certFile != "" || keyFile != "":
 		logger.Info(fmt.Sprintf("Authentication service started using https, cert %s key %s, exposed port %s", certFile, keyFile, port))
 		go func() {
-			errs <- server.ListenAndServeTLS(certFile, keyFile)
+			errCh <- server.ListenAndServeTLS(certFile, keyFile)
 		}()
+		proto = "https"
 	default:
 		logger.Info(fmt.Sprintf("Authentication service started using http, exposed port %s", port))
 		go func() {
-			errs <- server.ListenAndServe()
+			errCh <- server.ListenAndServe()
 		}()
 	}
-	<-ctx.Done()
-	if err := server.Shutdown(context.Background()); err != nil {
-		errs <- fmt.Errorf("server Shutdown Failed:%v", err)
+
+	select {
+	case <-ctx.Done():
+		if err := server.Shutdown(context.Background()); err != nil {
+			logger.Error(fmt.Sprintf("Authentication %s service error occured during shutdown at %s: %s", proto, p, err))
+			return fmt.Errorf("Authentication %s service error occured during shutdown at %s: %w", proto, p, err)
+		}
+		logger.Info(fmt.Sprintf("Authentication %s service shutdown of http at %s", proto, p))
+		return nil
+	case err := <-errCh:
+		return err
 	}
-	logger.Info(fmt.Sprintf("Shut Down  HTTP Server at %s", p))
 }
 
-func startGRPCServer(ctx context.Context, wg *sync.WaitGroup, tracer opentracing.Tracer, svc auth.Service, port string, certFile string, keyFile string, logger logger.Logger, errs chan error) {
-	defer wg.Done()
+func startGRPCServer(ctx context.Context, tracer opentracing.Tracer, svc auth.Service, port string, certFile string, keyFile string, logger logger.Logger) error {
 	p := fmt.Sprintf(":%s", port)
+	errCh := make(chan error)
+
 	listener, err := net.Listen("tcp", p)
 	if err != nil {
-		errs <- fmt.Errorf("failed to listen on port %s: %w", port, err)
-		return
+		return fmt.Errorf("failed to listen on port %s: %w", port, err)
 	}
 
 	var server *grpc.Server
@@ -284,8 +293,7 @@ func startGRPCServer(ctx context.Context, wg *sync.WaitGroup, tracer opentracing
 	case certFile != "" || keyFile != "":
 		creds, err := credentials.NewServerTLSFromFile(certFile, keyFile)
 		if err != nil {
-			errs <- fmt.Errorf("failed to load auth certificates: %w", err)
-			return
+			return fmt.Errorf("failed to load auth certificates: %w", err)
 		}
 		logger.Info(fmt.Sprintf("Authentication gRPC service started using https on port %s with cert %s key %s", port, certFile, keyFile))
 		server = grpc.NewServer(grpc.Creds(creds))
@@ -297,9 +305,15 @@ func startGRPCServer(ctx context.Context, wg *sync.WaitGroup, tracer opentracing
 	mainflux.RegisterAuthServiceServer(server, grpcapi.NewServer(tracer, svc))
 	logger.Info(fmt.Sprintf("Authentication gRPC service started, exposed port %s", port))
 	go func() {
-		errs <- server.Serve(listener)
+		errCh <- server.Serve(listener)
 	}()
-	<-ctx.Done()
-	server.GracefulStop()
-	logger.Info(fmt.Sprintf("Shut Down  GRPC Server at %s", p))
+
+	select {
+	case <-ctx.Done():
+		server.GracefulStop()
+		logger.Info(fmt.Sprintf("Authentication gRPC service shutdown at %s", p))
+		return nil
+	case err := <-errCh:
+		return err
+	}
 }
