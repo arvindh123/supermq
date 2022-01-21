@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 
 	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
@@ -34,7 +35,7 @@ import (
 )
 
 const (
-	defLogLevel      = "error"
+	defLogLevel      = "debug"
 	defDBHost        = "localhost"
 	defDBPort        = "5432"
 	defDBUser        = "mainflux"
@@ -96,6 +97,7 @@ type tokenConfig struct {
 }
 
 func main() {
+	wg := new(sync.WaitGroup)
 	cfg := loadConfig()
 	ctx, cancel := context.WithCancel(context.Background())
 	logger, err := logger.New(os.Stdout, cfg.logLevel)
@@ -117,8 +119,9 @@ func main() {
 	svc := newService(db, dbTracer, cfg.secret, logger, readerConn, writerConn)
 	errs := make(chan error, 2)
 
-	go startHTTPServer(ctx, tracer, svc, cfg.httpPort, cfg.serverCert, cfg.serverKey, logger, errs)
-	go startGRPCServer(ctx, tracer, svc, cfg.grpcPort, cfg.serverCert, cfg.serverKey, logger, errs)
+	wg.Add(2)
+	go startHTTPServer(ctx, wg, tracer, svc, cfg.httpPort, cfg.serverCert, cfg.serverKey, logger, errs)
+	go startGRPCServer(ctx, wg, tracer, svc, cfg.grpcPort, cfg.serverCert, cfg.serverKey, logger, errs)
 
 	go func() {
 		c := make(chan os.Signal)
@@ -128,6 +131,8 @@ func main() {
 	}()
 
 	err = <-errs
+	cancel()
+	wg.Wait()
 	logger.Error(fmt.Sprintf("Authentication service terminated: %s", err))
 }
 
@@ -242,46 +247,49 @@ func newService(db *sqlx.DB, tracer opentracing.Tracer, secret string, logger lo
 	return svc
 }
 
-func startHTTPServer(ctx context.Context, tracer opentracing.Tracer, svc auth.Service, port string, certFile string, keyFile string, logger logger.Logger, errs chan error) {
+func startHTTPServer(ctx context.Context, wg *sync.WaitGroup, tracer opentracing.Tracer, svc auth.Service, port string, certFile string, keyFile string, logger logger.Logger, errs chan error) {
+	defer wg.Done()
 	p := fmt.Sprintf(":%s", port)
 	server := &http.Server{Addr: p, Handler: httpapi.MakeHandler(svc, tracer)}
-	if certFile != "" || keyFile != "" {
+	switch {
+	case certFile != "" || keyFile != "":
 		logger.Info(fmt.Sprintf("Authentication service started using https, cert %s key %s, exposed port %s", certFile, keyFile, port))
 		go func() {
 			errs <- server.ListenAndServeTLS(certFile, keyFile)
-			return
 		}()
-	} else {
+	default:
 		logger.Info(fmt.Sprintf("Authentication service started using http, exposed port %s", port))
 		go func() {
 			errs <- server.ListenAndServe()
-			return
 		}()
 	}
 	<-ctx.Done()
 	if err := server.Shutdown(context.Background()); err != nil {
-		errs <- fmt.Errorf("Server Shutdown Failed:%+v", err)
+		errs <- fmt.Errorf("server Shutdown Failed:%v", err)
 	}
-	return
+	logger.Info(fmt.Sprintf("Shut Down  HTTP Server at %s", p))
 }
 
-func startGRPCServer(ctx context.Context, tracer opentracing.Tracer, svc auth.Service, port string, certFile string, keyFile string, logger logger.Logger, errs chan error) {
+func startGRPCServer(ctx context.Context, wg *sync.WaitGroup, tracer opentracing.Tracer, svc auth.Service, port string, certFile string, keyFile string, logger logger.Logger, errs chan error) {
+	defer wg.Done()
 	p := fmt.Sprintf(":%s", port)
 	listener, err := net.Listen("tcp", p)
 	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to listen on port %s: %s", port, err))
+		errs <- fmt.Errorf("failed to listen on port %s: %w", port, err)
+		return
 	}
 
 	var server *grpc.Server
-	if certFile != "" || keyFile != "" {
+	switch {
+	case certFile != "" || keyFile != "":
 		creds, err := credentials.NewServerTLSFromFile(certFile, keyFile)
 		if err != nil {
-			logger.Error(fmt.Sprintf("Failed to load auth certificates: %s", err))
-			os.Exit(1)
+			errs <- fmt.Errorf("failed to load auth certificates: %w", err)
+			return
 		}
 		logger.Info(fmt.Sprintf("Authentication gRPC service started using https on port %s with cert %s key %s", port, certFile, keyFile))
 		server = grpc.NewServer(grpc.Creds(creds))
-	} else {
+	default:
 		logger.Info(fmt.Sprintf("Authentication gRPC service started using http on port %s", port))
 		server = grpc.NewServer()
 	}
@@ -290,9 +298,8 @@ func startGRPCServer(ctx context.Context, tracer opentracing.Tracer, svc auth.Se
 	logger.Info(fmt.Sprintf("Authentication gRPC service started, exposed port %s", port))
 	go func() {
 		errs <- server.Serve(listener)
-		return
 	}()
 	<-ctx.Done()
 	server.GracefulStop()
-	return
+	logger.Info(fmt.Sprintf("Shut Down  GRPC Server at %s", p))
 }
