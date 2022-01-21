@@ -103,13 +103,13 @@ func New(text string) Error {
 	}
 }
 
-func KillSignalHandler(ctx context.Context) string {
+func KillSignalHandler(ctx context.Context) error {
 	c := make(chan os.Signal)
 	signal.Notify(c, syscall.SIGINT)
 	select {
 	case sig := <-c:
-		return fmt.Sprintf("%s", sig)
+		return fmt.Errorf("%s", sig)
 	case <-ctx.Done():
-		return ""
+		return nil
 	}
 }

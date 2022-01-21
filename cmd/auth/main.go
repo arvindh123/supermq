@@ -125,7 +125,7 @@ func main() {
 	})
 
 	g.Go(func() error {
-		if sig := errors.KillSignalHandler(ctx); sig != "" {
+		if sig := errors.KillSignalHandler(ctx); sig != nil {
 			cancel()
 			logger.Info(fmt.Sprintf("Authentication service shutdown by signal: %s", sig))
 		}
