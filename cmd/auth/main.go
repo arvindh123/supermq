@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"time"
 
 	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
 	"github.com/jmoiron/sqlx"
@@ -251,14 +252,14 @@ func startHTTPServer(ctx context.Context, tracer opentracing.Tracer, svc auth.Se
 	p := fmt.Sprintf(":%s", port)
 	server := &http.Server{Addr: p, Handler: httpapi.MakeHandler(svc, tracer)}
 	errCh := make(chan error)
-	proto := "http"
+	protocol := "http"
 	switch {
 	case certFile != "" || keyFile != "":
 		logger.Info(fmt.Sprintf("Authentication service started using https, cert %s key %s, exposed port %s", certFile, keyFile, port))
 		go func() {
 			errCh <- server.ListenAndServeTLS(certFile, keyFile)
 		}()
-		proto = "https"
+		protocol = "https"
 	default:
 		logger.Info(fmt.Sprintf("Authentication service started using http, exposed port %s", port))
 		go func() {
@@ -268,11 +269,13 @@ func startHTTPServer(ctx context.Context, tracer opentracing.Tracer, svc auth.Se
 
 	select {
 	case <-ctx.Done():
-		if err := server.Shutdown(context.Background()); err != nil {
-			logger.Error(fmt.Sprintf("Authentication %s service error occured during shutdown at %s: %s", proto, p, err))
-			return fmt.Errorf("Authentication %s service error occured during shutdown at %s: %w", proto, p, err)
+		ctxShutDown, cancelShutDown := context.WithTimeout(ctx, time.Second)
+		defer cancelShutDown()
+		if err := server.Shutdown(ctxShutDown); err != nil {
+			logger.Error(fmt.Sprintf("Authentication %s service error occured during shutdown at %s: %s", protocol, p, err))
+			return fmt.Errorf("Authentication %s service error occured during shutdown at %s: %w", protocol, p, err)
 		}
-		logger.Info(fmt.Sprintf("Authentication %s service shutdown of http at %s", proto, p))
+		logger.Info(fmt.Sprintf("Authentication %s service shutdown of http at %s", protocol, p))
 		return nil
 	case err := <-errCh:
 		return err
