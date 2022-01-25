@@ -4,15 +4,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
-	"os/signal"
 	"strconv"
-	"syscall"
 	"time"
 
 	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
@@ -20,12 +19,14 @@ import (
 	"github.com/mainflux/mainflux/coap"
 	"github.com/mainflux/mainflux/coap/api"
 	logger "github.com/mainflux/mainflux/logger"
+	"github.com/mainflux/mainflux/pkg/errors"
 	thingsapi "github.com/mainflux/mainflux/things/api/auth/grpc"
 	broker "github.com/nats-io/nats.go"
 	opentracing "github.com/opentracing/opentracing-go"
 	gocoap "github.com/plgd-dev/go-coap/v2"
 	stdprometheus "github.com/prometheus/client_golang/prometheus"
 	jconfig "github.com/uber/jaeger-client-go/config"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
@@ -63,6 +64,8 @@ type config struct {
 
 func main() {
 	cfg := loadConfig()
+	ctx, cancel := context.WithCancel(context.Background())
+	g, ctx := errgroup.WithContext(ctx)
 
 	logger, err := logger.New(os.Stdout, cfg.logLevel)
 	if err != nil {
@@ -103,19 +106,25 @@ func main() {
 		}, []string{"method"}),
 	)
 
-	errs := make(chan error, 2)
+	g.Go(func() error {
+		return startHTTPServer(ctx, cfg.port, logger)
+	})
 
-	go startHTTPServer(cfg.port, logger, errs)
-	go startCOAPServer(cfg, svc, nil, logger, errs)
+	g.Go(func() error {
+		return startCOAPServer(ctx, cfg, svc, nil, logger)
+	})
 
-	go func() {
-		c := make(chan os.Signal)
-		signal.Notify(c, syscall.SIGINT)
-		errs <- fmt.Errorf("%s", <-c)
-	}()
+	g.Go(func() error {
+		if sig := errors.KillSignalHandler(ctx); sig != nil {
+			cancel()
+			logger.Info(fmt.Sprintf("CoAP adapter service shutdown by signal: %s", sig))
+		}
+		return nil
+	})
 
-	err = <-errs
-	logger.Error(fmt.Sprintf("CoAP adapter terminated: %s", err))
+	if err := g.Wait(); err != nil {
+		logger.Error(fmt.Sprintf("CoAP adapter service terminated: %s", err))
+	}
 }
 
 func loadConfig() config {
@@ -189,14 +198,43 @@ func initJaeger(svcName, url string, logger logger.Logger) (opentracing.Tracer, 
 	return tracer, closer
 }
 
-func startHTTPServer(port string, logger logger.Logger, errs chan error) {
+func startHTTPServer(ctx context.Context, port string, logger logger.Logger) error {
 	p := fmt.Sprintf(":%s", port)
+	errCh := make(chan error)
+	server := &http.Server{Addr: p, Handler: api.MakeHTTPHandler()}
 	logger.Info(fmt.Sprintf("CoAP service started, exposed port %s", port))
-	errs <- http.ListenAndServe(p, api.MakeHTTPHandler())
+
+	go func() {
+		errCh <- server.ListenAndServe()
+	}()
+
+	select {
+	case <-ctx.Done():
+		ctxShutDown, cancelShutDown := context.WithTimeout(context.Background(), time.Second)
+		defer cancelShutDown()
+		if err := server.Shutdown(ctxShutDown); err != nil {
+			logger.Error(fmt.Sprintf("CoAP service error occured during shutdown at %s: %s", p, err))
+			return fmt.Errorf("CoAP service error occured during shutdown at %s: %w", p, err)
+		}
+		logger.Info(fmt.Sprintf("CoAP service shutdown of http at %s", p))
+		return nil
+	case err := <-errCh:
+		return err
+	}
 }
 
-func startCOAPServer(cfg config, svc coap.Service, auth mainflux.ThingsServiceClient, l logger.Logger, errs chan error) {
+func startCOAPServer(ctx context.Context, cfg config, svc coap.Service, auth mainflux.ThingsServiceClient, l logger.Logger) error {
 	p := fmt.Sprintf(":%s", cfg.port)
+	errCh := make(chan error)
 	l.Info(fmt.Sprintf("CoAP adapter service started, exposed port %s", cfg.port))
-	errs <- gocoap.ListenAndServe("udp", p, api.MakeCoAPHandler(svc, l))
+	go func() {
+		errCh <- gocoap.ListenAndServe("udp", p, api.MakeCoAPHandler(svc, l))
+	}()
+	select {
+	case <-ctx.Done():
+		l.Info(fmt.Sprintf("CoAP service shutdown of http at %s", p))
+		return nil
+	case err := <-errCh:
+		return err
+	}
 }

@@ -4,21 +4,21 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
-	"os/signal"
 	"strconv"
-	"syscall"
 	"time"
 
 	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
 	"github.com/jmoiron/sqlx"
 	"github.com/mainflux/mainflux"
 	"github.com/mainflux/mainflux/logger"
+	"github.com/mainflux/mainflux/pkg/errors"
 	"github.com/mainflux/mainflux/readers"
 	"github.com/mainflux/mainflux/readers/api"
 	"github.com/mainflux/mainflux/readers/postgres"
@@ -26,6 +26,7 @@ import (
 	opentracing "github.com/opentracing/opentracing-go"
 	stdprometheus "github.com/prometheus/client_golang/prometheus"
 	jconfig "github.com/uber/jaeger-client-go/config"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
@@ -82,6 +83,8 @@ type config struct {
 
 func main() {
 	cfg := loadConfig()
+	ctx, cancel := context.WithCancel(context.Background())
+	g, ctx := errgroup.WithContext(ctx)
 
 	logger, err := logger.New(os.Stdout, cfg.logLevel)
 	if err != nil {
@@ -101,18 +104,21 @@ func main() {
 
 	repo := newService(db, logger)
 
-	errs := make(chan error, 2)
+	g.Go(func() error {
+		return startHTTPServer(ctx, repo, tc, cfg.port, logger)
+	})
 
-	go startHTTPServer(repo, tc, cfg.port, logger, errs)
+	g.Go(func() error {
+		if sig := errors.KillSignalHandler(ctx); sig != nil {
+			cancel()
+			logger.Info(fmt.Sprintf("Postgres reader service shutdown by signal: %s", sig))
+		}
+		return nil
+	})
 
-	go func() {
-		c := make(chan os.Signal)
-		signal.Notify(c, syscall.SIGINT)
-		errs <- fmt.Errorf("%s", <-c)
-	}()
-
-	err = <-errs
-	logger.Error(fmt.Sprintf("Postgres reader service terminated: %s", err))
+	if err := g.Wait(); err != nil {
+		logger.Error(fmt.Sprintf("Postgres reader service terminated: %s", err))
+	}
 }
 
 func loadConfig() config {
@@ -229,8 +235,28 @@ func newService(db *sqlx.DB, logger logger.Logger) readers.MessageRepository {
 	return svc
 }
 
-func startHTTPServer(repo readers.MessageRepository, tc mainflux.ThingsServiceClient, port string, logger logger.Logger, errs chan error) {
+func startHTTPServer(ctx context.Context, repo readers.MessageRepository, tc mainflux.ThingsServiceClient, port string, logger logger.Logger) error {
 	p := fmt.Sprintf(":%s", port)
+	errCh := make(chan error)
+	server := &http.Server{Addr: p, Handler: api.MakeHandler(repo, tc, svcName)}
+
 	logger.Info(fmt.Sprintf("Postgres reader service started, exposed port %s", port))
-	errs <- http.ListenAndServe(p, api.MakeHandler(repo, tc, svcName))
+	go func() {
+		errCh <- server.ListenAndServe()
+	}()
+
+	select {
+	case <-ctx.Done():
+		ctxShutDown, cancelShutDown := context.WithTimeout(context.Background(), time.Second)
+		defer cancelShutDown()
+		if err := server.Shutdown(ctxShutDown); err != nil {
+			logger.Error(fmt.Sprintf("Postgres reader service error occured during shutdown at %s: %s", p, err))
+			return fmt.Errorf("Postgres reader service occured during shutdown at %s: %w", p, err)
+		}
+		logger.Info(fmt.Sprintf("Postgres reader service  shutdown of http at %s", p))
+		return nil
+	case err := <-errCh:
+		return err
+	}
+
 }

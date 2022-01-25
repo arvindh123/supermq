@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -11,9 +12,7 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/signal"
 	"strconv"
-	"syscall"
 	"time"
 
 	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
@@ -22,6 +21,7 @@ import (
 	"github.com/mainflux/mainflux"
 	authapi "github.com/mainflux/mainflux/auth/api/grpc"
 	"github.com/mainflux/mainflux/logger"
+	"github.com/mainflux/mainflux/pkg/errors"
 	"github.com/mainflux/mainflux/pkg/uuid"
 	"github.com/mainflux/mainflux/things"
 	"github.com/mainflux/mainflux/things/api"
@@ -35,6 +35,7 @@ import (
 	opentracing "github.com/opentracing/opentracing-go"
 	stdprometheus "github.com/prometheus/client_golang/prometheus"
 	jconfig "github.com/uber/jaeger-client-go/config"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
@@ -124,6 +125,8 @@ type config struct {
 
 func main() {
 	cfg := loadConfig()
+	ctx, cancel := context.WithCancel(context.Background())
+	g, ctx := errgroup.WithContext(ctx)
 
 	logger, err := logger.New(os.Stdout, cfg.logLevel)
 	if err != nil {
@@ -155,20 +158,30 @@ func main() {
 	defer cacheCloser.Close()
 
 	svc := newService(auth, dbTracer, cacheTracer, db, cacheClient, esClient, logger)
-	errs := make(chan error, 2)
 
-	go startHTTPServer(thhttpapi.MakeHandler(thingsTracer, svc), cfg.httpPort, cfg, logger, errs)
-	go startHTTPServer(authhttpapi.MakeHandler(thingsTracer, svc), cfg.authHTTPPort, cfg, logger, errs)
-	go startGRPCServer(svc, thingsTracer, cfg, logger, errs)
+	g.Go(func() error {
+		return startHTTPServer(ctx, "thing-http", thhttpapi.MakeHandler(thingsTracer, svc), cfg.httpPort, cfg, logger)
+	})
 
-	go func() {
-		c := make(chan os.Signal)
-		signal.Notify(c, syscall.SIGINT)
-		errs <- fmt.Errorf("%s", <-c)
-	}()
+	g.Go(func() error {
+		return startHTTPServer(ctx, "auth-http", authhttpapi.MakeHandler(thingsTracer, svc), cfg.authHTTPPort, cfg, logger)
+	})
 
-	err = <-errs
-	logger.Error(fmt.Sprintf("Things service terminated: %s", err))
+	g.Go(func() error {
+		return startGRPCServer(ctx, svc, thingsTracer, cfg, logger)
+	})
+
+	g.Go(func() error {
+		if sig := errors.KillSignalHandler(ctx); sig != nil {
+			cancel()
+			logger.Info(fmt.Sprintf("Things service shutdown by signal: %s", sig))
+		}
+		return nil
+	})
+
+	if err := g.Wait(); err != nil {
+		logger.Error(fmt.Sprintf("Things service terminated: %s", err))
+	}
 }
 
 func loadConfig() config {
@@ -336,41 +349,76 @@ func newService(auth mainflux.AuthServiceClient, dbTracer opentracing.Tracer, ca
 	return svc
 }
 
-func startHTTPServer(handler http.Handler, port string, cfg config, logger logger.Logger, errs chan error) {
+func startHTTPServer(ctx context.Context, typ string, handler http.Handler, port string, cfg config, logger logger.Logger) error {
 	p := fmt.Sprintf(":%s", port)
-	if cfg.serverCert != "" || cfg.serverKey != "" {
-		logger.Info(fmt.Sprintf("Things service started using https on port %s with cert %s key %s",
-			port, cfg.serverCert, cfg.serverKey))
-		errs <- http.ListenAndServeTLS(p, cfg.serverCert, cfg.serverKey, handler)
-		return
+	errCh := make(chan error)
+	server := &http.Server{Addr: p, Handler: handler}
+
+	switch {
+	case cfg.serverCert != "" || cfg.serverKey != "":
+		logger.Info(fmt.Sprintf("Things %s service started using https on port %s with cert %s key %s",
+			typ, port, cfg.serverCert, cfg.serverKey))
+		go func() {
+			errCh <- server.ListenAndServeTLS(cfg.serverCert, cfg.serverKey)
+		}()
+	default:
+		logger.Info(fmt.Sprintf("Things %s service started using http on port %s", typ, cfg.httpPort))
+		go func() {
+			errCh <- server.ListenAndServe()
+		}()
 	}
-	logger.Info(fmt.Sprintf("Things service started using http on port %s", cfg.httpPort))
-	errs <- http.ListenAndServe(p, handler)
+
+	select {
+	case <-ctx.Done():
+		ctxShutDown, cancelShutDown := context.WithTimeout(context.Background(), time.Second)
+		defer cancelShutDown()
+		if err := server.Shutdown(ctxShutDown); err != nil {
+			logger.Error(fmt.Sprintf("Things %s service error occured during shutdown at %s: %s", typ, p, err))
+			return fmt.Errorf("things %s service occured during shutdown at %s: %w", typ, p, err)
+		}
+		logger.Info(fmt.Sprintf("Things %s service  shutdown of http at %s", typ, p))
+		return nil
+	case err := <-errCh:
+		return err
+	}
+
 }
 
-func startGRPCServer(svc things.Service, tracer opentracing.Tracer, cfg config, logger logger.Logger, errs chan error) {
+func startGRPCServer(ctx context.Context, svc things.Service, tracer opentracing.Tracer, cfg config, logger logger.Logger) error {
 	p := fmt.Sprintf(":%s", cfg.authGRPCPort)
+	errCh := make(chan error)
+	var server *grpc.Server
+
 	listener, err := net.Listen("tcp", p)
 	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to listen on port %s: %s", cfg.authGRPCPort, err))
-		os.Exit(1)
+		return fmt.Errorf("Failed to listen on port %s: %w", cfg.authGRPCPort, err)
 	}
 
-	var server *grpc.Server
-	if cfg.serverCert != "" || cfg.serverKey != "" {
+	switch {
+	case cfg.serverCert != "" || cfg.serverKey != "":
 		creds, err := credentials.NewServerTLSFromFile(cfg.serverCert, cfg.serverKey)
 		if err != nil {
-			logger.Error(fmt.Sprintf("Failed to load things certificates: %s", err))
-			os.Exit(1)
+			return fmt.Errorf("failed to load things certificates: %w", err)
 		}
 		logger.Info(fmt.Sprintf("Things gRPC service started using https on port %s with cert %s key %s",
 			cfg.authGRPCPort, cfg.serverCert, cfg.serverKey))
 		server = grpc.NewServer(grpc.Creds(creds))
-	} else {
+	default:
 		logger.Info(fmt.Sprintf("Things gRPC service started using http on port %s", cfg.authGRPCPort))
 		server = grpc.NewServer()
 	}
 
 	mainflux.RegisterThingsServiceServer(server, authgrpcapi.NewServer(tracer, svc))
-	errs <- server.Serve(listener)
+	go func() {
+		errCh <- server.Serve(listener)
+	}()
+
+	select {
+	case <-ctx.Done():
+		server.GracefulStop()
+		logger.Info(fmt.Sprintf("Things gRPC service shutdown at %s", p))
+		return nil
+	case err := <-errCh:
+		return err
+	}
 }

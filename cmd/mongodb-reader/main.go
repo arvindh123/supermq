@@ -11,14 +11,13 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"os/signal"
 	"strconv"
-	"syscall"
 	"time"
 
 	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
 	"github.com/mainflux/mainflux"
 	"github.com/mainflux/mainflux/logger"
+	"github.com/mainflux/mainflux/pkg/errors"
 	"github.com/mainflux/mainflux/readers"
 	"github.com/mainflux/mainflux/readers/api"
 	"github.com/mainflux/mainflux/readers/mongodb"
@@ -28,6 +27,7 @@ import (
 	jconfig "github.com/uber/jaeger-client-go/config"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
@@ -77,6 +77,8 @@ type config struct {
 
 func main() {
 	cfg := loadConfigs()
+	ctx, cancel := context.WithCancel(context.Background())
+	g, ctx := errgroup.WithContext(ctx)
 	logger, err := logger.New(os.Stdout, cfg.logLevel)
 	if err != nil {
 		log.Fatalf(err.Error())
@@ -94,17 +96,22 @@ func main() {
 
 	repo := newService(db, logger)
 
-	errs := make(chan error, 2)
-	go func() {
-		c := make(chan os.Signal)
-		signal.Notify(c, syscall.SIGINT)
-		errs <- fmt.Errorf("%s", <-c)
-	}()
+	g.Go(func() error {
+		return startHTTPServer(ctx, repo, tc, cfg, logger)
+	})
 
-	go startHTTPServer(repo, tc, cfg, logger, errs)
+	g.Go(func() error {
+		if sig := errors.KillSignalHandler(ctx); sig != nil {
+			cancel()
+			logger.Info(fmt.Sprintf("MongoDB reader service shutdown by signal: %s", sig))
+		}
+		return nil
+	})
 
-	err = <-errs
-	logger.Error(fmt.Sprintf("MongoDB reader service terminated: %s", err))
+	if err := g.Wait(); err != nil {
+		logger.Error(fmt.Sprintf("MongoDB reader service terminated: %s", err))
+	}
+
 }
 
 func loadConfigs() config {
@@ -215,14 +222,37 @@ func newService(db *mongo.Database, logger logger.Logger) readers.MessageReposit
 	return repo
 }
 
-func startHTTPServer(repo readers.MessageRepository, tc mainflux.ThingsServiceClient, cfg config, logger logger.Logger, errs chan error) {
+func startHTTPServer(ctx context.Context, repo readers.MessageRepository, tc mainflux.ThingsServiceClient, cfg config, logger logger.Logger) error {
 	p := fmt.Sprintf(":%s", cfg.port)
-	if cfg.serverCert != "" || cfg.serverKey != "" {
+	errCh := make(chan error)
+	server := &http.Server{Addr: p, Handler: api.MakeHandler(repo, tc, "mongodb-reader")}
+
+	switch {
+	case cfg.serverCert != "" || cfg.serverKey != "":
 		logger.Info(fmt.Sprintf("Mongo reader service started using https on port %s with cert %s key %s",
 			cfg.port, cfg.serverCert, cfg.serverKey))
-		errs <- http.ListenAndServeTLS(p, cfg.serverCert, cfg.serverKey, api.MakeHandler(repo, tc, "mongodb-reader"))
-		return
+		go func() {
+			errCh <- server.ListenAndServeTLS(cfg.serverCert, cfg.serverKey)
+		}()
+	default:
+		logger.Info(fmt.Sprintf("Mongo reader service started, exposed port %s", cfg.port))
+		go func() {
+			errCh <- server.ListenAndServe()
+		}()
 	}
-	logger.Info(fmt.Sprintf("Mongo reader service started, exposed port %s", cfg.port))
-	errs <- http.ListenAndServe(p, api.MakeHandler(repo, tc, "mongodb-reader"))
+
+	select {
+	case <-ctx.Done():
+		ctxShutDown, cancelShutDown := context.WithTimeout(context.Background(), time.Second)
+		defer cancelShutDown()
+		if err := server.Shutdown(ctxShutDown); err != nil {
+			logger.Error(fmt.Sprintf("MongoDB reader service error occured during shutdown at %s: %s", p, err))
+			return fmt.Errorf("MongoDB reader service occured during shutdown at %s: %w", p, err)
+		}
+		logger.Info(fmt.Sprintf("MongoDB reader  service  shutdown of http at %s", p))
+		return nil
+	case err := <-errCh:
+		return err
+	}
+
 }

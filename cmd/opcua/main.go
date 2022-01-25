@@ -9,9 +9,8 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"os/signal"
 	"strconv"
-	"syscall"
+	"time"
 
 	r "github.com/go-redis/redis/v8"
 	"github.com/mainflux/mainflux"
@@ -21,7 +20,9 @@ import (
 	"github.com/mainflux/mainflux/opcua/db"
 	"github.com/mainflux/mainflux/opcua/gopcua"
 	"github.com/mainflux/mainflux/opcua/redis"
+	"github.com/mainflux/mainflux/pkg/errors"
 	"github.com/mainflux/mainflux/pkg/messaging/nats"
+	"golang.org/x/sync/errgroup"
 
 	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
 	stdprometheus "github.com/prometheus/client_golang/prometheus"
@@ -81,6 +82,8 @@ type config struct {
 
 func main() {
 	cfg := loadConfig()
+	httpCtx, httpCancel := context.WithCancel(context.Background())
+	g, httpCtx := errgroup.WithContext(httpCtx)
 
 	logger, err := logger.New(os.Stdout, cfg.logLevel)
 	if err != nil {
@@ -129,18 +132,21 @@ func main() {
 	go subscribeToStoredSubs(sub, cfg.opcuaConfig, logger)
 	go subscribeToThingsES(svc, esConn, cfg.esConsumerName, logger)
 
-	errs := make(chan error, 2)
+	g.Go(func() error {
+		return startHTTPServer(httpCtx, svc, cfg, logger)
+	})
 
-	go startHTTPServer(svc, cfg, logger, errs)
+	g.Go(func() error {
+		if sig := errors.KillSignalHandler(httpCtx); sig != nil {
+			httpCancel()
+			logger.Info(fmt.Sprintf("OPC-UA adapter service shutdown by signal: %s", sig))
+		}
+		return nil
+	})
 
-	go func() {
-		c := make(chan os.Signal)
-		signal.Notify(c, syscall.SIGINT)
-		errs <- fmt.Errorf("%s", <-c)
-	}()
-
-	err = <-errs
-	logger.Error(fmt.Sprintf("OPC-UA adapter terminated: %s", err))
+	if err := g.Wait(); err != nil {
+		logger.Error(fmt.Sprintf("OPC-UA adapter service terminated: %s", err))
+	}
 }
 
 func loadConfig() config {
@@ -216,8 +222,28 @@ func newRouteMapRepositoy(client *r.Client, prefix string, logger logger.Logger)
 	return redis.NewRouteMapRepository(client, prefix)
 }
 
-func startHTTPServer(svc opcua.Service, cfg config, logger logger.Logger, errs chan error) {
+func startHTTPServer(ctx context.Context, svc opcua.Service, cfg config, logger logger.Logger) error {
 	p := fmt.Sprintf(":%s", cfg.httpPort)
-	logger.Info(fmt.Sprintf("opcua-adapter service started, exposed port %s", cfg.httpPort))
-	errs <- http.ListenAndServe(p, api.MakeHandler(svc))
+	errCh := make(chan error)
+	server := &http.Server{Addr: p, Handler: api.MakeHandler(svc)}
+	logger.Info(fmt.Sprintf("OPC-UA adapter service started, exposed port %s", cfg.httpPort))
+
+	go func() {
+		errCh <- server.ListenAndServe()
+	}()
+
+	select {
+	case <-ctx.Done():
+		ctxShutDown, cancelShutDown := context.WithTimeout(context.Background(), time.Second)
+		defer cancelShutDown()
+		if err := server.Shutdown(ctxShutDown); err != nil {
+			logger.Error(fmt.Sprintf("OPC-UA adapter service error occured during shutdown at %s: %s", p, err))
+			return fmt.Errorf("OPC-UA adapter service error occured during shutdown at %s: %w", p, err)
+		}
+		logger.Info(fmt.Sprintf("OPC-UA adapter service shutdown of http at %s", p))
+		return nil
+	case err := <-errCh:
+		return err
+	}
+
 }
