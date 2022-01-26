@@ -251,7 +251,7 @@ func startHTTPServer(ctx context.Context, repo readers.MessageRepository, tc mai
 		defer cancelShutDown()
 		if err := server.Shutdown(ctxShutDown); err != nil {
 			logger.Error(fmt.Sprintf("Postgres reader service error occured during shutdown at %s: %s", p, err))
-			return fmt.Errorf("Postgres reader service occured during shutdown at %s: %w", p, err)
+			return fmt.Errorf("postgres reader service occured during shutdown at %s: %w", p, err)
 		}
 		logger.Info(fmt.Sprintf("Postgres reader service  shutdown of http at %s", p))
 		return nil

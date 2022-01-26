@@ -247,7 +247,7 @@ func startHTTPServer(ctx context.Context, repo readers.MessageRepository, tc mai
 		defer cancelShutDown()
 		if err := server.Shutdown(ctxShutDown); err != nil {
 			logger.Error(fmt.Sprintf("MongoDB reader service error occured during shutdown at %s: %s", p, err))
-			return fmt.Errorf("MongoDB reader service occured during shutdown at %s: %w", p, err)
+			return fmt.Errorf("mongodb reader service occured during shutdown at %s: %w", p, err)
 		}
 		logger.Info(fmt.Sprintf("MongoDB reader  service  shutdown of http at %s", p))
 		return nil

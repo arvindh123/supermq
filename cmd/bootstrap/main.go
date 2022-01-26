@@ -354,7 +354,7 @@ func startHTTPServer(ctx context.Context, svc bootstrap.Service, cfg config, log
 		defer cancelShutDown()
 		if err := server.Shutdown(ctxShutDown); err != nil {
 			logger.Error(fmt.Sprintf("Bootstrap %s service error occured during shutdown at %s: %s", protocol, p, err))
-			return fmt.Errorf("Bootstrap %s service error occured during shutdown at %s: %w", protocol, p, err)
+			return fmt.Errorf("bootstrap %s service error occured during shutdown at %s: %w", protocol, p, err)
 		}
 		logger.Info(fmt.Sprintf("Bootstrap %s service shutdown of http at %s", protocol, p))
 		return nil

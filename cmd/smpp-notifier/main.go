@@ -355,7 +355,7 @@ func startHTTPServer(ctx context.Context, tracer opentracing.Tracer, svc notifie
 		defer cancelShutDown()
 		if err := server.Shutdown(ctxShutDown); err != nil {
 			logger.Error(fmt.Sprintf("SMPP notifier service error occured during shutdown at %s: %s", p, err))
-			return fmt.Errorf("SMPP notifier service occured during shutdown at %s: %w", p, err)
+			return fmt.Errorf("smpp notifier service occured during shutdown at %s: %w", p, err)
 		}
 		logger.Info(fmt.Sprintf("SMPP notifier service  shutdown of http at %s", p))
 		return nil

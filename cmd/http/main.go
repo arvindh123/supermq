@@ -114,13 +114,13 @@ func main() {
 	g.Go(func() error {
 		if sig := errors.KillSignalHandler(ctx); sig != nil {
 			cancel()
-			logger.Info(fmt.Sprintf("HTTP adapter shutdown by signal: %s", sig))
+			logger.Info(fmt.Sprintf("HTTP adapter service shutdown by signal: %s", sig))
 		}
 		return nil
 	})
 
 	if err := g.Wait(); err != nil {
-		logger.Error(fmt.Sprintf("HTTP adapter terminated: %s", err))
+		logger.Error(fmt.Sprintf("HTTP adapter service terminated: %s", err))
 	}
 
 }
@@ -210,10 +210,10 @@ func startHTTPServer(ctx context.Context, svc adapter.Service, cfg config, logge
 		ctxShutDown, cancelShutDown := context.WithTimeout(context.Background(), time.Second)
 		defer cancelShutDown()
 		if err := server.Shutdown(ctxShutDown); err != nil {
-			logger.Error(fmt.Sprintf("HTTP adapter error occured during shutdown at %s: %s", p, err))
-			return fmt.Errorf("HTTP adapter error occured during shutdown at %s: %w", p, err)
+			logger.Error(fmt.Sprintf("HTTP adapter service error occured during shutdown at %s: %s", p, err))
+			return fmt.Errorf("http adapter service error occured during shutdown at %s: %w", p, err)
 		}
-		logger.Info(fmt.Sprintf("HTTP adapter shutdown of http at %s", p))
+		logger.Info(fmt.Sprintf("HTTP adapter service shutdown of http at %s", p))
 		return nil
 	case err := <-errCh:
 		return err

@@ -156,7 +156,7 @@ func startHTTPService(ctx context.Context, port string, logger logger.Logger) er
 		defer cancelShutDown()
 		if err := server.Shutdown(ctxShutDown); err != nil {
 			logger.Error(fmt.Sprintf("MongoDB writer service error occured during shutdown at %s: %s", p, err))
-			return fmt.Errorf("MongoDB writer service occured during shutdown at %s: %w", p, err)
+			return fmt.Errorf("mongodb writer service occured during shutdown at %s: %w", p, err)
 		}
 		logger.Info(fmt.Sprintf("MongoDB writer service  shutdown of http at %s", p))
 		return nil

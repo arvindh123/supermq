@@ -108,7 +108,7 @@ func main() {
 	g.Go(func() error {
 		if sig := errors.KillSignalHandler(ctx); sig != nil {
 			cancel()
-			logger.Info(fmt.Sprintf("assandra reader service shutdown by signal: %s", sig))
+			logger.Info(fmt.Sprintf("Cassandra reader service shutdown by signal: %s", sig))
 		}
 		return nil
 	})
@@ -256,7 +256,7 @@ func startHTTPServer(ctx context.Context, repo readers.MessageRepository, tc mai
 		defer cancelShutDown()
 		if err := server.Shutdown(ctxShutDown); err != nil {
 			logger.Error(fmt.Sprintf("Cassandra reader service error occured during shutdown at %s: %s", p, err))
-			return fmt.Errorf("Cassandra reader service error occured during shutdown at %s: %w", p, err)
+			return fmt.Errorf("cassandra reader service error occured during shutdown at %s: %w", p, err)
 		}
 		logger.Info(fmt.Sprintf("Cassandra reader service shutdown of http at %s", p))
 		return nil

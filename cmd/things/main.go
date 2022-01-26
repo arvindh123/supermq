@@ -391,7 +391,7 @@ func startGRPCServer(ctx context.Context, svc things.Service, tracer opentracing
 
 	listener, err := net.Listen("tcp", p)
 	if err != nil {
-		return fmt.Errorf("Failed to listen on port %s: %w", cfg.authGRPCPort, err)
+		return fmt.Errorf("failed to listen on port %s: %w", cfg.authGRPCPort, err)
 	}
 
 	switch {

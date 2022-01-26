@@ -393,7 +393,7 @@ func startHTTPServer(ctx context.Context, svc certs.Service, cfg config, logger 
 		defer cancelShutDown()
 		if err := server.Shutdown(ctxShutDown); err != nil {
 			logger.Error(fmt.Sprintf("Certs service error occured during shutdown at %s: %s", p, err))
-			return fmt.Errorf("Certs service  error occured during shutdown at %s: %w", p, err)
+			return fmt.Errorf("certs service  error occured during shutdown at %s: %w", p, err)
 		}
 		logger.Info(fmt.Sprintf("Certs service  shutdown of http at %s", p))
 		return nil

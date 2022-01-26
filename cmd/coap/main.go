@@ -213,10 +213,10 @@ func startHTTPServer(ctx context.Context, port string, logger logger.Logger) err
 		ctxShutDown, cancelShutDown := context.WithTimeout(context.Background(), time.Second)
 		defer cancelShutDown()
 		if err := server.Shutdown(ctxShutDown); err != nil {
-			logger.Error(fmt.Sprintf("CoAP service error occured during shutdown at %s: %s", p, err))
-			return fmt.Errorf("CoAP service error occured during shutdown at %s: %w", p, err)
+			logger.Error(fmt.Sprintf("CoAP adapter service error occured during shutdown at %s: %s", p, err))
+			return fmt.Errorf("CoAP adapter service error occured during shutdown at %s: %w", p, err)
 		}
-		logger.Info(fmt.Sprintf("CoAP service shutdown of http at %s", p))
+		logger.Info(fmt.Sprintf("CoAP adapter service shutdown of http at %s", p))
 		return nil
 	case err := <-errCh:
 		return err
@@ -232,7 +232,7 @@ func startCOAPServer(ctx context.Context, cfg config, svc coap.Service, auth mai
 	}()
 	select {
 	case <-ctx.Done():
-		l.Info(fmt.Sprintf("CoAP service shutdown of http at %s", p))
+		l.Info(fmt.Sprintf("CoAP adapter service shutdown of http at %s", p))
 		return nil
 	case err := <-errCh:
 		return err
