@@ -16,16 +16,6 @@ import (
 )
 
 var (
-	// ErrNotFound indicates a non-existent entity request.
-	ErrNotFound = errors.New("non-existent entity")
-
-	// ErrMalformedEntity indicates malformed entity specification
-	ErrMalformedEntity = errors.New("malformed entity specification")
-
-	// ErrUnauthorizedAccess indicates missing or invalid credentials provided
-	// when accessing a protected resource.
-	ErrUnauthorizedAccess = errors.New("missing or invalid credentials provided")
-
 	// ErrFailedCertCreation failed to create certificate
 	ErrFailedCertCreation = errors.New("failed to create client certificate")
 
@@ -41,13 +31,19 @@ var _ Service = (*certsService)(nil)
 // implementation, and all of its decorators (e.g. logging & metrics).
 type Service interface {
 	// IssueCert issues certificate for given thing id if access is granted with token
-	IssueCert(ctx context.Context, token, thingID, daysValid string, keyBits int, keyType string) (Cert, error)
+	IssueCert(ctx context.Context, token, thingID, ttl string, keyBits int, keyType string) (Cert, error)
 
-	// ListCerts lists all certificates issued for given owner
+	// ListCerts lists certificates issued for a given thing ID
 	ListCerts(ctx context.Context, token, thingID string, offset, limit uint64) (Page, error)
 
-	// RevokeCert revokes certificate for given thing
-	RevokeCert(ctx context.Context, token, thingID string) (Revoke, error)
+	// ListSerials lists certificate serial IDs issued for a given thing ID
+	ListSerials(ctx context.Context, token, thingID string, offset, limit uint64) (Page, error)
+
+	// ViewCert retrieves the certificate issued for a given serial ID
+	ViewCert(ctx context.Context, token, serialID string) (Cert, error)
+
+	// RevokeCert revokes a certificate for a given serial ID
+	RevokeCert(ctx context.Context, token, serialID string) (Revoke, error)
 }
 
 // Config defines the service parameters
@@ -109,10 +105,10 @@ type Cert struct {
 	Expire         time.Time `json:"expire" mapstructure:"-"`
 }
 
-func (cs *certsService) IssueCert(ctx context.Context, token, thingID string, daysValid string, keyBits int, keyType string) (Cert, error) {
+func (cs *certsService) IssueCert(ctx context.Context, token, thingID string, ttl string, keyBits int, keyType string) (Cert, error) {
 	owner, err := cs.auth.Identify(ctx, &mainflux.Token{Value: token})
 	if err != nil {
-		return Cert{}, errors.Wrap(ErrUnauthorizedAccess, err)
+		return Cert{}, err
 	}
 
 	thing, err := cs.sdk.Thing(thingID, token)
@@ -120,14 +116,14 @@ func (cs *certsService) IssueCert(ctx context.Context, token, thingID string, da
 		return Cert{}, errors.Wrap(ErrFailedCertCreation, err)
 	}
 
-	cert, err := cs.pki.IssueCert(thing.Key, daysValid, keyType, keyBits)
+	cert, err := cs.pki.IssueCert(thing.Key, ttl, keyType, keyBits)
 	if err != nil {
 		return Cert{}, errors.Wrap(ErrFailedCertCreation, err)
 	}
 
 	c := Cert{
 		ThingID:        thingID,
-		OwnerID:        owner.GetEmail(),
+		OwnerID:        owner.GetId(),
 		ClientCert:     cert.ClientCert,
 		IssuingCA:      cert.IssuingCA,
 		CAChain:        cert.CAChain,
@@ -143,36 +139,90 @@ func (cs *certsService) IssueCert(ctx context.Context, token, thingID string, da
 
 func (cs *certsService) RevokeCert(ctx context.Context, token, thingID string) (Revoke, error) {
 	var revoke Revoke
-	_, err := cs.auth.Identify(ctx, &mainflux.Token{Value: token})
+	u, err := cs.auth.Identify(ctx, &mainflux.Token{Value: token})
 	if err != nil {
-		return revoke, errors.Wrap(ErrUnauthorizedAccess, err)
+		return revoke, err
 	}
 	thing, err := cs.sdk.Thing(thingID, token)
 	if err != nil {
 		return revoke, errors.Wrap(ErrFailedCertRevocation, err)
 	}
 
-	cert, err := cs.certsRepo.RetrieveByThing(ctx, thing.ID)
+	// TODO: Replace offset and limit
+	offset, limit := uint64(0), uint64(10000)
+	cp, err := cs.certsRepo.RetrieveByThing(ctx, u.GetId(), thing.ID, offset, limit)
 	if err != nil {
 		return revoke, errors.Wrap(ErrFailedCertRevocation, err)
 	}
 
-	revTime, err := cs.pki.Revoke(cert.Serial)
-	if err != nil {
-		return revoke, errors.Wrap(ErrFailedCertRevocation, err)
+	for _, c := range cp.Certs {
+		revTime, err := cs.pki.Revoke(c.Serial)
+		if err != nil {
+			return revoke, errors.Wrap(ErrFailedCertRevocation, err)
+		}
+		revoke.RevocationTime = revTime
+		if err = cs.certsRepo.Remove(context.Background(), u.GetId(), c.Serial); err != nil {
+			return revoke, errors.Wrap(errFailedToRemoveCertFromDB, err)
+		}
 	}
-	revoke.RevocationTime = revTime
-	if err = cs.certsRepo.Remove(context.Background(), cert.Serial); err != nil {
-		return revoke, errors.Wrap(errFailedToRemoveCertFromDB, err)
-	}
+
 	return revoke, nil
 }
 
 func (cs *certsService) ListCerts(ctx context.Context, token, thingID string, offset, limit uint64) (Page, error) {
 	u, err := cs.auth.Identify(ctx, &mainflux.Token{Value: token})
 	if err != nil {
-		return Page{}, errors.Wrap(ErrUnauthorizedAccess, err)
+		return Page{}, err
 	}
 
-	return cs.certsRepo.RetrieveAll(ctx, u.GetEmail(), thingID, offset, limit)
+	cp, err := cs.certsRepo.RetrieveByThing(ctx, u.GetId(), thingID, offset, limit)
+	if err != nil {
+		return Page{}, err
+	}
+
+	for i, cert := range cp.Certs {
+		vcert, err := cs.pki.Read(cert.Serial)
+		if err != nil {
+			return Page{}, err
+		}
+		cp.Certs[i].ClientCert = vcert.ClientCert
+		cp.Certs[i].ClientKey = vcert.ClientKey
+	}
+
+	return cp, nil
+}
+
+func (cs *certsService) ListSerials(ctx context.Context, token, thingID string, offset, limit uint64) (Page, error) {
+	u, err := cs.auth.Identify(ctx, &mainflux.Token{Value: token})
+	if err != nil {
+		return Page{}, err
+	}
+
+	return cs.certsRepo.RetrieveByThing(ctx, u.GetId(), thingID, offset, limit)
+}
+
+func (cs *certsService) ViewCert(ctx context.Context, token, serialID string) (Cert, error) {
+	u, err := cs.auth.Identify(ctx, &mainflux.Token{Value: token})
+	if err != nil {
+		return Cert{}, err
+	}
+
+	cert, err := cs.certsRepo.RetrieveBySerial(ctx, u.GetId(), serialID)
+	if err != nil {
+		return Cert{}, err
+	}
+
+	vcert, err := cs.pki.Read(serialID)
+	if err != nil {
+		return Cert{}, err
+	}
+
+	c := Cert{
+		ThingID:    cert.ThingID,
+		ClientCert: vcert.ClientCert,
+		Serial:     cert.Serial,
+		Expire:     cert.Expire,
+	}
+
+	return c, nil
 }

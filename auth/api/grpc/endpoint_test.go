@@ -37,6 +37,7 @@ const (
 
 	authoritiesObj = "authorities"
 	memberRelation = "member"
+	loginDuration  = 30 * time.Minute
 )
 
 var svc auth.Service
@@ -52,7 +53,7 @@ func newService() auth.Service {
 
 	t := jwt.New(secret)
 
-	return auth.New(repo, groupRepo, idProvider, t, ketoMock)
+	return auth.New(repo, groupRepo, idProvider, t, ketoMock, loginDuration)
 }
 
 func startGRPCServer(svc auth.Service, port int) {
@@ -79,7 +80,7 @@ func TestIssue(t *testing.T) {
 			desc:  "issue for user with valid token",
 			id:    id,
 			email: email,
-			kind:  auth.UserKey,
+			kind:  auth.LoginKey,
 			err:   nil,
 			code:  codes.OK,
 		},
@@ -108,11 +109,12 @@ func TestIssue(t *testing.T) {
 			code:  codes.InvalidArgument,
 		},
 		{
-			desc: "issue for user that  exist",
-			id:   "",
-			kind: auth.APIKey,
-			err:  status.Error(codes.Unauthenticated, "unauthorized access"),
-			code: codes.Unauthenticated,
+			desc:  "issue for user that exist",
+			id:    "",
+			email: "",
+			kind:  auth.APIKey,
+			err:   status.Error(codes.Unauthenticated, "unauthenticated access"),
+			code:  codes.Unauthenticated,
 		},
 	}
 
@@ -125,7 +127,7 @@ func TestIssue(t *testing.T) {
 }
 
 func TestIdentify(t *testing.T) {
-	_, loginSecret, err := svc.Issue(context.Background(), "", auth.Key{Type: auth.UserKey, IssuedAt: time.Now(), IssuerID: id, Subject: email})
+	_, loginSecret, err := svc.Issue(context.Background(), "", auth.Key{Type: auth.LoginKey, IssuedAt: time.Now(), IssuerID: id, Subject: email})
 	assert.Nil(t, err, fmt.Sprintf("Issuing user key expected to succeed: %s", err))
 
 	_, recoverySecret, err := svc.Issue(context.Background(), "", auth.Key{Type: auth.RecoveryKey, IssuedAt: time.Now(), IssuerID: id, Subject: email})
@@ -170,7 +172,7 @@ func TestIdentify(t *testing.T) {
 			desc:  "identify user with invalid user token",
 			token: "invalid",
 			idt:   mainflux.UserIdentity{},
-			err:   status.Error(codes.Unauthenticated, "unauthorized access"),
+			err:   status.Error(codes.Unauthenticated, "unauthenticated access"),
 			code:  codes.Unauthenticated,
 		},
 		{
@@ -194,7 +196,7 @@ func TestIdentify(t *testing.T) {
 }
 
 func TestAuthorize(t *testing.T) {
-	_, loginSecret, err := svc.Issue(context.Background(), "", auth.Key{Type: auth.UserKey, IssuedAt: time.Now(), IssuerID: id, Subject: email})
+	_, loginSecret, err := svc.Issue(context.Background(), "", auth.Key{Type: auth.LoginKey, IssuedAt: time.Now(), IssuerID: id, Subject: email})
 	assert.Nil(t, err, fmt.Sprintf("Issuing user key expected to succeed: %s", err))
 
 	authAddr := fmt.Sprintf("localhost:%d", port)
@@ -229,7 +231,7 @@ func TestAuthorize(t *testing.T) {
 			relation: "unauthorizedRelation",
 			ar:       mainflux.AuthorizeRes{Authorized: false},
 			err:      nil,
-			code:     codes.Unauthenticated,
+			code:     codes.PermissionDenied,
 		},
 		{
 			desc:     "authorize user with unauthorized object",
@@ -239,7 +241,7 @@ func TestAuthorize(t *testing.T) {
 			relation: memberRelation,
 			ar:       mainflux.AuthorizeRes{Authorized: false},
 			err:      nil,
-			code:     codes.Unauthenticated,
+			code:     codes.PermissionDenied,
 		},
 		{
 			desc:     "authorize user with unauthorized subject",
@@ -249,7 +251,7 @@ func TestAuthorize(t *testing.T) {
 			relation: memberRelation,
 			ar:       mainflux.AuthorizeRes{Authorized: false},
 			err:      nil,
-			code:     codes.Unauthenticated,
+			code:     codes.PermissionDenied,
 		},
 		{
 			desc:     "authorize user with invalid ACL",
@@ -275,7 +277,7 @@ func TestAuthorize(t *testing.T) {
 }
 
 func TestAddPolicy(t *testing.T) {
-	_, loginSecret, err := svc.Issue(context.Background(), "", auth.Key{Type: auth.UserKey, IssuedAt: time.Now(), IssuerID: id, Subject: email})
+	_, loginSecret, err := svc.Issue(context.Background(), "", auth.Key{Type: auth.LoginKey, IssuedAt: time.Now(), IssuerID: id, Subject: email})
 	assert.Nil(t, err, fmt.Sprintf("Issuing user key expected to succeed: %s", err))
 
 	authAddr := fmt.Sprintf("localhost:%d", port)
@@ -328,7 +330,7 @@ func TestAddPolicy(t *testing.T) {
 }
 
 func TestDeletePolicy(t *testing.T) {
-	_, loginSecret, err := svc.Issue(context.Background(), "", auth.Key{Type: auth.UserKey, IssuedAt: time.Now(), IssuerID: id, Subject: email})
+	_, loginSecret, err := svc.Issue(context.Background(), "", auth.Key{Type: auth.LoginKey, IssuedAt: time.Now(), IssuerID: id, Subject: email})
 	assert.Nil(t, err, fmt.Sprintf("Issuing user key expected to succeed: %s", err))
 
 	authAddr := fmt.Sprintf("localhost:%d", port)
@@ -380,7 +382,7 @@ func TestDeletePolicy(t *testing.T) {
 }
 
 func TestMembers(t *testing.T) {
-	_, token, err := svc.Issue(context.Background(), "", auth.Key{Type: auth.UserKey, IssuedAt: time.Now(), IssuerID: id, Subject: email})
+	_, token, err := svc.Issue(context.Background(), "", auth.Key{Type: auth.LoginKey, IssuedAt: time.Now(), IssuerID: id, Subject: email})
 	assert.Nil(t, err, fmt.Sprintf("Issuing user key expected to succeed: %s", err))
 
 	group := auth.Group{

@@ -54,6 +54,7 @@ const (
 	defKetoHost      = "mainflux-keto"
 	defKetoWritePort = "4467"
 	defKetoReadPort  = "4466"
+	defLoginDuration = "10h"
 
 	envLogLevel      = "MF_AUTH_LOG_LEVEL"
 	envDBHost        = "MF_AUTH_DB_HOST"
@@ -74,6 +75,7 @@ const (
 	envKetoHost      = "MF_KETO_HOST"
 	envKetoWritePort = "MF_KETO_WRITE_REMOTE_PORT"
 	envKetoReadPort  = "MF_KETO_READ_REMOTE_PORT"
+	envLoginDuration = "MF_AUTH_LOGIN_TOKEN_DURATION"
 )
 
 type config struct {
@@ -89,6 +91,7 @@ type config struct {
 	ketoHost      string
 	ketoWritePort string
 	ketoReadPort  string
+	loginDuration time.Duration
 }
 
 type tokenConfig struct {
@@ -150,6 +153,11 @@ func loadConfig() config {
 		SSLRootCert: mainflux.Env(envDBSSLRootCert, defDBSSLRootCert),
 	}
 
+	loginDuration, err := time.ParseDuration(mainflux.Env(envLoginDuration, defLoginDuration))
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	return config{
 		logLevel:      mainflux.Env(envLogLevel, defLogLevel),
 		dbConfig:      dbConfig,
@@ -162,6 +170,7 @@ func loadConfig() config {
 		ketoHost:      mainflux.Env(envKetoHost, defKetoHost),
 		ketoReadPort:  mainflux.Env(envKetoReadPort, defKetoReadPort),
 		ketoWritePort: mainflux.Env(envKetoWritePort, defKetoWritePort),
+		loginDuration: loginDuration,
 	}
 
 }
@@ -215,7 +224,7 @@ func connectToDB(dbConfig postgres.Config, logger logger.Logger) *sqlx.DB {
 	return db
 }
 
-func newService(db *sqlx.DB, tracer opentracing.Tracer, secret string, logger logger.Logger, readerConn, writerConn *grpc.ClientConn) auth.Service {
+func newService(db *sqlx.DB, tracer opentracing.Tracer, secret string, logger logger.Logger, readerConn, writerConn *grpc.ClientConn, duration time.Duration) auth.Service {
 	database := postgres.NewDatabase(db)
 	keysRepo := tracing.New(postgres.New(database), tracer)
 
@@ -227,7 +236,7 @@ func newService(db *sqlx.DB, tracer opentracing.Tracer, secret string, logger lo
 	idProvider := uuid.New()
 	t := jwt.New(secret)
 
-	svc := auth.New(keysRepo, groupsRepo, idProvider, t, pa)
+	svc := auth.New(keysRepo, groupsRepo, idProvider, t, pa, duration)
 	svc = api.LoggingMiddleware(svc, logger)
 	svc = api.MetricsMiddleware(
 		svc,

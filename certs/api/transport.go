@@ -26,11 +26,6 @@ const (
 	defLimit    = 10
 )
 
-var (
-	errUnauthorized = errors.New("missing or invalid credentials provided")
-	errConflict     = errors.New("entity already exists")
-)
-
 // MakeHandler returns a HTTP handler for API endpoints.
 func MakeHandler(svc certs.Service) http.Handler {
 	opts := []kithttp.ServerOption{
@@ -46,9 +41,9 @@ func MakeHandler(svc certs.Service) http.Handler {
 		opts...,
 	))
 
-	r.Get("/certs/:thingId", kithttp.NewServer(
-		listCerts(svc),
-		decodeListCerts,
+	r.Get("/certs/:certId", kithttp.NewServer(
+		viewCert(svc),
+		decodeViewCert,
 		encodeResponse,
 		opts...,
 	))
@@ -60,8 +55,15 @@ func MakeHandler(svc certs.Service) http.Handler {
 		opts...,
 	))
 
+	r.Get("/serials/:thingId", kithttp.NewServer(
+		listSerials(svc),
+		decodeListCerts,
+		encodeResponse,
+		opts...,
+	))
+
 	r.Handle("/metrics", promhttp.Handler())
-	r.GetFunc("/version", mainflux.Version("certs"))
+	r.GetFunc("/health", mainflux.Health("certs"))
 
 	return r
 }
@@ -102,6 +104,15 @@ func decodeListCerts(_ context.Context, r *http.Request) (interface{}, error) {
 	return req, nil
 }
 
+func decodeViewCert(_ context.Context, r *http.Request) (interface{}, error) {
+	req := viewReq{
+		token:    r.Header.Get("Authorization"),
+		serialID: bone.GetValue(r, "certId"),
+	}
+
+	return req, nil
+}
+
 func decodeCerts(_ context.Context, r *http.Request) (interface{}, error) {
 	if r.Header.Get("Content-Type") != contentType {
 		return nil, errors.ErrUnsupportedContentType
@@ -133,7 +144,7 @@ func encodeError(_ context.Context, err error, w http.ResponseWriter) {
 	case io.EOF, errors.ErrMalformedEntity,
 		errors.ErrInvalidQueryParams:
 		w.WriteHeader(http.StatusBadRequest)
-	case errConflict:
+	case errors.ErrConflict:
 		w.WriteHeader(http.StatusConflict)
 	default:
 		switch err.(type) {

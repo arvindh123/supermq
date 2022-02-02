@@ -21,7 +21,7 @@ func key() auth.Key {
 	exp := time.Now().UTC().Add(10 * time.Minute).Round(time.Second)
 	return auth.Key{
 		ID:        "id",
-		Type:      auth.UserKey,
+		Type:      auth.LoginKey,
 		Subject:   "user@email.com",
 		IssuerID:  "",
 		IssuedAt:  time.Now().UTC().Add(-10 * time.Second).Round(time.Second),
@@ -83,7 +83,7 @@ func TestParse(t *testing.T) {
 			desc:  "parse ivalid key",
 			key:   auth.Key{},
 			token: "invalid",
-			err:   auth.ErrUnauthorizedAccess,
+			err:   errors.ErrAuthentication,
 		},
 		{
 			desc:  "parse expired key",

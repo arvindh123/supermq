@@ -3,7 +3,9 @@
 
 package api
 
-import "github.com/mainflux/mainflux/certs"
+import (
+	"github.com/mainflux/mainflux/pkg/errors"
+)
 
 const maxLimitSize = 100
 
@@ -12,12 +14,16 @@ type addCertsReq struct {
 	ThingID string `json:"thing_id"`
 	KeyBits int    `json:"key_bits"`
 	KeyType string `json:"key_type"`
-	Valid   string `json:"valid"`
+	TTL     string `json:"ttl"`
 }
 
 func (req addCertsReq) validate() error {
-	if req.ThingID == "" && req.token == "" {
-		return errUnauthorized
+	if req.token == "" {
+		return errors.ErrAuthentication
+	}
+
+	if req.ThingID == "" || req.TTL == "" || req.KeyType == "" || req.KeyBits == 0 {
+		return errors.ErrMalformedEntity
 	}
 	return nil
 }
@@ -31,11 +37,27 @@ type listReq struct {
 
 func (req *listReq) validate() error {
 	if req.token == "" {
-		return certs.ErrUnauthorizedAccess
+		return errors.ErrAuthentication
 	}
 	if req.limit == 0 || req.limit > maxLimitSize {
-		return certs.ErrMalformedEntity
+		return errors.ErrMalformedEntity
 	}
+	return nil
+}
+
+type viewReq struct {
+	serialID string
+	token    string
+}
+
+func (req *viewReq) validate() error {
+	if req.token == "" {
+		return errors.ErrAuthentication
+	}
+	if req.serialID == "" {
+		return errors.ErrMalformedEntity
+	}
+
 	return nil
 }
 
@@ -45,8 +67,12 @@ type revokeReq struct {
 }
 
 func (req *revokeReq) validate() error {
-	if req.token == "" || req.certID == "" {
-		return certs.ErrUnauthorizedAccess
+	if req.token == "" {
+		return errors.ErrAuthentication
+	}
+
+	if req.certID == "" {
+		return errors.ErrMalformedEntity
 	}
 
 	return nil

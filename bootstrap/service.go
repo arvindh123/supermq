@@ -16,28 +16,15 @@ import (
 )
 
 var (
-	// ErrNotFound indicates a non-existent entity request.
-	ErrNotFound = errors.New("non-existent entity")
-
-	// ErrMalformedEntity indicates malformed entity specification.
-	ErrMalformedEntity = errors.New("malformed entity specification")
-
-	// ErrUnauthorizedAccess indicates missing or invalid credentials provided
-	// when accessing a protected resource.
-	ErrUnauthorizedAccess = errors.New("missing or invalid credentials provided")
-
-	// ErrConflict indicates that entity with the same ID or external ID already exists.
-	ErrConflict = errors.New("entity already exists")
-
 	// ErrThings indicates failure to communicate with Mainflux Things service.
-	// It can be due to networking error or invalid/unauthorized request.
+	// It can be due to networking error or invalid/unauthenticated request.
 	ErrThings = errors.New("failed to receive response from Things service")
 
-	// ErrExternalKeyNotFound indicates a non-existent bootstrap configuration for given external key
-	ErrExternalKeyNotFound = errors.New("failed to get bootstrap configuration for given external key")
+	// ErrExternalKey indicates a non-existent bootstrap configuration for given external key
+	ErrExternalKey = errors.New("failed to get bootstrap configuration for given external key")
 
-	// ErrSecureBootstrap indicates error in getting bootstrap configuration for given encrypted external key
-	ErrSecureBootstrap = errors.New("failed to get bootstrap configuration for given encrypted external key")
+	// ErrExternalKeySecure indicates error in getting bootstrap configuration for given encrypted external key
+	ErrExternalKeySecure = errors.New("failed to get bootstrap configuration for given encrypted external key")
 
 	// ErrBootstrap indicates error in getting bootstrap configuration.
 	ErrBootstrap = errors.New("failed to read bootstrap configuration")
@@ -259,7 +246,7 @@ func (bs bootstrapService) UpdateConnections(ctx context.Context, token, id stri
 		}
 		if err := bs.sdk.Connect(conIDs, token); err != nil {
 			if errors.Contains(err, mfsdk.ErrFailedConnect) {
-				return ErrMalformedEntity
+				return errors.ErrMalformedEntity
 			}
 			return ErrThings
 		}
@@ -297,13 +284,13 @@ func (bs bootstrapService) Bootstrap(ctx context.Context, externalKey, externalI
 	if secure {
 		dec, err := bs.dec(externalKey)
 		if err != nil {
-			return Config{}, errors.Wrap(ErrSecureBootstrap, err)
+			return Config{}, errors.Wrap(ErrExternalKeySecure, err)
 		}
 		externalKey = dec
 	}
 
 	if cfg.ExternalKey != externalKey {
-		return Config{}, errors.Wrap(ErrExternalKeyNotFound, ErrNotFound)
+		return Config{}, ErrExternalKey
 	}
 
 	return cfg, nil
@@ -385,7 +372,7 @@ func (bs bootstrapService) identify(token string) (string, error) {
 
 	res, err := bs.auth.Identify(ctx, &mainflux.Token{Value: token})
 	if err != nil {
-		return "", ErrUnauthorizedAccess
+		return "", errors.ErrAuthentication
 	}
 
 	return res.GetEmail(), nil
@@ -406,7 +393,7 @@ func (bs bootstrapService) thing(token, id string) (mfsdk.Thing, error) {
 	thing, err := bs.sdk.Thing(thingID, token)
 	if err != nil {
 		if errors.Contains(err, mfsdk.ErrFailedFetch) {
-			return mfsdk.Thing{}, errors.Wrap(errThingNotFound, ErrNotFound)
+			return mfsdk.Thing{}, errors.Wrap(errThingNotFound, errors.ErrNotFound)
 		}
 
 		if id != "" {
@@ -437,7 +424,7 @@ func (bs bootstrapService) connectionChannels(channels, existing []string, token
 	for id := range add {
 		ch, err := bs.sdk.Channel(id, token)
 		if err != nil {
-			return nil, errors.Wrap(ErrMalformedEntity, err)
+			return nil, errors.Wrap(errors.ErrMalformedEntity, err)
 		}
 
 		ret = append(ret, Channel{
@@ -490,14 +477,14 @@ func (bs bootstrapService) toIDList(channels []Channel) []string {
 func (bs bootstrapService) dec(in string) (string, error) {
 	ciphertext, err := hex.DecodeString(in)
 	if err != nil {
-		return "", ErrNotFound
+		return "", err
 	}
 	block, err := aes.NewCipher(bs.encKey)
 	if err != nil {
 		return "", err
 	}
 	if len(ciphertext) < aes.BlockSize {
-		return "", ErrMalformedEntity
+		return "", err
 	}
 	iv := ciphertext[:aes.BlockSize]
 	ciphertext = ciphertext[aes.BlockSize:]

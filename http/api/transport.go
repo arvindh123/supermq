@@ -5,7 +5,6 @@ package api
 
 import (
 	"context"
-	"errors"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -19,8 +18,8 @@ import (
 	"github.com/go-zoo/bone"
 	"github.com/mainflux/mainflux"
 	adapter "github.com/mainflux/mainflux/http"
+	"github.com/mainflux/mainflux/pkg/errors"
 	"github.com/mainflux/mainflux/pkg/messaging"
-	"github.com/mainflux/mainflux/things"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc/codes"
@@ -57,7 +56,7 @@ func MakeHandler(svc adapter.Service, tracer opentracing.Tracer) http.Handler {
 		opts...,
 	))
 
-	r.GetFunc("/version", mainflux.Version("http"))
+	r.GetFunc("/health", mainflux.Health("http"))
 	r.Handle("/metrics", promhttp.Handler())
 
 	return r
@@ -148,13 +147,13 @@ func encodeError(_ context.Context, err error, w http.ResponseWriter) {
 	switch err {
 	case errMalformedData, errMalformedSubtopic:
 		w.WriteHeader(http.StatusBadRequest)
-	case things.ErrUnauthorizedAccess:
-		w.WriteHeader(http.StatusForbidden)
+	case errors.ErrAuthentication:
+		w.WriteHeader(http.StatusUnauthorized)
 	default:
 		if e, ok := status.FromError(err); ok {
 			switch e.Code() {
-			case codes.PermissionDenied:
-				w.WriteHeader(http.StatusForbidden)
+			case codes.Unauthenticated:
+				w.WriteHeader(http.StatusUnauthorized)
 			default:
 				w.WriteHeader(http.StatusServiceUnavailable)
 			}

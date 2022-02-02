@@ -59,7 +59,7 @@ func MakeHandler(svc notifiers.Service, tracer opentracing.Tracer) http.Handler 
 		opts...,
 	))
 
-	mux.GetFunc("/version", mainflux.Version("notifier"))
+	mux.GetFunc("/health", mainflux.Health("notifier"))
 	mux.Handle("/metrics", promhttp.Handler())
 
 	return mux
@@ -142,12 +142,11 @@ func encodeError(_ context.Context, err error, w http.ResponseWriter) {
 			errors.Contains(errorVal, errInvalidTopic),
 			errors.Contains(errorVal, errors.ErrInvalidQueryParams):
 			w.WriteHeader(http.StatusBadRequest)
-		case errors.Contains(errorVal, notifiers.ErrNotFound),
-			errors.Contains(errorVal, errNotFound):
+		case errors.Contains(errorVal, errors.ErrNotFound):
 			w.WriteHeader(http.StatusNotFound)
-		case errors.Contains(errorVal, notifiers.ErrUnauthorizedAccess):
+		case errors.Contains(errorVal, errors.ErrAuthentication):
 			w.WriteHeader(http.StatusUnauthorized)
-		case errors.Contains(errorVal, notifiers.ErrConflict):
+		case errors.Contains(errorVal, errors.ErrConflict):
 			w.WriteHeader(http.StatusConflict)
 		case errors.Contains(errorVal, errors.ErrUnsupportedContentType):
 			w.WriteHeader(http.StatusUnsupportedMediaType)

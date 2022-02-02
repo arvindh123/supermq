@@ -24,12 +24,13 @@ import (
 )
 
 const (
-	secret       = "secret"
-	contentType  = "application/json"
-	id           = uuid.Prefix + "-000000000001"
-	email        = "user@example.com"
-	unauthzID    = uuid.Prefix + "-000000000002"
-	unauthzEmail = "unauthz@example.com"
+	secret        = "secret"
+	contentType   = "application/json"
+	id            = uuid.Prefix + "-000000000001"
+	email         = "user@example.com"
+	unauthzID     = uuid.Prefix + "-000000000002"
+	unauthzEmail  = "unauthz@example.com"
+	loginDuration = 30 * time.Minute
 )
 
 type testRequest struct {
@@ -68,7 +69,7 @@ func newService() auth.Service {
 	mockAuthzDB[unauthzID] = append(mockAuthzDB[unauthzID], mocks.MockSubjectSet{Object: "users", Relation: "member"})
 	ketoMock := mocks.NewKetoMock(mockAuthzDB)
 
-	return auth.New(repo, groupRepo, idProvider, t, ketoMock)
+	return auth.New(repo, groupRepo, idProvider, t, ketoMock, loginDuration)
 }
 
 func newServer(svc auth.Service) *httptest.Server {
@@ -89,10 +90,10 @@ type addPolicyRequest struct {
 
 func TestAddPolicies(t *testing.T) {
 	svc := newService()
-	_, loginSecret, err := svc.Issue(context.Background(), "", auth.Key{Type: auth.UserKey, IssuedAt: time.Now(), IssuerID: id, Subject: email})
+	_, loginSecret, err := svc.Issue(context.Background(), "", auth.Key{Type: auth.LoginKey, IssuedAt: time.Now(), IssuerID: id, Subject: email})
 	assert.Nil(t, err, fmt.Sprintf("Issuing user key expected to succeed: %s", err))
 
-	_, userLoginSecret, err := svc.Issue(context.Background(), "", auth.Key{Type: auth.UserKey, IssuedAt: time.Now(), IssuerID: unauthzID, Subject: unauthzEmail})
+	_, userLoginSecret, err := svc.Issue(context.Background(), "", auth.Key{Type: auth.LoginKey, IssuedAt: time.Now(), IssuerID: unauthzID, Subject: unauthzEmail})
 	assert.Nil(t, err, fmt.Sprintf("Issuing unauthorized user's key expected to succeed: %s", err))
 
 	ts := newServer(svc)
@@ -137,14 +138,14 @@ func TestAddPolicies(t *testing.T) {
 			desc:   "Add policies with invalid token",
 			token:  "invalid",
 			ct:     contentType,
-			status: http.StatusForbidden,
+			status: http.StatusUnauthorized,
 			req:    toJSON(valid),
 		},
 		{
 			desc:   "Add policies with empty token",
 			token:  "",
 			ct:     contentType,
-			status: http.StatusForbidden,
+			status: http.StatusUnauthorized,
 			req:    toJSON(valid),
 		},
 		{
@@ -209,10 +210,10 @@ func TestAddPolicies(t *testing.T) {
 
 func TestDeletePolicies(t *testing.T) {
 	svc := newService()
-	_, loginSecret, err := svc.Issue(context.Background(), "", auth.Key{Type: auth.UserKey, IssuedAt: time.Now(), IssuerID: id, Subject: email})
+	_, loginSecret, err := svc.Issue(context.Background(), "", auth.Key{Type: auth.LoginKey, IssuedAt: time.Now(), IssuerID: id, Subject: email})
 	assert.Nil(t, err, fmt.Sprintf("Issuing user key expected to succeed: %s", err))
 
-	_, userLoginSecret, err := svc.Issue(context.Background(), "", auth.Key{Type: auth.UserKey, IssuedAt: time.Now(), IssuerID: unauthzID, Subject: unauthzEmail})
+	_, userLoginSecret, err := svc.Issue(context.Background(), "", auth.Key{Type: auth.LoginKey, IssuedAt: time.Now(), IssuerID: unauthzID, Subject: unauthzEmail})
 	assert.Nil(t, err, fmt.Sprintf("Issuing unauthorized user's key expected to succeed: %s", err))
 
 	ts := newServer(svc)
@@ -247,14 +248,14 @@ func TestDeletePolicies(t *testing.T) {
 			desc:   "Delete policies with invalid token",
 			token:  "invalid",
 			ct:     contentType,
-			status: http.StatusForbidden,
+			status: http.StatusUnauthorized,
 			req:    toJSON(validSingleDeleteReq),
 		},
 		{
 			desc:   "Delete policies with empty token",
 			token:  "",
 			ct:     contentType,
-			status: http.StatusForbidden,
+			status: http.StatusUnauthorized,
 			req:    toJSON(validSingleDeleteReq),
 		},
 		{

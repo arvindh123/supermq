@@ -41,10 +41,10 @@ func newService() users.Service {
 	mockAuthzDB[unauthzToken] = append(mockAuthzDB[unauthzToken], mocks.SubjectSet{Object: "nothing", Relation: "do"})
 	mockUsers := map[string]string{user.Email: user.Email, unauthzToken: unauthzToken}
 
-	auth := mocks.NewAuthService(mockUsers, mockAuthzDB)
+	authSvc := mocks.NewAuthService(mockUsers, mockAuthzDB)
 	e := mocks.NewEmailer()
 
-	return users.New(userRepo, hasher, auth, e, idProvider, passRegex)
+	return users.New(userRepo, hasher, authSvc, e, idProvider, passRegex)
 }
 
 func TestRegister(t *testing.T) {
@@ -66,7 +66,7 @@ func TestRegister(t *testing.T) {
 			desc:  "register existing user",
 			user:  user,
 			token: user.Email,
-			err:   users.ErrConflict,
+			err:   errors.ErrConflict,
 		},
 		{
 			desc: "register new user with weak password",
@@ -80,7 +80,7 @@ func TestRegister(t *testing.T) {
 		{
 			desc:  "register a new user with unauthorized access",
 			user:  users.User{Email: "newuser@example.com", Password: "12345678"},
-			err:   users.ErrAuthorization,
+			err:   errors.ErrAuthorization,
 			token: unauthzToken,
 		},
 	}
@@ -114,18 +114,18 @@ func TestLogin(t *testing.T) {
 				Email:    wrong,
 				Password: user.Password,
 			},
-			err: users.ErrUnauthorizedAccess,
+			err: errors.ErrAuthentication,
 		},
 		"login with wrong password": {
 			user: users.User{
 				Email:    user.Email,
 				Password: wrong,
 			},
-			err: users.ErrUnauthorizedAccess,
+			err: errors.ErrAuthentication,
 		},
 		"login failed auth": {
 			user: noAuthUser,
-			err:  users.ErrUnauthorizedAccess,
+			err:  errors.ErrAuthentication,
 		},
 	}
 
@@ -158,17 +158,17 @@ func TestViewUser(t *testing.T) {
 			userID: id,
 			err:    nil,
 		},
-		"view user with unauthorized token": {
+		"view user with empty token": {
 			user:   users.User{},
 			token:  "",
 			userID: id,
-			err:    users.ErrUnauthorizedAccess,
+			err:    errors.ErrAuthentication,
 		},
-		"view user with authorized token and invalid user id": {
+		"view user with valid token and invalid user id": {
 			user:   users.User{},
 			token:  token,
 			userID: "",
-			err:    users.ErrUnauthorizedAccess,
+			err:    errors.ErrAuthentication,
 		},
 	}
 
@@ -202,7 +202,7 @@ func TestViewProfile(t *testing.T) {
 		"invalid token's user info": {
 			user:  users.User{},
 			token: "",
-			err:   users.ErrUnauthorizedAccess,
+			err:   errors.ErrAuthentication,
 		},
 	}
 
@@ -246,10 +246,10 @@ func TestListUsers(t *testing.T) {
 			size:  0,
 			err:   nil,
 		},
-		"list user with unauthorized token": {
+		"list user with emtpy token": {
 			token: "",
 			size:  0,
-			err:   users.ErrUnauthorizedAccess,
+			err:   errors.ErrAuthentication,
 		},
 		"list users with offset and limit": {
 			token:  token,
@@ -291,7 +291,7 @@ func TestUpdateUser(t *testing.T) {
 		"update user with invalid token": {
 			user:  user,
 			token: "non-existent",
-			err:   users.ErrUnauthorizedAccess,
+			err:   errors.ErrAuthentication,
 		},
 	}
 
@@ -311,7 +311,7 @@ func TestGenerateResetToken(t *testing.T) {
 		err   error
 	}{
 		"valid user reset token":  {user.Email, nil},
-		"invalid user rest token": {nonExistingUser.Email, users.ErrUserNotFound},
+		"invalid user rest token": {nonExistingUser.Email, errors.ErrNotFound},
 	}
 
 	for desc, tc := range cases {
@@ -333,8 +333,8 @@ func TestChangePassword(t *testing.T) {
 		err         error
 	}{
 		"valid user change password ":                    {token, "newpassword", user.Password, nil},
-		"valid user change password with wrong password": {token, "newpassword", "wrongpassword", users.ErrUnauthorizedAccess},
-		"valid user change password invalid token":       {"", "newpassword", user.Password, users.ErrUnauthorizedAccess},
+		"valid user change password with wrong password": {token, "newpassword", "wrongpassword", errors.ErrAuthentication},
+		"valid user change password invalid token":       {"", "newpassword", user.Password, errors.ErrAuthentication},
 	}
 
 	for desc, tc := range cases {
@@ -351,9 +351,9 @@ func TestResetPassword(t *testing.T) {
 
 	mockAuthzDB := map[string][]mocks.SubjectSet{}
 	mockAuthzDB[user.Email] = append(mockAuthzDB[user.Email], mocks.SubjectSet{Object: "authorities", Relation: "member"})
-	auth := mocks.NewAuthService(map[string]string{user.Email: user.Email}, mockAuthzDB)
+	authSvc := mocks.NewAuthService(map[string]string{user.Email: user.Email}, mockAuthzDB)
 
-	resetToken, err := auth.Issue(context.Background(), &mainflux.IssueReq{Id: user.ID, Email: user.Email, Type: 2})
+	resetToken, err := authSvc.Issue(context.Background(), &mainflux.IssueReq{Id: user.ID, Email: user.Email, Type: 2})
 	assert.Nil(t, err, fmt.Sprintf("Generating reset token expected to succeed: %s", err))
 	cases := map[string]struct {
 		token    string
@@ -361,7 +361,7 @@ func TestResetPassword(t *testing.T) {
 		err      error
 	}{
 		"valid user reset password ":   {resetToken.GetValue(), user.Email, nil},
-		"invalid user reset password ": {"", "newpassword", users.ErrUnauthorizedAccess},
+		"invalid user reset password ": {"", "newpassword", errors.ErrAuthentication},
 	}
 
 	for desc, tc := range cases {

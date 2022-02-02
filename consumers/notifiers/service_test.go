@@ -55,14 +55,14 @@ func TestCreateSubscription(t *testing.T) {
 			token: exampleUser1,
 			sub:   notifiers.Subscription{Contact: exampleUser1, Topic: "valid.topic"},
 			id:    "",
-			err:   notifiers.ErrConflict,
+			err:   errors.ErrConflict,
 		},
 		{
-			desc:  "test unauthorized access",
+			desc:  "test with empty token",
 			token: "",
 			sub:   notifiers.Subscription{Contact: exampleUser1, Topic: "valid.topic"},
 			id:    "",
-			err:   notifiers.ErrUnauthorizedAccess,
+			err:   errors.ErrAuthentication,
 		},
 	}
 
@@ -100,14 +100,14 @@ func TestViewSubscription(t *testing.T) {
 			token: exampleUser1,
 			id:    "not_exist",
 			sub:   notifiers.Subscription{},
-			err:   notifiers.ErrNotFound,
+			err:   errors.ErrNotFound,
 		},
 		{
-			desc:  "test unauthorized access",
+			desc:  "test with empty token",
 			token: "",
 			id:    id,
 			sub:   notifiers.Subscription{},
-			err:   notifiers.ErrUnauthorizedAccess,
+			err:   errors.ErrAuthentication,
 		},
 	}
 
@@ -175,10 +175,10 @@ func TestListSubscriptions(t *testing.T) {
 				Contact: "empty@example.com",
 			},
 			page: notifiers.Page{},
-			err:  notifiers.ErrNotFound,
+			err:  errors.ErrNotFound,
 		},
 		{
-			desc:  "test unauthorized access",
+			desc:  "test with empty token",
 			token: "",
 			pageMeta: notifiers.PageMetadata{
 				Offset: 2,
@@ -186,7 +186,7 @@ func TestListSubscriptions(t *testing.T) {
 				Topic:  "topic.subtopic.13",
 			},
 			page: notifiers.Page{},
-			err:  notifiers.ErrUnauthorizedAccess,
+			err:  errors.ErrAuthentication,
 		},
 		{
 			desc:  "test with topic",
@@ -260,10 +260,10 @@ func TestRemoveSubscription(t *testing.T) {
 			err:   nil,
 		},
 		{
-			desc:  "test unauthorized access",
+			desc:  "test with empty token",
 			token: "",
 			id:    id,
-			err:   notifiers.ErrUnauthorizedAccess,
+			err:   errors.ErrAuthentication,
 		},
 	}
 

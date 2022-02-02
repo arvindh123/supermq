@@ -7,6 +7,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+
 	"github.com/mainflux/mainflux/auth"
 	httpapi "github.com/mainflux/mainflux/auth/api/http"
 	"github.com/mainflux/mainflux/auth/jwt"
@@ -14,19 +21,14 @@ import (
 	"github.com/mainflux/mainflux/pkg/uuid"
 	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/stretchr/testify/assert"
-	"io"
-	"net/http"
-	"net/http/httptest"
-	"strings"
-	"testing"
-	"time"
 )
 
 const (
-	contentType = "application/json"
-	email       = "user@example.com"
-	secret      = "secret"
-	id          = "testID"
+	contentType   = "application/json"
+	email         = "user@example.com"
+	secret        = "secret"
+	id            = "testID"
+	loginDuration = 30 * time.Minute
 )
 
 type testRequest struct {
@@ -58,7 +60,7 @@ func newService() auth.Service {
 	idProvider := uuid.NewMock()
 	t := jwt.New(secret)
 	policies := mocks.NewKetoMock(map[string][]mocks.MockSubjectSet{})
-	return auth.New(keys, groups, idProvider, t, policies)
+	return auth.New(keys, groups, idProvider, t, policies, loginDuration)
 }
 
 func newServer(svc auth.Service) *httptest.Server {
@@ -76,7 +78,7 @@ func TestShareGroupAccess(t *testing.T) {
 	ts := newServer(svc)
 	defer ts.Close()
 
-	_, secret, err := svc.Issue(context.Background(), "", auth.Key{Type: auth.UserKey, IssuedAt: time.Now(), IssuerID: id, Subject: email})
+	_, secret, err := svc.Issue(context.Background(), "", auth.Key{Type: auth.LoginKey, IssuedAt: time.Now(), IssuerID: id, Subject: email})
 	assert.Nil(t, err, fmt.Sprintf("Issuing login key expected to succeed: %s", err))
 
 	key := auth.Key{
@@ -152,7 +154,7 @@ func TestShareGroupAccess(t *testing.T) {
 			contentType: contentType,
 			auth:        "token",
 			userGroupID: "ug",
-			status:      http.StatusForbidden,
+			status:      http.StatusUnauthorized,
 		},
 	}
 
