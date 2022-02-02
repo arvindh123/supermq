@@ -119,7 +119,7 @@ func main() {
 
 	readerConn, writerConn := initKeto(cfg.ketoHost, cfg.ketoReadPort, cfg.ketoWritePort, logger)
 
-	svc := newService(db, dbTracer, cfg.secret, logger, readerConn, writerConn)
+	svc := newService(db, dbTracer, cfg.secret, logger, readerConn, writerConn, cfg.loginDuration)
 
 	g.Go(func() error {
 		return startHTTPServer(ctx, tracer, svc, cfg.httpPort, cfg.serverCert, cfg.serverKey, logger)
