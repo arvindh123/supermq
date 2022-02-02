@@ -106,7 +106,7 @@ func main() {
 	})
 
 	g.Go(func() error {
-		if sig := errors.KillSignalHandler(ctx); sig != nil {
+		if sig := errors.SignalHandler(ctx); sig != nil {
 			cancel()
 			logger.Info(fmt.Sprintf("Cassandra reader service shutdown by signal: %s", sig))
 		}

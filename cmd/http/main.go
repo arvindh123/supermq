@@ -112,7 +112,7 @@ func main() {
 		return startHTTPServer(ctx, svc, cfg, logger, tracer)
 	})
 	g.Go(func() error {
-		if sig := errors.KillSignalHandler(ctx); sig != nil {
+		if sig := errors.SignalHandler(ctx); sig != nil {
 			cancel()
 			logger.Info(fmt.Sprintf("HTTP adapter service shutdown by signal: %s", sig))
 		}

@@ -103,9 +103,9 @@ func New(text string) Error {
 	}
 }
 
-func KillSignalHandler(ctx context.Context) error {
+func SignalHandler(ctx context.Context) error {
 	c := make(chan os.Signal)
-	signal.Notify(c, syscall.SIGINT)
+	signal.Notify(c, syscall.SIGINT, syscall.SIGABRT)
 	select {
 	case sig := <-c:
 		return fmt.Errorf("%s", sig)

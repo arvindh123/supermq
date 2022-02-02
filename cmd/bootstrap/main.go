@@ -157,7 +157,7 @@ func main() {
 	go subscribeToThingsES(svc, thingsESConn, cfg.esConsumerName, logger)
 
 	g.Go(func() error {
-		if sig := errors.KillSignalHandler(ctx); sig != nil {
+		if sig := errors.SignalHandler(ctx); sig != nil {
 			cancel()
 			logger.Info(fmt.Sprintf("Bootstrap service shutdown by signal: %s", sig))
 		}

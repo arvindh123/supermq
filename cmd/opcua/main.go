@@ -137,7 +137,7 @@ func main() {
 	})
 
 	g.Go(func() error {
-		if sig := errors.KillSignalHandler(httpCtx); sig != nil {
+		if sig := errors.SignalHandler(httpCtx); sig != nil {
 			httpCancel()
 			logger.Info(fmt.Sprintf("OPC-UA adapter service shutdown by signal: %s", sig))
 		}
