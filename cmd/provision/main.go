@@ -17,11 +17,13 @@ import (
 	mfSDK "github.com/mainflux/mainflux/pkg/sdk/go"
 	"github.com/mainflux/mainflux/provision"
 	"github.com/mainflux/mainflux/provision/api"
-	"golang.org/x/sync/errgroup"
 	"github.com/mainflux/mainflux/things"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
+	graceWaitTIme = 5
+
 	defLogLevel        = "error"
 	defConfigFile      = "config.toml"
 	defTLS             = "false"
@@ -150,11 +152,11 @@ func startHTTPServer(ctx context.Context, svc provision.Service, cfg provision.C
 
 	select {
 	case <-ctx.Done():
-		ctxShutDown, cancelShutDown := context.WithTimeout(context.Background(), time.Second)
+		ctxShutDown, cancelShutDown := context.WithTimeout(context.Background(), graceWaitTIme*time.Second)
 		defer cancelShutDown()
 		if err := server.Shutdown(ctxShutDown); err != nil {
-			logger.Error(fmt.Sprintf("Provision service error occured during shutdown at %s: %s", p, err))
-			return fmt.Errorf("provision service occured during shutdown at %s: %w", p, err)
+			logger.Error(fmt.Sprintf("Provision service error occurred during shutdown at %s: %s", p, err))
+			return fmt.Errorf("provision service occurred during shutdown at %s: %w", p, err)
 		}
 		logger.Info(fmt.Sprintf("Provision service  shutdown of http at %s", p))
 		return nil

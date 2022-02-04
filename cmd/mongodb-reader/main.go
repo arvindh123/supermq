@@ -33,6 +33,8 @@ import (
 )
 
 const (
+	graceWaitTIme = 5
+
 	defLogLevel          = "error"
 	defPort              = "8180"
 	defDB                = "mainflux"
@@ -243,11 +245,11 @@ func startHTTPServer(ctx context.Context, repo readers.MessageRepository, tc mai
 
 	select {
 	case <-ctx.Done():
-		ctxShutDown, cancelShutDown := context.WithTimeout(context.Background(), time.Second)
+		ctxShutDown, cancelShutDown := context.WithTimeout(context.Background(), graceWaitTIme*time.Second)
 		defer cancelShutDown()
 		if err := server.Shutdown(ctxShutDown); err != nil {
-			logger.Error(fmt.Sprintf("MongoDB reader service error occured during shutdown at %s: %s", p, err))
-			return fmt.Errorf("mongodb reader service occured during shutdown at %s: %w", p, err)
+			logger.Error(fmt.Sprintf("MongoDB reader service error occurred during shutdown at %s: %s", p, err))
+			return fmt.Errorf("mongodb reader service occurred during shutdown at %s: %w", p, err)
 		}
 		logger.Info(fmt.Sprintf("MongoDB reader  service  shutdown of http at %s", p))
 		return nil

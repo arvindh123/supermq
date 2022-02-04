@@ -39,6 +39,8 @@ import (
 )
 
 const (
+	graceWaitTIme = 5
+
 	defLogLevel       = "error"
 	defDBHost         = "localhost"
 	defDBPort         = "5432"
@@ -350,11 +352,11 @@ func startHTTPServer(ctx context.Context, svc bootstrap.Service, cfg config, log
 
 	select {
 	case <-ctx.Done():
-		ctxShutDown, cancelShutDown := context.WithTimeout(context.Background(), time.Second)
+		ctxShutDown, cancelShutDown := context.WithTimeout(context.Background(), graceWaitTIme*time.Second)
 		defer cancelShutDown()
 		if err := server.Shutdown(ctxShutDown); err != nil {
-			logger.Error(fmt.Sprintf("Bootstrap %s service error occured during shutdown at %s: %s", protocol, p, err))
-			return fmt.Errorf("bootstrap %s service error occured during shutdown at %s: %w", protocol, p, err)
+			logger.Error(fmt.Sprintf("Bootstrap %s service error occurred during shutdown at %s: %s", protocol, p, err))
+			return fmt.Errorf("bootstrap %s service error occurred during shutdown at %s: %w", protocol, p, err)
 		}
 		logger.Info(fmt.Sprintf("Bootstrap %s service shutdown of http at %s", protocol, p))
 		return nil

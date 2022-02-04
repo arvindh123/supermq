@@ -39,6 +39,8 @@ import (
 )
 
 const (
+	graceWaitTIme = 5
+
 	defLogLevel      = "error"
 	defDBHost        = "localhost"
 	defDBPort        = "5432"
@@ -439,11 +441,11 @@ func startHTTPServer(ctx context.Context, tracer opentracing.Tracer, svc users.S
 
 	select {
 	case <-ctx.Done():
-		ctxShutDown, cancelShutDown := context.WithTimeout(context.Background(), time.Second)
+		ctxShutDown, cancelShutDown := context.WithTimeout(context.Background(), graceWaitTIme*time.Second)
 		defer cancelShutDown()
 		if err := server.Shutdown(ctxShutDown); err != nil {
-			logger.Error(fmt.Sprintf("Users service error occured during shutdown at %s: %s", p, err))
-			return fmt.Errorf("users service occured during shutdown at %s: %w", p, err)
+			logger.Error(fmt.Sprintf("Users service error occurred during shutdown at %s: %s", p, err))
+			return fmt.Errorf("users service occurred during shutdown at %s: %w", p, err)
 		}
 		logger.Info(fmt.Sprintf("Users service shutdown of http at %s", p))
 		return nil

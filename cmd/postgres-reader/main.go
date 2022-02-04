@@ -32,8 +32,9 @@ import (
 )
 
 const (
-	svcName = "postgres-reader"
-	sep     = ","
+	svcName       = "postgres-reader"
+	sep           = ","
+	graceWaitTIme = 5
 
 	defLogLevel          = "error"
 	defPort              = "8180"
@@ -247,11 +248,11 @@ func startHTTPServer(ctx context.Context, repo readers.MessageRepository, tc mai
 
 	select {
 	case <-ctx.Done():
-		ctxShutDown, cancelShutDown := context.WithTimeout(context.Background(), time.Second)
+		ctxShutDown, cancelShutDown := context.WithTimeout(context.Background(), graceWaitTIme*time.Second)
 		defer cancelShutDown()
 		if err := server.Shutdown(ctxShutDown); err != nil {
-			logger.Error(fmt.Sprintf("Postgres reader service error occured during shutdown at %s: %s", p, err))
-			return fmt.Errorf("postgres reader service occured during shutdown at %s: %w", p, err)
+			logger.Error(fmt.Sprintf("Postgres reader service error occurred during shutdown at %s: %s", p, err))
+			return fmt.Errorf("postgres reader service occurred during shutdown at %s: %w", p, err)
 		}
 		logger.Info(fmt.Sprintf("Postgres reader service  shutdown of http at %s", p))
 		return nil

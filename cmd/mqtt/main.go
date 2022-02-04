@@ -328,7 +328,7 @@ func proxyMQTT(ctx context.Context, cfg config, logger mflog.Logger, handler ses
 
 	select {
 	case <-ctx.Done():
-		logger.Info(fmt.Sprintf("proxy MQTT shutdown of http at %s", target))
+		logger.Info(fmt.Sprintf("proxy MQTT shutdown at %s", target))
 		return nil
 	case err := <-errCh:
 		return err

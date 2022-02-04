@@ -40,7 +40,8 @@ import (
 )
 
 const (
-	queue = "twins"
+	queue         = "twins"
+	graceWaitTIme = 5
 
 	defLogLevel        = "error"
 	defHTTPPort        = "8180"
@@ -339,11 +340,11 @@ func startHTTPServer(ctx context.Context, handler http.Handler, port string, cfg
 
 	select {
 	case <-ctx.Done():
-		ctxShutDown, cancelShutDown := context.WithTimeout(context.Background(), time.Second)
+		ctxShutDown, cancelShutDown := context.WithTimeout(context.Background(), graceWaitTIme*time.Second)
 		defer cancelShutDown()
 		if err := server.Shutdown(ctxShutDown); err != nil {
-			logger.Error(fmt.Sprintf("Twins service error occured during shutdown at %s: %s", p, err))
-			return fmt.Errorf("twins service occured during shutdown at %s: %w", p, err)
+			logger.Error(fmt.Sprintf("Twins service error occurred during shutdown at %s: %s", p, err))
+			return fmt.Errorf("twins service occurred during shutdown at %s: %w", p, err)
 		}
 		logger.Info(fmt.Sprintf("Twins service shutdown of http at %s", p))
 		return nil

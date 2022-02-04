@@ -26,7 +26,8 @@ import (
 )
 
 const (
-	svcName = "mongodb-writer"
+	svcName       = "mongodb-writer"
+	graceWaitTIme = 5
 
 	defLogLevel   = "error"
 	defNatsURL    = "nats://localhost:4222"
@@ -152,11 +153,11 @@ func startHTTPService(ctx context.Context, port string, logger logger.Logger) er
 
 	select {
 	case <-ctx.Done():
-		ctxShutDown, cancelShutDown := context.WithTimeout(context.Background(), time.Second)
+		ctxShutDown, cancelShutDown := context.WithTimeout(context.Background(), graceWaitTIme*time.Second)
 		defer cancelShutDown()
 		if err := server.Shutdown(ctxShutDown); err != nil {
-			logger.Error(fmt.Sprintf("MongoDB writer service error occured during shutdown at %s: %s", p, err))
-			return fmt.Errorf("mongodb writer service occured during shutdown at %s: %w", p, err)
+			logger.Error(fmt.Sprintf("MongoDB writer service error occurred during shutdown at %s: %s", p, err))
+			return fmt.Errorf("mongodb writer service occurred during shutdown at %s: %w", p, err)
 		}
 		logger.Info(fmt.Sprintf("MongoDB writer service  shutdown of http at %s", p))
 		return nil
