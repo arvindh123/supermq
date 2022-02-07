@@ -32,7 +32,7 @@ import (
 )
 
 const (
-	graceWaitTIme = 5
+	stopWaitTime = 5 * time.Second
 
 	defPort              = "5683"
 	defNatsURL           = "nats://localhost:4222"
@@ -212,7 +212,7 @@ func startHTTPServer(ctx context.Context, port string, logger logger.Logger) err
 
 	select {
 	case <-ctx.Done():
-		ctxShutDown, cancelShutDown := context.WithTimeout(context.Background(), graceWaitTIme*time.Second)
+		ctxShutDown, cancelShutDown := context.WithTimeout(context.Background(), stopWaitTime)
 		defer cancelShutDown()
 		if err := server.Shutdown(ctxShutDown); err != nil {
 			logger.Error(fmt.Sprintf("CoAP adapter service error occurred during shutdown at %s: %s", p, err))

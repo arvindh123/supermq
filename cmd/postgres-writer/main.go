@@ -25,9 +25,9 @@ import (
 )
 
 const (
-	svcName       = "postgres-writer"
-	sep           = ","
-	graceWaitTIme = 5
+	svcName      = "postgres-writer"
+	sep          = ","
+	stopWaitTime = 5 * time.Second
 
 	defLogLevel      = "error"
 	defNatsURL       = "nats://localhost:4222"
@@ -175,7 +175,7 @@ func startHTTPServer(ctx context.Context, port string, logger logger.Logger) err
 
 	select {
 	case <-ctx.Done():
-		ctxShutDown, cancelShutDown := context.WithTimeout(context.Background(), graceWaitTIme*time.Second)
+		ctxShutDown, cancelShutDown := context.WithTimeout(context.Background(), stopWaitTime)
 		defer cancelShutDown()
 		if err := server.Shutdown(ctxShutDown); err != nil {
 			logger.Error(fmt.Sprintf("Postgres writer service error occurred during shutdown at %s: %s", p, err))

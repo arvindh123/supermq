@@ -41,7 +41,7 @@ import (
 )
 
 const (
-	graceWaitTIme = 5
+	stopWaitTime = 5 * time.Second
 
 	defLogLevel        = "error"
 	defDBHost          = "localhost"
@@ -372,7 +372,7 @@ func startHTTPServer(ctx context.Context, typ string, handler http.Handler, port
 
 	select {
 	case <-ctx.Done():
-		ctxShutDown, cancelShutDown := context.WithTimeout(context.Background(), graceWaitTIme*time.Second)
+		ctxShutDown, cancelShutDown := context.WithTimeout(context.Background(), stopWaitTime)
 		defer cancelShutDown()
 		if err := server.Shutdown(ctxShutDown); err != nil {
 			logger.Error(fmt.Sprintf("Things %s service error occurred during shutdown at %s: %s", typ, p, err))
@@ -424,7 +424,7 @@ func startGRPCServer(ctx context.Context, svc things.Service, tracer opentracing
 		}()
 		select {
 		case <-c:
-		case <-time.After(graceWaitTIme * time.Second):
+		case <-time.After(stopWaitTime):
 		}
 		logger.Info(fmt.Sprintf("Things gRPC service shutdown at %s", p))
 		return nil

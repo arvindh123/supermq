@@ -29,7 +29,7 @@ import (
 )
 
 const (
-	graceWaitTIme = 5
+	stopWaitTime = 5 * time.Second
 
 	defLogLevel          = "error"
 	defPort              = "8180"
@@ -249,7 +249,7 @@ func startHTTPServer(ctx context.Context, repo readers.MessageRepository, tc mai
 
 	select {
 	case <-ctx.Done():
-		ctxShutDown, cancelShutDown := context.WithTimeout(context.Background(), graceWaitTIme*time.Second)
+		ctxShutDown, cancelShutDown := context.WithTimeout(context.Background(), stopWaitTime)
 		defer cancelShutDown()
 		if err := server.Shutdown(ctxShutDown); err != nil {
 			logger.Error(fmt.Sprintf("InfluxDB reader service error occurred during shutdown at %s: %s", p, err))
