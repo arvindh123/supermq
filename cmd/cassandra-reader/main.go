@@ -18,6 +18,7 @@ import (
 	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
 	"github.com/gocql/gocql"
 	"github.com/mainflux/mainflux"
+	authapi "github.com/mainflux/mainflux/auth/api/grpc"
 	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/pkg/errors"
 	"github.com/mainflux/mainflux/readers"
@@ -48,8 +49,10 @@ const (
 	defServerCert        = ""
 	defServerKey         = ""
 	defJaegerURL         = ""
-	defThingsAuthURL     = "localhost:8181"
+	defThingsAuthURL     = "localhost:8183"
 	defThingsAuthTimeout = "1s"
+	defUsersAuthURL      = "localhost:8181"
+	defUsersAuthTimeout  = "1s"
 
 	envLogLevel          = "MF_CASSANDRA_READER_LOG_LEVEL"
 	envPort              = "MF_CASSANDRA_READER_PORT"
@@ -65,6 +68,8 @@ const (
 	envJaegerURL         = "MF_JAEGER_URL"
 	envThingsAuthURL     = "MF_THINGS_AUTH_GRPC_URL"
 	envThingsAuthTimeout = "MF_THINGS_AUTH_GRPC_TIMEOUT"
+	envUsersAuthURL      = "MF_AUTH_GRPC_URL"
+	envUsersAuthTimeout  = "MF_AUTH_GRPC_TIMEOUT"
 )
 
 type config struct {
@@ -77,7 +82,9 @@ type config struct {
 	serverKey         string
 	jaegerURL         string
 	thingsAuthURL     string
+	usersAuthURL      string
 	thingsAuthTimeout time.Duration
+	usersAuthTimeout  time.Duration
 }
 
 func main() {
@@ -100,10 +107,18 @@ func main() {
 	defer thingsCloser.Close()
 
 	tc := thingsapi.NewClient(conn, thingsTracer, cfg.thingsAuthTimeout)
+	authTracer, authCloser := initJaeger("auth", cfg.jaegerURL, logger)
+	defer authCloser.Close()
+
+	authConn := connectToAuth(cfg, logger)
+	defer authConn.Close()
+
+	auth := authapi.NewClient(authTracer, authConn, cfg.usersAuthTimeout)
+
 	repo := newService(session, logger)
 
 	g.Go(func() error {
-		return startHTTPServer(ctx, repo, tc, cfg, logger)
+		return startHTTPServer(ctx, repo, tc, auth, cfg, logger)
 	})
 
 	g.Go(func() error {
@@ -117,6 +132,33 @@ func main() {
 		logger.Error(fmt.Sprintf("Cassandra reader service terminated: %s", err))
 	}
 }
+
+func connectToAuth(cfg config, logger logger.Logger) *grpc.ClientConn {
+	var opts []grpc.DialOption
+	logger.Info("Connecting to auth via gRPC")
+	if cfg.clientTLS {
+		if cfg.caCerts != "" {
+			tpc, err := credentials.NewClientTLSFromFile(cfg.caCerts, "")
+			if err != nil {
+				logger.Error(fmt.Sprintf("Failed to create tls credentials: %s", err))
+				os.Exit(1)
+			}
+			opts = append(opts, grpc.WithTransportCredentials(tpc))
+		}
+	} else {
+		opts = append(opts, grpc.WithInsecure())
+		logger.Info("gRPC communication is not encrypted")
+	}
+
+	conn, err := grpc.Dial(cfg.usersAuthURL, opts...)
+	if err != nil {
+		logger.Error(fmt.Sprintf("Failed to connect to auth service: %s", err))
+		os.Exit(1)
+	}
+	logger.Info(fmt.Sprintf("Established gRPC connection to things via gRPC: %s", cfg.usersAuthURL))
+	return conn
+}
+
 func loadConfig() config {
 	dbPort, err := strconv.Atoi(mainflux.Env(envDBPort, defDBPort))
 	if err != nil {
@@ -141,6 +183,11 @@ func loadConfig() config {
 		log.Fatalf("Invalid %s value: %s", envThingsAuthTimeout, err.Error())
 	}
 
+	usersAuthTimeout, err := time.ParseDuration(mainflux.Env(envUsersAuthTimeout, defUsersAuthTimeout))
+	if err != nil {
+		log.Fatalf("Invalid %s value: %s", envThingsAuthTimeout, err.Error())
+	}
+
 	return config{
 		logLevel:          mainflux.Env(envLogLevel, defLogLevel),
 		port:              mainflux.Env(envPort, defPort),
@@ -151,6 +198,8 @@ func loadConfig() config {
 		serverKey:         mainflux.Env(envServerKey, defServerKey),
 		jaegerURL:         mainflux.Env(envJaegerURL, defJaegerURL),
 		thingsAuthURL:     mainflux.Env(envThingsAuthURL, defThingsAuthURL),
+		usersAuthURL:      mainflux.Env(envUsersAuthURL, defUsersAuthURL),
+		usersAuthTimeout:  usersAuthTimeout,
 		thingsAuthTimeout: authTimeout,
 	}
 }
@@ -186,6 +235,7 @@ func connectToThings(cfg config, logger logger.Logger) *grpc.ClientConn {
 		logger.Error(fmt.Sprintf("Failed to connect to things service: %s", err))
 		os.Exit(1)
 	}
+	logger.Info(fmt.Sprintf("Established gRPC connection to things via gRPC: %s", cfg.thingsAuthURL))
 	return conn
 }
 
@@ -235,10 +285,10 @@ func newService(session *gocql.Session, logger logger.Logger) readers.MessageRep
 	return repo
 }
 
-func startHTTPServer(ctx context.Context, repo readers.MessageRepository, tc mainflux.ThingsServiceClient, cfg config, logger logger.Logger) error {
+func startHTTPServer(ctx context.Context, repo readers.MessageRepository, tc mainflux.ThingsServiceClient, ac mainflux.AuthServiceClient, cfg config, logger logger.Logger) error {
 	p := fmt.Sprintf(":%s", cfg.port)
 	errCh := make(chan error)
-	server := &http.Server{Addr: p, Handler: api.MakeHandler(repo, tc, "cassandra-reader")}
+	server := &http.Server{Addr: p, Handler: api.MakeHandler(repo, tc, ac, "cassandra-reader")}
 	switch {
 	case cfg.serverCert != "" || cfg.serverKey != "":
 		logger.Info(fmt.Sprintf("Cassandra reader service started using https on port %s with cert %s key %s", cfg.port, cfg.serverCert, cfg.serverKey))
@@ -264,4 +314,5 @@ func startHTTPServer(ctx context.Context, repo readers.MessageRepository, tc mai
 	case err := <-errCh:
 		return err
 	}
+
 }
