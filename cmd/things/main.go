@@ -162,11 +162,11 @@ func main() {
 	svc := newService(auth, dbTracer, cacheTracer, db, cacheClient, esClient, logger)
 
 	g.Go(func() error {
-		return startHTTPServer(ctx, "thing-http", thhttpapi.MakeHandler(thingsTracer, svc), cfg.httpPort, cfg, logger)
+		return startHTTPServer(ctx, "thing-http", thhttpapi.MakeHandler(thingsTracer, svc, logger), cfg.httpPort, cfg, logger)
 	})
 
 	g.Go(func() error {
-		return startHTTPServer(ctx, "auth-http", authhttpapi.MakeHandler(thingsTracer, svc), cfg.authHTTPPort, cfg, logger)
+		return startHTTPServer(ctx, "auth-http", authhttpapi.MakeHandler(thingsTracer, svc, logger), cfg.authHTTPPort, cfg, logger)
 	})
 
 	g.Go(func() error {

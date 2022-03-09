@@ -134,7 +134,7 @@ func main() {
 func startHTTPServer(ctx context.Context, svc provision.Service, cfg provision.Config, logger logger.Logger) error {
 	p := fmt.Sprintf(":%s", cfg.Server.HTTPPort)
 	errCh := make(chan error)
-	server := &http.Server{Addr: p, Handler: api.MakeHandler(svc)}
+	server := &http.Server{Addr: p, Handler: api.MakeHandler(svc, logger)}
 
 	switch {
 	case cfg.Server.ServerCert != "" || cfg.Server.ServerKey != "":

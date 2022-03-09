@@ -144,7 +144,7 @@ func main() {
 	defer closer.Close()
 
 	g.Go(func() error {
-		return startHTTPServer(ctx, twapi.MakeHandler(tracer, svc), cfg.httpPort, cfg, logger)
+		return startHTTPServer(ctx, twapi.MakeHandler(tracer, svc, logger), cfg.httpPort, cfg, logger)
 	})
 
 	g.Go(func() error {

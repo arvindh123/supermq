@@ -201,7 +201,7 @@ func connectToThings(cfg config, logger logger.Logger) *grpc.ClientConn {
 func startHTTPServer(ctx context.Context, svc adapter.Service, cfg config, logger logger.Logger, tracer opentracing.Tracer) error {
 	p := fmt.Sprintf(":%s", cfg.port)
 	errCh := make(chan error)
-	server := &http.Server{Addr: p, Handler: api.MakeHandler(svc, tracer)}
+	server := &http.Server{Addr: p, Handler: api.MakeHandler(svc, tracer, logger)}
 	logger.Info(fmt.Sprintf("HTTP adapter service started on port %s", cfg.port))
 	go func() {
 		errCh <- server.ListenAndServe()

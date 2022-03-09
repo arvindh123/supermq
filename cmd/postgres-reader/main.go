@@ -288,7 +288,7 @@ func newService(db *sqlx.DB, logger logger.Logger) readers.MessageRepository {
 func startHTTPServer(ctx context.Context, repo readers.MessageRepository, tc mainflux.ThingsServiceClient, ac mainflux.AuthServiceClient, port string, logger logger.Logger) error {
 	p := fmt.Sprintf(":%s", port)
 	errCh := make(chan error)
-	server := &http.Server{Addr: p, Handler: api.MakeHandler(repo, tc, ac, svcName)}
+	server := &http.Server{Addr: p, Handler: api.MakeHandler(repo, tc, ac, svcName, logger)}
 
 	logger.Info(fmt.Sprintf("Postgres reader service started, exposed port %s", port))
 	go func() {

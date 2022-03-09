@@ -283,7 +283,7 @@ func newService(client influxdata.Client, dbName string, logger logger.Logger) r
 func startHTTPServer(ctx context.Context, repo readers.MessageRepository, tc mainflux.ThingsServiceClient, ac mainflux.AuthServiceClient, cfg config, logger logger.Logger) error {
 	p := fmt.Sprintf(":%s", cfg.port)
 	errCh := make(chan error)
-	server := &http.Server{Addr: p, Handler: api.MakeHandler(repo, tc, ac, "influxdb-reader")}
+	server := &http.Server{Addr: p, Handler: api.MakeHandler(repo, tc, ac, "influxdb-reader", logger)}
 	switch {
 	case cfg.serverCert != "" || cfg.serverKey != "":
 		logger.Info(fmt.Sprintf("InfluxDB reader service started using https on port %s with cert %s key %s",

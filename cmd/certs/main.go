@@ -374,7 +374,7 @@ func newService(auth mainflux.AuthServiceClient, db *sqlx.DB, logger mflog.Logge
 func startHTTPServer(ctx context.Context, svc certs.Service, cfg config, logger mflog.Logger) error {
 	p := fmt.Sprintf(":%s", cfg.httpPort)
 	errCh := make(chan error)
-	server := &http.Server{Addr: p, Handler: api.MakeHandler(svc)}
+	server := &http.Server{Addr: p, Handler: api.MakeHandler(svc, logger)}
 	switch {
 	case cfg.serverCert != "" || cfg.serverKey != "":
 		logger.Info(fmt.Sprintf("Certs service started using https on port %s with cert %s key %s", cfg.httpPort, cfg.serverCert, cfg.serverKey))
@@ -385,7 +385,7 @@ func startHTTPServer(ctx context.Context, svc certs.Service, cfg config, logger 
 	default:
 		logger.Info(fmt.Sprintf("Certs service started using http on port %s", cfg.httpPort))
 		go func() {
-			errCh <- http.ListenAndServe(p, api.MakeHandler(svc))
+			errCh <- http.ListenAndServe(p, api.MakeHandler(svc, logger))
 		}()
 	}
 	select {

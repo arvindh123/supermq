@@ -228,7 +228,7 @@ func startHTTPServer(ctx context.Context, svc opcua.Service, cfg config, logger 
 	p := fmt.Sprintf(":%s", cfg.httpPort)
 
 	errCh := make(chan error)
-	server := &http.Server{Addr: p, Handler: api.MakeHandler(svc)}
+	server := &http.Server{Addr: p, Handler: api.MakeHandler(svc, logger)}
 	logger.Info(fmt.Sprintf("OPC-UA adapter service started, exposed port %s", cfg.httpPort))
 
 	go func() {

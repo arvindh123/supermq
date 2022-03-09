@@ -331,7 +331,7 @@ func connectToAuth(cfg config, logger logger.Logger) *grpc.ClientConn {
 
 func startHTTPServer(ctx context.Context, svc bootstrap.Service, cfg config, logger mflog.Logger) error {
 	p := fmt.Sprintf(":%s", cfg.httpPort)
-	server := &http.Server{Addr: p, Handler: api.MakeHandler(svc, bootstrap.NewConfigReader(cfg.encKey))}
+	server := &http.Server{Addr: p, Handler: api.MakeHandler(svc, bootstrap.NewConfigReader(cfg.encKey), logger)}
 	errCh := make(chan error)
 	protocol := "http"
 	switch {

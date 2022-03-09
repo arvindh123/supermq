@@ -323,7 +323,7 @@ func newService(db *sqlx.DB, tracer opentracing.Tracer, auth mainflux.AuthServic
 func startHTTPServer(ctx context.Context, tracer opentracing.Tracer, svc notifiers.Service, port string, certFile string, keyFile string, logger logger.Logger) error {
 	p := fmt.Sprintf(":%s", port)
 	errCh := make(chan error)
-	server := &http.Server{Addr: p, Handler: api.MakeHandler(svc, tracer)}
+	server := &http.Server{Addr: p, Handler: api.MakeHandler(svc, tracer, logger)}
 
 	switch {
 	case certFile != "" || keyFile != "":

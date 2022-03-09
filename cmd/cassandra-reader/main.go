@@ -34,7 +34,6 @@ import (
 )
 
 const (
-
 	stopWaitTime = 5 * time.Second
 
 	svcName              = "cassandra-reader"
@@ -290,7 +289,7 @@ func newService(session *gocql.Session, logger logger.Logger) readers.MessageRep
 func startHTTPServer(ctx context.Context, repo readers.MessageRepository, tc mainflux.ThingsServiceClient, ac mainflux.AuthServiceClient, cfg config, logger logger.Logger) error {
 	p := fmt.Sprintf(":%s", cfg.port)
 	errCh := make(chan error)
-	server := &http.Server{Addr: p, Handler: api.MakeHandler(repo, tc, ac, "cassandra-reader")}
+	server := &http.Server{Addr: p, Handler: api.MakeHandler(repo, tc, ac, "cassandra-reader", logger)}
 	switch {
 	case cfg.serverCert != "" || cfg.serverKey != "":
 		logger.Info(fmt.Sprintf("Cassandra reader service started using https on port %s with cert %s key %s", cfg.port, cfg.serverCert, cfg.serverKey))

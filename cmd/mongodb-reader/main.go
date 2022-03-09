@@ -34,7 +34,6 @@ import (
 )
 
 const (
-
 	stopWaitTime = 5 * time.Second
 
 	svcName              = "mongodb-reader"
@@ -278,7 +277,7 @@ func newService(db *mongo.Database, logger logger.Logger) readers.MessageReposit
 func startHTTPServer(ctx context.Context, repo readers.MessageRepository, tc mainflux.ThingsServiceClient, ac mainflux.AuthServiceClient, cfg config, logger logger.Logger) error {
 	p := fmt.Sprintf(":%s", cfg.port)
 	errCh := make(chan error)
-	server := &http.Server{Addr: p, Handler: api.MakeHandler(repo, tc, ac, "mongodb-reader")}
+	server := &http.Server{Addr: p, Handler: api.MakeHandler(repo, tc, ac, "mongodb-reader", logger)}
 
 	switch {
 	case cfg.serverCert != "" || cfg.serverKey != "":

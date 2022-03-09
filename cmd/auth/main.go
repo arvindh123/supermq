@@ -265,13 +265,13 @@ func newService(db *sqlx.DB, tracer opentracing.Tracer, secret string, logger lo
 
 func startHTTPServer(ctx context.Context, tracer opentracing.Tracer, svc auth.Service, port string, certFile string, keyFile string, logger logger.Logger) error {
 	p := fmt.Sprintf(":%s", port)
-	server := &http.Server{Addr: p, Handler: httpapi.MakeHandler(svc, tracer)}
+	server := &http.Server{Addr: p, Handler: httpapi.MakeHandler(svc, tracer, logger)}
 	errCh := make(chan error)
 	protocol := "http"
 	switch {
 	case certFile != "" || keyFile != "":
 		logger.Info(fmt.Sprintf("Authentication service started using https, cert %s key %s, exposed port %s", certFile, keyFile, port))
-    go func() {
+		go func() {
 			errCh <- server.ListenAndServeTLS(certFile, keyFile)
 		}()
 		protocol = "https"
