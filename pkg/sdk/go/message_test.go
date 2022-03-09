@@ -13,6 +13,7 @@ import (
 	adapter "github.com/mainflux/mainflux/http"
 	"github.com/mainflux/mainflux/http/api"
 	"github.com/mainflux/mainflux/http/mocks"
+	"github.com/mainflux/mainflux/logger"
 	sdk "github.com/mainflux/mainflux/pkg/sdk/go"
 	"github.com/opentracing/opentracing-go/mocktracer"
 	"github.com/stretchr/testify/assert"
@@ -24,7 +25,8 @@ func newMessageService(cc mainflux.ThingsServiceClient) adapter.Service {
 }
 
 func newMessageServer(svc adapter.Service) *httptest.Server {
-	mux := api.MakeHandler(svc, mocktracer.New())
+	logger := logger.NewMock()
+	mux := api.MakeHandler(svc, mocktracer.New(), logger)
 	return httptest.NewServer(mux)
 }
 
@@ -84,8 +86,8 @@ func TestSendMessage(t *testing.T) {
 		"publish message unable to authorize": {
 			chanID: chanID,
 			msg:    msg,
-			auth:   mocks.ServiceErrToken,
-			err:    createError(sdk.ErrFailedPublish, http.StatusServiceUnavailable),
+			auth:   "invalid-token",
+			err:    createError(sdk.ErrFailedPublish, http.StatusUnauthorized),
 		},
 	}
 	for desc, tc := range cases {

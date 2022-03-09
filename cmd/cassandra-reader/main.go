@@ -34,9 +34,11 @@ import (
 )
 
 const (
-	sep          = ","
+
 	stopWaitTime = 5 * time.Second
 
+	svcName              = "cassandra-reader"
+	sep                  = ","
 	defLogLevel          = "error"
 	defPort              = "8180"
 	defCluster           = "127.0.0.1"
@@ -314,5 +316,4 @@ func startHTTPServer(ctx context.Context, repo readers.MessageRepository, tc mai
 	case err := <-errCh:
 		return err
 	}
-
 }

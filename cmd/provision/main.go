@@ -163,7 +163,6 @@ func startHTTPServer(ctx context.Context, svc provision.Service, cfg provision.C
 	case err := <-errCh:
 		return err
 	}
-
 }
 
 func loadConfigFromFile(file string) (provision.Config, error) {

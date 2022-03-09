@@ -271,7 +271,7 @@ func startHTTPServer(ctx context.Context, tracer opentracing.Tracer, svc auth.Se
 	switch {
 	case certFile != "" || keyFile != "":
 		logger.Info(fmt.Sprintf("Authentication service started using https, cert %s key %s, exposed port %s", certFile, keyFile, port))
-		go func() {
+    go func() {
 			errCh <- server.ListenAndServeTLS(certFile, keyFile)
 		}()
 		protocol = "https"

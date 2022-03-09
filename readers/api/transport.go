@@ -7,13 +7,12 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"strconv"
-	"strings"
 
 	kithttp "github.com/go-kit/kit/transport/http"
 	"github.com/go-zoo/bone"
 	"github.com/mainflux/mainflux"
-	"github.com/mainflux/mainflux/internal/httputil"
+	"github.com/mainflux/mainflux/internal/apiutil"
+	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/pkg/errors"
 	"github.com/mainflux/mainflux/readers"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -22,25 +21,24 @@ import (
 )
 
 const (
-	contentType      = "application/json"
-	offsetKey        = "offset"
-	limitKey         = "limit"
-	formatKey        = "format"
-	subtopicKey      = "subtopic"
-	publisherKey     = "publisher"
-	protocolKey      = "protocol"
-	nameKey          = "name"
-	valueKey         = "v"
-	stringValueKey   = "vs"
-	dataValueKey     = "vd"
-	comparatorKey    = "comparator"
-	fromKey          = "from"
-	toKey            = "to"
-	defLimit         = 10
-	defOffset        = 0
-	defFormat        = "messages"
-	thingTokenPrefix = "Thing "
-	userTokenPrefix  = "Bearer "
+	contentType    = "application/json"
+	offsetKey      = "offset"
+	limitKey       = "limit"
+	formatKey      = "format"
+	subtopicKey    = "subtopic"
+	publisherKey   = "publisher"
+	protocolKey    = "protocol"
+	nameKey        = "name"
+	valueKey       = "v"
+	stringValueKey = "vs"
+	dataValueKey   = "vd"
+	boolValueKey   = "vb"
+	comparatorKey  = "comparator"
+	fromKey        = "from"
+	toKey          = "to"
+	defLimit       = 10
+	defOffset      = 0
+	defFormat      = "messages"
 )
 
 var (
@@ -51,7 +49,7 @@ var (
 )
 
 // MakeHandler returns a HTTP handler for API endpoints.
-func MakeHandler(svc readers.MessageRepository, tc mainflux.ThingsServiceClient, ac mainflux.AuthServiceClient, svcName string) http.Handler {
+func MakeHandler(svc readers.MessageRepository, tc mainflux.ThingsServiceClient, ac mainflux.AuthServiceClient, svcName string, logger logger.Logger) http.Handler {
 	thingsAuth = tc
 	usersAuth = ac
 
@@ -74,74 +72,75 @@ func MakeHandler(svc readers.MessageRepository, tc mainflux.ThingsServiceClient,
 }
 
 func decodeList(ctx context.Context, r *http.Request) (interface{}, error) {
-	offset, err := httputil.ReadUintQuery(r, offsetKey, defOffset)
+	offset, err := apiutil.ReadUintQuery(r, offsetKey, defOffset)
 	if err != nil {
 		return nil, err
 	}
 
-	limit, err := httputil.ReadUintQuery(r, limitKey, defLimit)
+	limit, err := apiutil.ReadUintQuery(r, limitKey, defLimit)
 	if err != nil {
 		return nil, err
 	}
 
-	format, err := httputil.ReadStringQuery(r, formatKey, defFormat)
+	format, err := apiutil.ReadStringQuery(r, formatKey, defFormat)
 	if err != nil {
 		return nil, err
 	}
 
-	subtopic, err := httputil.ReadStringQuery(r, subtopicKey, "")
+	subtopic, err := apiutil.ReadStringQuery(r, subtopicKey, "")
 	if err != nil {
 		return nil, err
 	}
 
-	publisher, err := httputil.ReadStringQuery(r, publisherKey, "")
+	publisher, err := apiutil.ReadStringQuery(r, publisherKey, "")
 	if err != nil {
 		return nil, err
 	}
 
-	protocol, err := httputil.ReadStringQuery(r, protocolKey, "")
+	protocol, err := apiutil.ReadStringQuery(r, protocolKey, "")
 	if err != nil {
 		return nil, err
 	}
 
-	name, err := httputil.ReadStringQuery(r, nameKey, "")
+	name, err := apiutil.ReadStringQuery(r, nameKey, "")
 	if err != nil {
 		return nil, err
 	}
 
-	v, err := httputil.ReadFloatQuery(r, valueKey, 0)
+	v, err := apiutil.ReadFloatQuery(r, valueKey, 0)
 	if err != nil {
 		return nil, err
 	}
 
-	comparator, err := httputil.ReadStringQuery(r, comparatorKey, "")
+	comparator, err := apiutil.ReadStringQuery(r, comparatorKey, "")
 	if err != nil {
 		return nil, err
 	}
 
-	vs, err := httputil.ReadStringQuery(r, stringValueKey, "")
+	vs, err := apiutil.ReadStringQuery(r, stringValueKey, "")
 	if err != nil {
 		return nil, err
 	}
 
-	vd, err := httputil.ReadStringQuery(r, dataValueKey, "")
+	vd, err := apiutil.ReadStringQuery(r, dataValueKey, "")
 	if err != nil {
 		return nil, err
 	}
 
-	from, err := httputil.ReadFloatQuery(r, fromKey, 0)
+	from, err := apiutil.ReadFloatQuery(r, fromKey, 0)
 	if err != nil {
 		return nil, err
 	}
 
-	to, err := httputil.ReadFloatQuery(r, toKey, 0)
+	to, err := apiutil.ReadFloatQuery(r, toKey, 0)
 	if err != nil {
 		return nil, err
 	}
 
 	req := listMessagesReq{
 		chanID: bone.GetValue(r, "chanID"),
-		token:  r.Header.Get("Authorization"),
+		token:  apiutil.ExtractBearerToken(r),
+		key:    apiutil.ExtractThingKey(r),
 		pageMeta: readers.PageMetadata{
 			Offset:      offset,
 			Limit:       limit,
@@ -159,7 +158,7 @@ func decodeList(ctx context.Context, r *http.Request) (interface{}, error) {
 		},
 	}
 
-	vb, err := readBoolValueQuery(r, "vb")
+	vb, err := apiutil.ReadBoolQuery(r, boolValueKey, false)
 	if err != nil && err != errors.ErrNotFoundParam {
 		return nil, err
 	}
@@ -192,17 +191,25 @@ func encodeError(_ context.Context, err error, w http.ResponseWriter) {
 	switch {
 	case errors.Contains(err, nil):
 	case errors.Contains(err, errors.ErrInvalidQueryParams),
-		errors.Contains(err, errors.ErrMalformedEntity):
+		errors.Contains(err, errors.ErrMalformedEntity),
+		err == apiutil.ErrMissingID,
+		err == apiutil.ErrLimitSize,
+		err == apiutil.ErrOffsetSize,
+		err == apiutil.ErrInvalidComparator:
 		w.WriteHeader(http.StatusBadRequest)
-	case errors.Contains(err, errors.ErrAuthentication):
+	case errors.Contains(err, errors.ErrAuthentication),
+		err == apiutil.ErrBearerToken:
 		w.WriteHeader(http.StatusUnauthorized)
+	case errors.Contains(err, readers.ErrReadMessages):
+		w.WriteHeader(http.StatusInternalServerError)
+
 	default:
 		w.WriteHeader(http.StatusInternalServerError)
 	}
-	errorVal, ok := err.(errors.Error)
-	if ok {
+
+	if errorVal, ok := err.(errors.Error); ok {
 		w.Header().Set("Content-Type", contentType)
-		if err := json.NewEncoder(w).Encode(errorRes{Err: errorVal.Msg()}); err != nil {
+		if err := json.NewEncoder(w).Encode(apiutil.ErrorRes{Err: errorVal.Msg()}); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 		}
 	}
@@ -210,9 +217,8 @@ func encodeError(_ context.Context, err error, w http.ResponseWriter) {
 
 func authorize(ctx context.Context, req listMessagesReq, tc mainflux.ThingsServiceClient, ac mainflux.AuthServiceClient) (err error) {
 	switch {
-	case strings.HasPrefix(req.token, userTokenPrefix):
-		token := strings.TrimPrefix(req.token, userTokenPrefix)
-		user, err := usersAuth.Identify(ctx, &mainflux.Token{Value: token})
+	case req.token != "":
+		user, err := usersAuth.Identify(ctx, &mainflux.Token{Value: req.token})
 		if err != nil {
 			e, ok := status.FromError(err)
 			if ok && e.Code() == codes.PermissionDenied {
@@ -229,28 +235,9 @@ func authorize(ctx context.Context, req listMessagesReq, tc mainflux.ThingsServi
 		}
 		return nil
 	default:
-		token := strings.TrimPrefix(req.token, thingTokenPrefix)
-		if _, err := thingsAuth.CanAccessByKey(ctx, &mainflux.AccessByKeyReq{Token: token, ChanID: req.chanID}); err != nil {
+		if _, err := thingsAuth.CanAccessByKey(ctx, &mainflux.AccessByKeyReq{Token: req.key, ChanID: req.chanID}); err != nil {
 			return errors.Wrap(errThingAccess, err)
 		}
 		return nil
 	}
-}
-
-func readBoolValueQuery(r *http.Request, key string) (bool, error) {
-	vals := bone.GetQuery(r, key)
-	if len(vals) > 1 {
-		return false, errors.ErrInvalidQueryParams
-	}
-
-	if len(vals) == 0 {
-		return false, errors.ErrNotFoundParam
-	}
-
-	b, err := strconv.ParseBool(vals[0])
-	if err != nil {
-		return false, errors.ErrInvalidQueryParams
-	}
-
-	return b, nil
 }

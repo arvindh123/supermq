@@ -15,6 +15,7 @@ import (
 
 	"github.com/opentracing/opentracing-go/mocktracer"
 
+	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/pkg/uuid"
 	"github.com/mainflux/mainflux/things"
 	httpapi "github.com/mainflux/mainflux/things/api/auth/http"
@@ -79,7 +80,8 @@ func newService(tokens map[string]string) things.Service {
 }
 
 func newServer(svc things.Service) *httptest.Server {
-	mux := httpapi.MakeHandler(mocktracer.New(), svc)
+	logger := logger.NewMock()
+	mux := httpapi.MakeHandler(mocktracer.New(), svc, logger)
 	return httptest.NewServer(mux)
 }
 
@@ -205,6 +207,12 @@ func TestCanAccessByKey(t *testing.T) {
 			req:         "",
 			status:      http.StatusBadRequest,
 		},
+		"check access with empty channel id": {
+			contentType: contentType,
+			chanID:      "",
+			req:         data,
+			status:      http.StatusBadRequest,
+		},
 	}
 
 	for desc, tc := range cases {
@@ -269,7 +277,7 @@ func TestCanAccessByID(t *testing.T) {
 			contentType: contentType,
 			chanID:      ch.ID,
 			req:         "{}",
-			status:      http.StatusUnauthorized,
+			status:      http.StatusBadRequest,
 		},
 		"check access with invalid JSON request": {
 			contentType: contentType,
@@ -281,6 +289,12 @@ func TestCanAccessByID(t *testing.T) {
 			contentType: contentType,
 			chanID:      ch.ID,
 			req:         "",
+			status:      http.StatusBadRequest,
+		},
+		"check access with empty channel id": {
+			contentType: contentType,
+			chanID:      "",
+			req:         data,
 			status:      http.StatusBadRequest,
 		},
 	}

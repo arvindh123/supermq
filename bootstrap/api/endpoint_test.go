@@ -23,6 +23,8 @@ import (
 	"github.com/mainflux/mainflux/bootstrap"
 	bsapi "github.com/mainflux/mainflux/bootstrap/api"
 	"github.com/mainflux/mainflux/bootstrap/mocks"
+	"github.com/mainflux/mainflux/internal/apiutil"
+	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/pkg/errors"
 	mfsdk "github.com/mainflux/mainflux/pkg/sdk/go"
 	"github.com/mainflux/mainflux/things"
@@ -81,12 +83,14 @@ var (
 		CACert:     "newca",
 	}
 
-	bsErrorRes   = toJSON(errorRes{bootstrap.ErrBootstrap.Error()})
-	authnRes     = toJSON(errorRes{errors.ErrAuthentication.Error()})
-	authzRes     = toJSON(errorRes{errors.ErrAuthorization.Error()})
-	malformedRes = toJSON(errorRes{errors.ErrMalformedEntity.Error()})
-	extKeyRes    = toJSON(errorRes{bootstrap.ErrExternalKey.Error()})
-	extSecKeyRes = toJSON(errorRes{bootstrap.ErrExternalKeySecure.Error()})
+	bsErrorRes    = toJSON(apiutil.ErrorRes{Err: bootstrap.ErrBootstrap.Error()})
+	authnRes      = toJSON(apiutil.ErrorRes{Err: errors.ErrAuthentication.Error()})
+	authzRes      = toJSON(apiutil.ErrorRes{Err: errors.ErrAuthorization.Error()})
+	malformedRes  = toJSON(apiutil.ErrorRes{Err: errors.ErrMalformedEntity.Error()})
+	extKeyRes     = toJSON(apiutil.ErrorRes{Err: bootstrap.ErrExternalKey.Error()})
+	extSecKeyRes  = toJSON(apiutil.ErrorRes{Err: bootstrap.ErrExternalKeySecure.Error()})
+	missingIDRes  = toJSON(apiutil.ErrorRes{Err: apiutil.ErrMissingID.Error()})
+	missingKeyRes = toJSON(apiutil.ErrorRes{Err: apiutil.ErrBearerKey.Error()})
 )
 
 type testRequest struct {
@@ -95,6 +99,7 @@ type testRequest struct {
 	url         string
 	contentType string
 	token       string
+	key         string
 	body        io.Reader
 }
 
@@ -119,7 +124,10 @@ func (tr testRequest) make() (*http.Response, error) {
 	}
 
 	if tr.token != "" {
-		req.Header.Set("Authorization", tr.token)
+		req.Header.Set("Authorization", apiutil.BearerPrefix+tr.token)
+	}
+	if tr.key != "" {
+		req.Header.Set("Authorization", apiutil.ThingPrefix+tr.key)
 	}
 
 	if tr.contentType != "" {
@@ -187,12 +195,14 @@ func newThingsService(auth mainflux.AuthServiceClient) things.Service {
 }
 
 func newThingsServer(svc things.Service) *httptest.Server {
-	mux := thingsapi.MakeHandler(mocktracer.New(), svc)
+	logger := logger.NewMock()
+	mux := thingsapi.MakeHandler(mocktracer.New(), svc, logger)
 	return httptest.NewServer(mux)
 }
 
 func newBootstrapServer(svc bootstrap.Service) *httptest.Server {
-	mux := bsapi.MakeHandler(svc, bootstrap.NewConfigReader(encKey))
+	logger := logger.NewMock()
+	mux := bsapi.MakeHandler(svc, bootstrap.NewConfigReader(encKey), logger)
 	return httptest.NewServer(mux)
 }
 
@@ -837,13 +847,8 @@ func TestList(t *testing.T) {
 			desc:   "view with limit greater than allowed",
 			auth:   validToken,
 			url:    fmt.Sprintf("%s?offset=%d&limit=%d", path, 0, 1000),
-			status: http.StatusOK,
-			res: configPage{
-				Total:   uint64(len(list)),
-				Offset:  0,
-				Limit:   100,
-				Configs: list[:100],
-			},
+			status: http.StatusBadRequest,
+			res:    configPage{},
 		},
 		{
 			desc:   "view list with no specified limit and offset",
@@ -1096,7 +1101,7 @@ func TestBootstrap(t *testing.T) {
 			externalID:  "",
 			externalKey: c.ExternalKey,
 			status:      http.StatusBadRequest,
-			res:         malformedRes,
+			res:         missingIDRes,
 			secure:      false,
 		},
 		{
@@ -1112,7 +1117,7 @@ func TestBootstrap(t *testing.T) {
 			externalID:  c.ExternalID,
 			externalKey: "",
 			status:      http.StatusUnauthorized,
-			res:         authnRes,
+			res:         missingKeyRes,
 			secure:      false,
 		},
 		{
@@ -1146,7 +1151,7 @@ func TestBootstrap(t *testing.T) {
 			client: bs.Client(),
 			method: http.MethodGet,
 			url:    fmt.Sprintf("%s/things/bootstrap/%s", bs.URL, tc.externalID),
-			token:  tc.externalKey,
+			key:    tc.externalKey,
 		}
 		res, err := req.make()
 		assert.Nil(t, err, fmt.Sprintf("%s: unexpected error %s", tc.desc, err))
@@ -1289,8 +1294,4 @@ type configPage struct {
 	Offset  uint64   `json:"offset"`
 	Limit   uint64   `json:"limit"`
 	Configs []config `json:"configs"`
-}
-
-type errorRes struct {
-	Err string `json:"error"`
 }

@@ -5,8 +5,10 @@ package api
 
 import (
 	"github.com/mainflux/mainflux/bootstrap"
-	"github.com/mainflux/mainflux/pkg/errors"
+	"github.com/mainflux/mainflux/internal/apiutil"
 )
+
+const maxLimitSize = 100
 
 type apiReq interface {
 	validate() error
@@ -27,54 +29,58 @@ type addReq struct {
 
 func (req addReq) validate() error {
 	if req.token == "" {
-		return errors.ErrAuthentication
+		return apiutil.ErrBearerToken
 	}
 
-	if req.ExternalID == "" || req.ExternalKey == "" {
-		return errors.ErrMalformedEntity
+	if req.ExternalID == "" {
+		return apiutil.ErrMissingID
+	}
+
+	if req.ExternalKey == "" {
+		return apiutil.ErrBearerKey
 	}
 
 	return nil
 }
 
 type entityReq struct {
-	key string
-	id  string
+	token string
+	id    string
 }
 
 func (req entityReq) validate() error {
-	if req.key == "" {
-		return errors.ErrAuthentication
+	if req.token == "" {
+		return apiutil.ErrBearerToken
 	}
 
 	if req.id == "" {
-		return errors.ErrMalformedEntity
+		return apiutil.ErrMissingID
 	}
 
 	return nil
 }
 
 type updateReq struct {
-	key     string
+	token   string
 	id      string
 	Name    string `json:"name"`
 	Content string `json:"content"`
 }
 
 func (req updateReq) validate() error {
-	if req.key == "" {
-		return errors.ErrAuthentication
+	if req.token == "" {
+		return apiutil.ErrBearerToken
 	}
 
 	if req.id == "" {
-		return errors.ErrMalformedEntity
+		return apiutil.ErrMissingID
 	}
 
 	return nil
 }
 
 type updateCertReq struct {
-	key        string
+	token      string
 	thingID    string
 	ClientCert string `json:"client_cert"`
 	ClientKey  string `json:"client_key"`
@@ -82,49 +88,49 @@ type updateCertReq struct {
 }
 
 func (req updateCertReq) validate() error {
-	if req.key == "" {
-		return errors.ErrAuthentication
+	if req.token == "" {
+		return apiutil.ErrBearerToken
 	}
 
 	if req.thingID == "" {
-		return errors.ErrNotFound
+		return apiutil.ErrMissingID
 	}
 
 	return nil
 }
 
 type updateConnReq struct {
-	key      string
+	token    string
 	id       string
 	Channels []string `json:"channels"`
 }
 
 func (req updateConnReq) validate() error {
-	if req.key == "" {
-		return errors.ErrAuthentication
+	if req.token == "" {
+		return apiutil.ErrBearerToken
 	}
 
 	if req.id == "" {
-		return errors.ErrMalformedEntity
+		return apiutil.ErrMissingID
 	}
 
 	return nil
 }
 
 type listReq struct {
-	key    string
+	token  string
 	filter bootstrap.Filter
 	offset uint64
 	limit  uint64
 }
 
 func (req listReq) validate() error {
-	if req.key == "" {
-		return errors.ErrAuthentication
+	if req.token == "" {
+		return apiutil.ErrBearerToken
 	}
 
-	if req.limit == 0 || req.limit > maxLimit {
-		return errors.ErrMalformedEntity
+	if req.limit > maxLimitSize {
+		return apiutil.ErrLimitSize
 	}
 
 	return nil
@@ -137,34 +143,34 @@ type bootstrapReq struct {
 
 func (req bootstrapReq) validate() error {
 	if req.key == "" {
-		return errors.ErrAuthentication
+		return apiutil.ErrBearerKey
 	}
 
 	if req.id == "" {
-		return errors.ErrMalformedEntity
+		return apiutil.ErrMissingID
 	}
 
 	return nil
 }
 
 type changeStateReq struct {
-	key   string
+	token string
 	id    string
 	State bootstrap.State `json:"state"`
 }
 
 func (req changeStateReq) validate() error {
-	if req.key == "" {
-		return errors.ErrAuthentication
+	if req.token == "" {
+		return apiutil.ErrBearerToken
 	}
 
 	if req.id == "" {
-		return errors.ErrMalformedEntity
+		return apiutil.ErrMissingID
 	}
 
 	if req.State != bootstrap.Inactive &&
 		req.State != bootstrap.Active {
-		return errors.ErrMalformedEntity
+		return apiutil.ErrBootstrapState
 	}
 
 	return nil

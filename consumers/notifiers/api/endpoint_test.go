@@ -17,6 +17,8 @@ import (
 	notifiers "github.com/mainflux/mainflux/consumers/notifiers"
 	httpapi "github.com/mainflux/mainflux/consumers/notifiers/api"
 	"github.com/mainflux/mainflux/consumers/notifiers/mocks"
+	"github.com/mainflux/mainflux/internal/apiutil"
+	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/pkg/errors"
 	"github.com/mainflux/mainflux/pkg/uuid"
 	"github.com/opentracing/opentracing-go/mocktracer"
@@ -35,9 +37,10 @@ const (
 )
 
 var (
-	notFoundRes = toJSON(errorRes{errors.ErrNotFound.Error()})
-	unauthRes   = toJSON(errorRes{errors.ErrAuthentication.Error()})
-	invalidRes  = toJSON(errorRes{errors.ErrInvalidQueryParams.Error()})
+	notFoundRes   = toJSON(apiutil.ErrorRes{Err: errors.ErrNotFound.Error()})
+	unauthRes     = toJSON(apiutil.ErrorRes{Err: errors.ErrAuthentication.Error()})
+	invalidRes    = toJSON(apiutil.ErrorRes{Err: errors.ErrInvalidQueryParams.Error()})
+	missingTokRes = toJSON(apiutil.ErrorRes{Err: apiutil.ErrBearerToken.Error()})
 )
 
 type testRequest struct {
@@ -55,7 +58,7 @@ func (tr testRequest) make() (*http.Response, error) {
 		return nil, err
 	}
 	if tr.token != "" {
-		req.Header.Set("Authorization", tr.token)
+		req.Header.Set("Authorization", apiutil.BearerPrefix+tr.token)
 	}
 	if tr.contentType != "" {
 		req.Header.Set("Content-Type", tr.contentType)
@@ -73,7 +76,8 @@ func newService(tokens map[string]string) notifiers.Service {
 }
 
 func newServer(svc notifiers.Service) *httptest.Server {
-	mux := httpapi.MakeHandler(svc, mocktracer.New())
+	logger := logger.NewMock()
+	mux := httpapi.MakeHandler(svc, mocktracer.New(), logger)
 	return httptest.NewServer(mux)
 }
 
@@ -241,7 +245,7 @@ func TestView(t *testing.T) {
 			id:     id,
 			auth:   "",
 			status: http.StatusUnauthorized,
-			res:    unauthRes,
+			res:    missingTokRes,
 		},
 	}
 
@@ -361,7 +365,7 @@ func TestList(t *testing.T) {
 			desc:   "list with empty auth token",
 			auth:   "",
 			status: http.StatusUnauthorized,
-			res:    unauthRes,
+			res:    missingTokRes,
 		},
 	}
 
@@ -417,7 +421,7 @@ func TestRemove(t *testing.T) {
 			desc:   "remove empty id",
 			id:     "",
 			auth:   token,
-			status: http.StatusNotFound,
+			status: http.StatusBadRequest,
 		},
 		{
 			desc:   "view with invalid auth token",
@@ -431,7 +435,7 @@ func TestRemove(t *testing.T) {
 			id:     id,
 			auth:   "",
 			status: http.StatusUnauthorized,
-			res:    unauthRes,
+			res:    missingTokRes,
 		},
 	}
 
@@ -457,10 +461,6 @@ func makeQuery(m map[string]string) string {
 		return fmt.Sprintf("?%s", ret[1:])
 	}
 	return ""
-}
-
-type errorRes struct {
-	Err string `json:"error"`
 }
 
 type subRes struct {

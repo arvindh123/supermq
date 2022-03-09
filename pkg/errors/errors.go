@@ -26,7 +26,7 @@ type Error interface {
 
 var _ Error = (*customError)(nil)
 
-// customError struct represents a Mainflux error
+// customError represents a Mainflux error
 type customError struct {
 	msg string
 	err Error

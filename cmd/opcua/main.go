@@ -226,6 +226,7 @@ func newRouteMapRepositoy(client *r.Client, prefix string, logger logger.Logger)
 
 func startHTTPServer(ctx context.Context, svc opcua.Service, cfg config, logger logger.Logger) error {
 	p := fmt.Sprintf(":%s", cfg.httpPort)
+
 	errCh := make(chan error)
 	server := &http.Server{Addr: p, Handler: api.MakeHandler(svc)}
 	logger.Info(fmt.Sprintf("OPC-UA adapter service started, exposed port %s", cfg.httpPort))
@@ -247,5 +248,4 @@ func startHTTPServer(ctx context.Context, svc opcua.Service, cfg config, logger 
 	case err := <-errCh:
 		return err
 	}
-
 }

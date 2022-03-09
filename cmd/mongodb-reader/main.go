@@ -34,8 +34,10 @@ import (
 )
 
 const (
+
 	stopWaitTime = 5 * time.Second
 
+	svcName              = "mongodb-reader"
 	defLogLevel          = "error"
 	defPort              = "8180"
 	defDB                = "mainflux"
@@ -305,5 +307,4 @@ func startHTTPServer(ctx context.Context, repo readers.MessageRepository, tc mai
 	case err := <-errCh:
 		return err
 	}
-
 }

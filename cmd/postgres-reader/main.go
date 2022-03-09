@@ -308,5 +308,4 @@ func startHTTPServer(ctx context.Context, repo readers.MessageRepository, tc mai
 	case err := <-errCh:
 		return err
 	}
-
 }

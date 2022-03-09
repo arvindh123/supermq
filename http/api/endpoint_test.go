@@ -17,6 +17,8 @@ import (
 	adapter "github.com/mainflux/mainflux/http"
 	"github.com/mainflux/mainflux/http/api"
 	"github.com/mainflux/mainflux/http/mocks"
+	"github.com/mainflux/mainflux/internal/apiutil"
+	"github.com/mainflux/mainflux/logger"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -26,7 +28,8 @@ func newService(cc mainflux.ThingsServiceClient) adapter.Service {
 }
 
 func newHTTPServer(svc adapter.Service) *httptest.Server {
-	mux := api.MakeHandler(svc, mocktracer.New())
+	logger := logger.NewMock()
+	mux := api.MakeHandler(svc, mocktracer.New(), logger)
 	return httptest.NewServer(mux)
 }
 
@@ -47,7 +50,7 @@ func (tr testRequest) make() (*http.Response, error) {
 	}
 
 	if tr.token != "" {
-		req.Header.Set("Authorization", tr.token)
+		req.Header.Set("Authorization", apiutil.ThingPrefix+tr.token)
 	}
 	if tr.basicAuth && tr.token != "" {
 		req.SetBasicAuth("", tr.token)
@@ -61,10 +64,10 @@ func (tr testRequest) make() (*http.Response, error) {
 func TestPublish(t *testing.T) {
 	chanID := "1"
 	contentType := "application/senml+json"
-	token := "auth_token"
-	invalidToken := "invalid_token"
+	thingKey := "thing_key"
+	invalidKey := "invalid_key"
 	msg := `[{"n":"current","t":-1,"v":1.6}]`
-	thingsClient := mocks.NewThingsClient(map[string]string{token: chanID})
+	thingsClient := mocks.NewThingsClient(map[string]string{thingKey: chanID})
 	svc := newService(thingsClient)
 	ts := newHTTPServer(svc)
 	defer ts.Close()
@@ -73,7 +76,7 @@ func TestPublish(t *testing.T) {
 		chanID      string
 		msg         string
 		contentType string
-		auth        string
+		key         string
 		status      int
 		basicAuth   bool
 	}{
@@ -81,36 +84,36 @@ func TestPublish(t *testing.T) {
 			chanID:      chanID,
 			msg:         msg,
 			contentType: contentType,
-			auth:        token,
+			key:         thingKey,
 			status:      http.StatusAccepted,
 		},
-		"publish message without authorization token": {
+		"publish message with empty key": {
 			chanID:      chanID,
 			msg:         msg,
 			contentType: contentType,
-			auth:        "",
+			key:         "",
 			status:      http.StatusUnauthorized,
 		},
 		"publish message with basic auth": {
 			chanID:      chanID,
 			msg:         msg,
 			contentType: contentType,
-			auth:        token,
+			key:         thingKey,
 			basicAuth:   true,
 			status:      http.StatusAccepted,
 		},
-		"publish message with invalid authorization token": {
+		"publish message with invalid key": {
 			chanID:      chanID,
 			msg:         msg,
 			contentType: contentType,
-			auth:        invalidToken,
+			key:         invalidKey,
 			status:      http.StatusUnauthorized,
 		},
 		"publish message with invalid basic auth": {
 			chanID:      chanID,
 			msg:         msg,
 			contentType: contentType,
-			auth:        invalidToken,
+			key:         invalidKey,
 			basicAuth:   true,
 			status:      http.StatusUnauthorized,
 		},
@@ -118,22 +121,22 @@ func TestPublish(t *testing.T) {
 			chanID:      chanID,
 			msg:         msg,
 			contentType: "",
-			auth:        token,
-			status:      http.StatusAccepted,
+			key:         thingKey,
+			status:      http.StatusUnsupportedMediaType,
 		},
 		"publish message to invalid channel": {
 			chanID:      "",
 			msg:         msg,
 			contentType: contentType,
-			auth:        token,
+			key:         thingKey,
 			status:      http.StatusBadRequest,
 		},
 		"publish message unable to authorize": {
 			chanID:      chanID,
 			msg:         msg,
 			contentType: contentType,
-			auth:        mocks.ServiceErrToken,
-			status:      http.StatusServiceUnavailable,
+			key:         mocks.ServiceErrToken,
+			status:      http.StatusInternalServerError,
 		},
 	}
 
@@ -143,7 +146,7 @@ func TestPublish(t *testing.T) {
 			method:      http.MethodPost,
 			url:         fmt.Sprintf("%s/channels/%s/messages", ts.URL, tc.chanID),
 			contentType: tc.contentType,
-			token:       tc.auth,
+			token:       tc.key,
 			body:        strings.NewReader(tc.msg),
 			basicAuth:   tc.basicAuth,
 		}

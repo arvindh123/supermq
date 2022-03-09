@@ -6,7 +6,6 @@ package api
 import (
 	"context"
 	"encoding/json"
-	"io"
 	"net/http"
 	"strings"
 
@@ -14,8 +13,8 @@ import (
 	kithttp "github.com/go-kit/kit/transport/http"
 	"github.com/go-zoo/bone"
 	"github.com/mainflux/mainflux"
-	"github.com/mainflux/mainflux/auth"
-	"github.com/mainflux/mainflux/internal/httputil"
+	"github.com/mainflux/mainflux/internal/apiutil"
+	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/pkg/errors"
 	"github.com/mainflux/mainflux/pkg/uuid"
 	"github.com/mainflux/mainflux/users"
@@ -34,9 +33,9 @@ const (
 )
 
 // MakeHandler returns a HTTP handler for API endpoints.
-func MakeHandler(svc users.Service, tracer opentracing.Tracer) http.Handler {
+func MakeHandler(svc users.Service, tracer opentracing.Tracer, logger logger.Logger) http.Handler {
 	opts := []kithttp.ServerOption{
-		kithttp.ServerErrorEncoder(encodeError),
+		kithttp.ServerErrorEncoder(apiutil.LoggingErrorEncoder(logger, encodeError)),
 	}
 
 	mux := bone.New()
@@ -119,42 +118,42 @@ func MakeHandler(svc users.Service, tracer opentracing.Tracer) http.Handler {
 
 func decodeViewUser(_ context.Context, r *http.Request) (interface{}, error) {
 	req := viewUserReq{
-		token:  r.Header.Get("Authorization"),
+		token:  apiutil.ExtractBearerToken(r),
 		userID: bone.GetValue(r, "userID"),
 	}
+
 	return req, nil
 }
 
 func decodeViewProfile(_ context.Context, r *http.Request) (interface{}, error) {
-	req := viewUserReq{
-		token: r.Header.Get("Authorization"),
-	}
+	req := viewUserReq{token: apiutil.ExtractBearerToken(r)}
+
 	return req, nil
 }
 
 func decodeListUsers(_ context.Context, r *http.Request) (interface{}, error) {
-	o, err := httputil.ReadUintQuery(r, offsetKey, defOffset)
+	o, err := apiutil.ReadUintQuery(r, offsetKey, defOffset)
 	if err != nil {
 		return nil, err
 	}
 
-	l, err := httputil.ReadUintQuery(r, limitKey, defLimit)
+	l, err := apiutil.ReadUintQuery(r, limitKey, defLimit)
 	if err != nil {
 		return nil, err
 	}
 
-	e, err := httputil.ReadStringQuery(r, emailKey, "")
+	e, err := apiutil.ReadStringQuery(r, emailKey, "")
 	if err != nil {
 		return nil, err
 	}
 
-	m, err := httputil.ReadMetadataQuery(r, metadataKey, nil)
+	m, err := apiutil.ReadMetadataQuery(r, metadataKey, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	req := listUsersReq{
-		token:    r.Header.Get("Authorization"),
+		token:    apiutil.ExtractBearerToken(r),
 		offset:   o,
 		limit:    l,
 		email:    e,
@@ -164,12 +163,11 @@ func decodeListUsers(_ context.Context, r *http.Request) (interface{}, error) {
 }
 
 func decodeUpdateUser(_ context.Context, r *http.Request) (interface{}, error) {
-	var req updateUserReq
+	req := updateUserReq{token: apiutil.ExtractBearerToken(r)}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return nil, errors.Wrap(errors.ErrMalformedEntity, err)
 	}
 
-	req.token = r.Header.Get("Authorization")
 	return req, nil
 }
 
@@ -196,7 +194,12 @@ func decodeCreateUserReq(_ context.Context, r *http.Request) (interface{}, error
 		return nil, errors.Wrap(errors.ErrMalformedEntity, err)
 	}
 
-	return createUserReq{user, r.Header.Get("Authorization")}, nil
+	req := createUserReq{
+		user:  user,
+		token: apiutil.ExtractBearerToken(r),
+	}
+
+	return req, nil
 }
 
 func decodePasswordResetRequest(_ context.Context, r *http.Request) (interface{}, error) {
@@ -232,34 +235,32 @@ func decodePasswordChange(_ context.Context, r *http.Request) (interface{}, erro
 		return nil, errors.ErrUnsupportedContentType
 	}
 
-	var req passwChangeReq
+	req := passwChangeReq{token: apiutil.ExtractBearerToken(r)}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return nil, errors.Wrap(errors.ErrMalformedEntity, err)
 	}
-
-	req.Token = r.Header.Get("Authorization")
 
 	return req, nil
 }
 
 func decodeListMembersRequest(_ context.Context, r *http.Request) (interface{}, error) {
-	o, err := httputil.ReadUintQuery(r, offsetKey, defOffset)
+	o, err := apiutil.ReadUintQuery(r, offsetKey, defOffset)
 	if err != nil {
 		return nil, err
 	}
 
-	l, err := httputil.ReadUintQuery(r, limitKey, defLimit)
+	l, err := apiutil.ReadUintQuery(r, limitKey, defLimit)
 	if err != nil {
 		return nil, err
 	}
 
-	m, err := httputil.ReadMetadataQuery(r, metadataKey, nil)
+	m, err := apiutil.ReadMetadataQuery(r, metadataKey, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	req := listMemberGroupReq{
-		token:    r.Header.Get("Authorization"),
+		token:    apiutil.ExtractBearerToken(r),
 		groupID:  bone.GetValue(r, "groupId"),
 		offset:   o,
 		limit:    l,
@@ -285,47 +286,47 @@ func encodeResponse(_ context.Context, w http.ResponseWriter, response interface
 }
 
 func encodeError(_ context.Context, err error, w http.ResponseWriter) {
-	switch errorVal := err.(type) {
-	case errors.Error:
-		w.Header().Set("Content-Type", contentType)
-		switch {
-		case errors.Contains(errorVal, errors.ErrInvalidQueryParams):
-			w.WriteHeader(http.StatusBadRequest)
-		case errors.Contains(errorVal, errors.ErrMalformedEntity):
-			w.WriteHeader(http.StatusBadRequest)
-		case errors.Contains(errorVal, errors.ErrAuthentication):
-			w.WriteHeader(http.StatusUnauthorized)
-		case errors.Contains(errorVal, errors.ErrAuthorization):
-			w.WriteHeader(http.StatusForbidden)
-		case errors.Contains(errorVal, errors.ErrConflict):
-			w.WriteHeader(http.StatusConflict)
-		case errors.Contains(errorVal, auth.ErrGroupConflict):
-			w.WriteHeader(http.StatusConflict)
-		case errors.Contains(errorVal, errors.ErrUnsupportedContentType):
-			w.WriteHeader(http.StatusUnsupportedMediaType)
-		case errors.Contains(errorVal, errors.ErrMalformedEntity):
-			w.WriteHeader(http.StatusBadRequest)
-		case errors.Contains(errorVal, io.ErrUnexpectedEOF):
-			w.WriteHeader(http.StatusBadRequest)
-		case errors.Contains(errorVal, io.EOF):
-			w.WriteHeader(http.StatusBadRequest)
-		case errors.Contains(errorVal, errors.ErrNotFound):
-			w.WriteHeader(http.StatusBadRequest)
-		case errors.Contains(errorVal, users.ErrRecoveryToken):
-			w.WriteHeader(http.StatusNotFound)
-		case errors.Contains(errorVal, users.ErrPasswordFormat):
-			w.WriteHeader(http.StatusBadRequest)
-		case errors.Contains(errorVal, uuid.ErrGeneratingID):
-			w.WriteHeader(http.StatusInternalServerError)
-		default:
-			w.WriteHeader(http.StatusInternalServerError)
-		}
-		if errorVal.Msg() != "" {
-			if err := json.NewEncoder(w).Encode(errorRes{Err: errorVal.Msg()}); err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-			}
-		}
+	switch {
+	case errors.Contains(err, errors.ErrInvalidQueryParams),
+		errors.Contains(err, errors.ErrMalformedEntity),
+		errors.Contains(err, users.ErrPasswordFormat),
+		err == apiutil.ErrMissingEmail,
+		err == apiutil.ErrMissingHost,
+		err == apiutil.ErrMissingPass,
+		err == apiutil.ErrMissingConfPass,
+		err == apiutil.ErrInvalidResetPass:
+		w.WriteHeader(http.StatusBadRequest)
+	case errors.Contains(err, errors.ErrAuthentication),
+		err == apiutil.ErrBearerToken:
+		w.WriteHeader(http.StatusUnauthorized)
+	case errors.Contains(err, errors.ErrAuthorization):
+		w.WriteHeader(http.StatusForbidden)
+	case errors.Contains(err, errors.ErrConflict),
+		errors.Contains(err, errors.ErrConflict):
+		w.WriteHeader(http.StatusConflict)
+	case errors.Contains(err, errors.ErrUnsupportedContentType):
+		w.WriteHeader(http.StatusUnsupportedMediaType)
+	case errors.Contains(err, errors.ErrNotFound):
+		w.WriteHeader(http.StatusNotFound)
+
+	case errors.Contains(err, uuid.ErrGeneratingID),
+		errors.Contains(err, users.ErrRecoveryToken):
+		w.WriteHeader(http.StatusInternalServerError)
+
+	case errors.Contains(err, errors.ErrCreateEntity),
+		errors.Contains(err, errors.ErrUpdateEntity),
+		errors.Contains(err, errors.ErrViewEntity),
+		errors.Contains(err, errors.ErrRemoveEntity):
+		w.WriteHeader(http.StatusInternalServerError)
+
 	default:
 		w.WriteHeader(http.StatusInternalServerError)
+	}
+
+	if errorVal, ok := err.(errors.Error); ok {
+		w.Header().Set("Content-Type", contentType)
+		if err := json.NewEncoder(w).Encode(apiutil.ErrorRes{Err: errorVal.Msg()}); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
 	}
 }
