@@ -167,9 +167,9 @@ func startHTTPServer(ctx context.Context, port string, logger logger.Logger) err
 
 	select {
 	case <-ctx.Done():
-		ctxShutDown, cancelShutDown := context.WithTimeout(context.Background(), stopWaitTime)
-		defer cancelShutDown()
-		if err := server.Shutdown(ctxShutDown); err != nil {
+		ctxShutdown, cancelShutdown := context.WithTimeout(context.Background(), stopWaitTime)
+		defer cancelShutdown()
+		if err := server.Shutdown(ctxShutdown); err != nil {
 			logger.Error(fmt.Sprintf("Cassandra writer  service error occurred during shutdown at %s: %s", p, err))
 			return fmt.Errorf("cassandra writer service error occurred during shutdown at %s: %w", p, err)
 		}

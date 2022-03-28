@@ -390,9 +390,9 @@ func startHTTPServer(ctx context.Context, svc certs.Service, cfg config, logger 
 	}
 	select {
 	case <-ctx.Done():
-		ctxShutDown, cancelShutDown := context.WithTimeout(context.Background(), stopWaitTime)
-		defer cancelShutDown()
-		if err := server.Shutdown(ctxShutDown); err != nil {
+		ctxShutdown, cancelShutdown := context.WithTimeout(context.Background(), stopWaitTime)
+		defer cancelShutdown()
+		if err := server.Shutdown(ctxShutdown); err != nil {
 			logger.Error(fmt.Sprintf("Certs service error occurred during shutdown at %s: %s", p, err))
 			return fmt.Errorf("certs service  error occurred during shutdown at %s: %w", p, err)
 		}

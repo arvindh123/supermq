@@ -284,9 +284,9 @@ func startHTTPServer(ctx context.Context, tracer opentracing.Tracer, svc auth.Se
 
 	select {
 	case <-ctx.Done():
-		ctxShutDown, cancelShutDown := context.WithTimeout(context.Background(), stopWaitTime)
-		defer cancelShutDown()
-		if err := server.Shutdown(ctxShutDown); err != nil {
+		ctxShutdown, cancelShutdown := context.WithTimeout(context.Background(), stopWaitTime)
+		defer cancelShutdown()
+		if err := server.Shutdown(ctxShutdown); err != nil {
 			logger.Error(fmt.Sprintf("Authentication %s service error occurred during shutdown at %s: %s", protocol, p, err))
 			return fmt.Errorf("Authentication %s service error occurred during shutdown at %s: %w", protocol, p, err)
 		}

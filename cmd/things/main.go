@@ -372,9 +372,9 @@ func startHTTPServer(ctx context.Context, typ string, handler http.Handler, port
 
 	select {
 	case <-ctx.Done():
-		ctxShutDown, cancelShutDown := context.WithTimeout(context.Background(), stopWaitTime)
-		defer cancelShutDown()
-		if err := server.Shutdown(ctxShutDown); err != nil {
+		ctxShutdown, cancelShutdown := context.WithTimeout(context.Background(), stopWaitTime)
+		defer cancelShutdown()
+		if err := server.Shutdown(ctxShutdown); err != nil {
 			logger.Error(fmt.Sprintf("Things %s service error occurred during shutdown at %s: %s", typ, p, err))
 			return fmt.Errorf("things %s service occurred during shutdown at %s: %w", typ, p, err)
 		}

@@ -209,9 +209,9 @@ func startHTTPServer(ctx context.Context, svc adapter.Service, cfg config, logge
 
 	select {
 	case <-ctx.Done():
-		ctxShutDown, cancelShutDown := context.WithTimeout(context.Background(), stopWaitTime)
-		defer cancelShutDown()
-		if err := server.Shutdown(ctxShutDown); err != nil {
+		ctxShutdown, cancelShutdown := context.WithTimeout(context.Background(), stopWaitTime)
+		defer cancelShutdown()
+		if err := server.Shutdown(ctxShutdown); err != nil {
 			logger.Error(fmt.Sprintf("HTTP adapter service error occurred during shutdown at %s: %s", p, err))
 			return fmt.Errorf("http adapter service error occurred during shutdown at %s: %w", p, err)
 		}
