@@ -39,7 +39,9 @@ import (
 )
 
 const (
-	stopWaitTime = 5 * time.Second
+	stopWaitTime  = 5 * time.Second
+	httpProtocol  = "http"
+	httpsProtocol = "https"
 
 	defLogLevel       = "error"
 	defDBHost         = "localhost"
@@ -333,7 +335,7 @@ func startHTTPServer(ctx context.Context, svc bootstrap.Service, cfg config, log
 	p := fmt.Sprintf(":%s", cfg.httpPort)
 	server := &http.Server{Addr: p, Handler: api.MakeHandler(svc, bootstrap.NewConfigReader(cfg.encKey), logger)}
 	errCh := make(chan error)
-	protocol := "http"
+	protocol := httpProtocol
 	switch {
 	case cfg.serverCert != "" || cfg.serverKey != "":
 		logger.Info(fmt.Sprintf("Bootstrap service started using https on port %s with cert %s key %s",
@@ -341,7 +343,7 @@ func startHTTPServer(ctx context.Context, svc bootstrap.Service, cfg config, log
 		go func() {
 			errCh <- server.ListenAndServeTLS(cfg.serverCert, cfg.serverKey)
 		}()
-		protocol = "https"
+		protocol = httpsProtocol
 
 	default:
 		logger.Info(fmt.Sprintf("Bootstrap service started using http on port %s", cfg.httpPort))

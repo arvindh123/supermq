@@ -35,7 +35,9 @@ import (
 )
 
 const (
-	stopWaitTime = 5 * time.Second
+	stopWaitTime  = 5 * time.Second
+	httpProtocol  = "http"
+	httpsProtocol = "https"
 
 	defLogLevel      = "error"
 	defDBHost        = "localhost"
@@ -267,14 +269,14 @@ func startHTTPServer(ctx context.Context, tracer opentracing.Tracer, svc auth.Se
 	p := fmt.Sprintf(":%s", port)
 	server := &http.Server{Addr: p, Handler: httpapi.MakeHandler(svc, tracer, logger)}
 	errCh := make(chan error)
-	protocol := "http"
+	protocol := httpProtocol
 	switch {
 	case certFile != "" || keyFile != "":
 		logger.Info(fmt.Sprintf("Authentication service started using https, cert %s key %s, exposed port %s", certFile, keyFile, port))
 		go func() {
 			errCh <- server.ListenAndServeTLS(certFile, keyFile)
 		}()
-		protocol = "https"
+		protocol = httpsProtocol
 	default:
 		logger.Info(fmt.Sprintf("Authentication service started using http, exposed port %s", port))
 		go func() {
