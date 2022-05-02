@@ -18,13 +18,8 @@ import (
 	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/lora"
 	"github.com/mainflux/mainflux/lora/api"
-<<<<<<< MF-1525
-	"github.com/mainflux/mainflux/pkg/errors"
-	"github.com/mainflux/mainflux/pkg/messaging"
-	"github.com/mainflux/mainflux/pkg/messaging/mqtt"
-=======
 	"github.com/mainflux/mainflux/lora/mqtt"
->>>>>>> master
+	"github.com/mainflux/mainflux/pkg/errors"
 	"github.com/mainflux/mainflux/pkg/messaging/nats"
 	"golang.org/x/sync/errgroup"
 
@@ -245,7 +240,6 @@ func newRouteMapRepository(client *r.Client, prefix string, logger logger.Logger
 
 func startHTTPServer(ctx context.Context, cfg config, logger logger.Logger) error {
 	p := fmt.Sprintf(":%s", cfg.httpPort)
-<<<<<<< MF-1525
 	errCh := make(chan error)
 	server := &http.Server{Addr: p, Handler: api.MakeHandler()}
 
@@ -269,8 +263,4 @@ func startHTTPServer(ctx context.Context, cfg config, logger logger.Logger) erro
 		return err
 	}
 
-=======
-	logger.Info(fmt.Sprintf("lora-adapter service started, exposed port %s", cfg.httpPort))
-	errs <- http.ListenAndServe(p, api.MakeHandler())
->>>>>>> master
 }
