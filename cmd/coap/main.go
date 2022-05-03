@@ -6,33 +6,27 @@ package main
 import (
 	"context"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"log"
-	"net/http"
 	"os"
 	"strconv"
 	"time"
 
-	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
 	"github.com/mainflux/mainflux"
 	"github.com/mainflux/mainflux/coap"
 	"github.com/mainflux/mainflux/coap/api"
+	"github.com/mainflux/mainflux/internal"
+	internalauth "github.com/mainflux/mainflux/internal/auth"
+	"github.com/mainflux/mainflux/internal/server"
+	coapserver "github.com/mainflux/mainflux/internal/server/coap"
+	httpserver "github.com/mainflux/mainflux/internal/server/http"
 	logger "github.com/mainflux/mainflux/logger"
-	"github.com/mainflux/mainflux/pkg/errors"
 	"github.com/mainflux/mainflux/pkg/messaging/brokers"
 	thingsapi "github.com/mainflux/mainflux/things/api/auth/grpc"
-	opentracing "github.com/opentracing/opentracing-go"
-	gocoap "github.com/plgd-dev/go-coap/v2"
-	stdprometheus "github.com/prometheus/client_golang/prometheus"
-	jconfig "github.com/uber/jaeger-client-go/config"
 	"golang.org/x/sync/errgroup"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 )
 
 const (
-	stopWaitTime = 5 * time.Second
+	svcName      = "coap_adapter"
 
 	defPort              = "5683"
 	defBrokerURL         = "nats://localhost:4222"
@@ -74,10 +68,10 @@ func main() {
 		log.Fatalf(err.Error())
 	}
 
-	conn := connectToThings(cfg, logger)
+	conn := internalauth.ConnectToThings(cfg.clientTLS, cfg.caCerts, cfg.thingsAuthURL, svcName, logger)
 	defer conn.Close()
 
-	thingsTracer, thingsCloser := initJaeger("things", cfg.jaegerURL, logger)
+	thingsTracer, thingsCloser := internalauth.Jaeger("things", cfg.jaegerURL, logger)
 	defer thingsCloser.Close()
 
 	tc := thingsapi.NewClient(conn, thingsTracer, cfg.thingsAuthTimeout)
@@ -93,36 +87,19 @@ func main() {
 
 	svc = api.LoggingMiddleware(svc, logger)
 
-	svc = api.MetricsMiddleware(
-		svc,
-		kitprometheus.NewCounterFrom(stdprometheus.CounterOpts{
-			Namespace: "coap_adapter",
-			Subsystem: "api",
-			Name:      "request_count",
-			Help:      "Number of requests received.",
-		}, []string{"method"}),
-		kitprometheus.NewSummaryFrom(stdprometheus.SummaryOpts{
-			Namespace: "coap_adapter",
-			Subsystem: "api",
-			Name:      "request_latency_microseconds",
-			Help:      "Total duration of requests in microseconds.",
-		}, []string{"method"}),
-	)
+	counter, latency := internal.MakeMetrics(svcName, "api")
+	svc = api.MetricsMiddleware(svc, counter, latency)
 
+	hs := httpserver.New(ctx, cancel, svcName, "", cfg.port, api.MakeHTTPHandler(), "", "", logger)
+	cs := coapserver.New(ctx, cancel, svcName, "", cfg.port, api.MakeCoAPHandler(svc, logger), logger)
 	g.Go(func() error {
-		return startHTTPServer(ctx, cfg.port, logger)
+		return hs.Start()
 	})
-
 	g.Go(func() error {
-		return startCOAPServer(ctx, cfg, svc, nil, logger)
+		return cs.Start()
 	})
-
 	g.Go(func() error {
-		if sig := errors.SignalHandler(ctx); sig != nil {
-			cancel()
-			logger.Info(fmt.Sprintf("CoAP adapter service shutdown by signal: %s", sig))
-		}
-		return nil
+		return server.StopSignalHandler(ctx, cancel, logger, svcName, hs, cs)
 	})
 
 	if err := g.Wait(); err != nil {
@@ -150,94 +127,5 @@ func loadConfig() config {
 		jaegerURL:         mainflux.Env(envJaegerURL, defJaegerURL),
 		thingsAuthURL:     mainflux.Env(envThingsAuthURL, defThingsAuthURL),
 		thingsAuthTimeout: authTimeout,
-	}
-}
-
-func connectToThings(cfg config, logger logger.Logger) *grpc.ClientConn {
-	var opts []grpc.DialOption
-	if cfg.clientTLS {
-		if cfg.caCerts != "" {
-			tpc, err := credentials.NewClientTLSFromFile(cfg.caCerts, "")
-			if err != nil {
-				logger.Error(fmt.Sprintf("Failed to load certs: %s", err))
-				os.Exit(1)
-			}
-			opts = append(opts, grpc.WithTransportCredentials(tpc))
-		}
-	} else {
-		logger.Info("gRPC communication is not encrypted")
-		opts = append(opts, grpc.WithInsecure())
-	}
-
-	conn, err := grpc.Dial(cfg.thingsAuthURL, opts...)
-	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to connect to things service: %s", err))
-		os.Exit(1)
-	}
-	return conn
-}
-
-func initJaeger(svcName, url string, logger logger.Logger) (opentracing.Tracer, io.Closer) {
-	if url == "" {
-		return opentracing.NoopTracer{}, ioutil.NopCloser(nil)
-	}
-
-	tracer, closer, err := jconfig.Configuration{
-		ServiceName: svcName,
-		Sampler: &jconfig.SamplerConfig{
-			Type:  "const",
-			Param: 1,
-		},
-		Reporter: &jconfig.ReporterConfig{
-			LocalAgentHostPort: url,
-			LogSpans:           true,
-		},
-	}.NewTracer()
-	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to init Jaeger client: %s", err))
-		os.Exit(1)
-	}
-
-	return tracer, closer
-}
-
-func startHTTPServer(ctx context.Context, port string, logger logger.Logger) error {
-	p := fmt.Sprintf(":%s", port)
-	errCh := make(chan error)
-	server := &http.Server{Addr: p, Handler: api.MakeHTTPHandler()}
-	logger.Info(fmt.Sprintf("CoAP service started, exposed port %s", port))
-
-	go func() {
-		errCh <- server.ListenAndServe()
-	}()
-
-	select {
-	case <-ctx.Done():
-		ctxShutdown, cancelShutdown := context.WithTimeout(context.Background(), stopWaitTime)
-		defer cancelShutdown()
-		if err := server.Shutdown(ctxShutdown); err != nil {
-			logger.Error(fmt.Sprintf("CoAP adapter service error occurred during shutdown at %s: %s", p, err))
-			return fmt.Errorf("CoAP adapter service error occurred during shutdown at %s: %w", p, err)
-		}
-		logger.Info(fmt.Sprintf("CoAP adapter service shutdown at %s", p))
-		return nil
-	case err := <-errCh:
-		return err
-	}
-}
-
-func startCOAPServer(ctx context.Context, cfg config, svc coap.Service, auth mainflux.ThingsServiceClient, l logger.Logger) error {
-	p := fmt.Sprintf(":%s", cfg.port)
-	errCh := make(chan error)
-	l.Info(fmt.Sprintf("CoAP adapter service started, exposed port %s", cfg.port))
-	go func() {
-		errCh <- gocoap.ListenAndServe("udp", p, api.MakeCoAPHandler(svc, l))
-	}()
-	select {
-	case <-ctx.Done():
-		l.Info(fmt.Sprintf("CoAP adapter service shutdown of http at %s", p))
-		return nil
-	case err := <-errCh:
-		return err
 	}
 }

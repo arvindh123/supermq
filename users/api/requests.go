@@ -157,7 +157,7 @@ func (req listMemberGroupReq) validate() error {
 		return apiutil.ErrBearerToken
 	}
 
-	if req.id == "" {
+	if req.groupID == "" {
 		return apiutil.ErrMissingID
 	}
 	if req.status != users.AllStatusKey &&

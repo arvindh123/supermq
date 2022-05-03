@@ -7,27 +7,24 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"net/http"
 	"os"
-	"time"
 
-	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
 	"github.com/mainflux/mainflux"
 	"github.com/mainflux/mainflux/consumers"
 	"github.com/mainflux/mainflux/consumers/writers/api"
 	"github.com/mainflux/mainflux/consumers/writers/mongodb"
+	"github.com/mainflux/mainflux/internal"
+	mfdatabase "github.com/mainflux/mainflux/internal/db"
+	"github.com/mainflux/mainflux/internal/server"
+	httpserver "github.com/mainflux/mainflux/internal/server/http"
 	"github.com/mainflux/mainflux/logger"
-	"github.com/mainflux/mainflux/pkg/errors"
 	"github.com/mainflux/mainflux/pkg/messaging/brokers"
-	stdprometheus "github.com/prometheus/client_golang/prometheus"
 	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 	"golang.org/x/sync/errgroup"
 )
 
 const (
-	svcName      = "mongodb-writer"
-	stopWaitTime = 5 * time.Second
+	svcName = "mongodb-writer"
 
 	defLogLevel   = "error"
 	defBrokerURL  = "nats://localhost:4222"
@@ -73,35 +70,22 @@ func main() {
 	}
 	defer pubSub.Close()
 
-	addr := fmt.Sprintf("mongodb://%s:%s", cfg.dbHost, cfg.dbPort)
-	client, err := mongo.Connect(context.Background(), options.Client().ApplyURI(addr))
-	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to connect to database: %s", err))
-		os.Exit(1)
-	}
+	db := mfdatabase.ConnectToMongoDB(cfg.dbHost, cfg.dbPort, cfg.dbName, logger)
 
-	db := client.Database(cfg.dbName)
-	repo := mongodb.New(db)
-
-	counter, latency := makeMetrics()
-	repo = api.LoggingMiddleware(repo, logger)
-	repo = api.MetricsMiddleware(repo, counter, latency)
+	repo := newService(db, logger)
 
 	if err := consumers.Start(svcName, pubSub, repo, cfg.configPath, logger); err != nil {
 		logger.Error(fmt.Sprintf("Failed to start MongoDB writer: %s", err))
 		os.Exit(1)
 	}
 
+	hs := httpserver.New(ctx, cancel, svcName, "", cfg.port, api.MakeHandler(svcName), "", "", logger)
 	g.Go(func() error {
-		return startHTTPService(ctx, cfg.port, logger)
+		return hs.Start()
 	})
 
 	g.Go(func() error {
-		if sig := errors.SignalHandler(ctx); sig != nil {
-			cancel()
-			logger.Info(fmt.Sprintf("MongoDB reader service shutdown by signal: %s", sig))
-		}
-		return nil
+		return server.StopSignalHandler(ctx, cancel, logger, svcName, hs)
 	})
 
 	if err := g.Wait(); err != nil {
@@ -122,47 +106,11 @@ func loadConfigs() config {
 	}
 }
 
-func makeMetrics() (*kitprometheus.Counter, *kitprometheus.Summary) {
-	counter := kitprometheus.NewCounterFrom(stdprometheus.CounterOpts{
-		Namespace: "mongodb",
-		Subsystem: "message_writer",
-		Name:      "request_count",
-		Help:      "Number of database inserts.",
-	}, []string{"method"})
+func newService(db *mongo.Database, logger logger.Logger) consumers.Consumer {
+	repo := mongodb.New(db)
+	repo = api.LoggingMiddleware(repo, logger)
+	counter, latency := internal.MakeMetrics("mongodb", "message_writer")
+	repo = api.MetricsMiddleware(repo, counter, latency)
 
-	latency := kitprometheus.NewSummaryFrom(stdprometheus.SummaryOpts{
-		Namespace: "mongodb",
-		Subsystem: "message_writer",
-		Name:      "request_latency_microseconds",
-		Help:      "Total duration of inserts in microseconds.",
-	}, []string{"method"})
-
-	return counter, latency
-}
-
-func startHTTPService(ctx context.Context, port string, logger logger.Logger) error {
-	p := fmt.Sprintf(":%s", port)
-	errCh := make(chan error)
-	server := &http.Server{Addr: p, Handler: api.MakeHandler(svcName)}
-
-	logger.Info(fmt.Sprintf("MongoDB writer service started, exposed port %s", p))
-
-	go func() {
-		errCh <- server.ListenAndServe()
-	}()
-
-	select {
-	case <-ctx.Done():
-		ctxShutdown, cancelShutdown := context.WithTimeout(context.Background(), stopWaitTime)
-		defer cancelShutdown()
-		if err := server.Shutdown(ctxShutdown); err != nil {
-			logger.Error(fmt.Sprintf("MongoDB writer service error occurred during shutdown at %s: %s", p, err))
-			return fmt.Errorf("mongodb writer service occurred during shutdown at %s: %w", p, err)
-		}
-		logger.Info(fmt.Sprintf("MongoDB writer service  shutdown of http at %s", p))
-		return nil
-	case err := <-errCh:
-		return err
-	}
-
+	return repo
 }

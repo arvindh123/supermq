@@ -6,15 +6,11 @@ package main
 import (
 	"context"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"log"
-	"net/http"
 	"os"
 	"strconv"
 	"time"
 
-	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
 	"github.com/jmoiron/sqlx"
 	"github.com/mainflux/mainflux"
 	authapi "github.com/mainflux/mainflux/auth/api/grpc"
@@ -22,24 +18,24 @@ import (
 	"github.com/mainflux/mainflux/consumers/notifiers"
 	"github.com/mainflux/mainflux/consumers/notifiers/api"
 	"github.com/mainflux/mainflux/consumers/notifiers/postgres"
+	"github.com/mainflux/mainflux/internal"
+	internalauth "github.com/mainflux/mainflux/internal/auth"
+	"github.com/mainflux/mainflux/internal/server"
+	httpserver "github.com/mainflux/mainflux/internal/server/http"
 	"golang.org/x/sync/errgroup"
 
 	mfsmpp "github.com/mainflux/mainflux/consumers/notifiers/smpp"
 	"github.com/mainflux/mainflux/consumers/notifiers/tracing"
 	"github.com/mainflux/mainflux/logger"
-	"github.com/mainflux/mainflux/pkg/errors"
 	"github.com/mainflux/mainflux/pkg/messaging/brokers"
 	"github.com/mainflux/mainflux/pkg/ulid"
 	opentracing "github.com/opentracing/opentracing-go"
-	stdprometheus "github.com/prometheus/client_golang/prometheus"
-	jconfig "github.com/uber/jaeger-client-go/config"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
 
 const (
 	svcName          = "smpp-notifier"
-	stopWaitTime     = 5 * time.Second
 	defLogLevel      = "error"
 	defDBHost        = "localhost"
 	defDBPort        = "5432"
@@ -142,7 +138,7 @@ func main() {
 	}
 	defer pubSub.Close()
 
-	authTracer, closer := initJaeger("auth", cfg.jaegerURL, logger)
+	authTracer, closer := internalauth.Jaeger("auth", cfg.jaegerURL, logger)
 	defer closer.Close()
 
 	auth, close := connectToAuth(cfg, authTracer, logger)
@@ -150,10 +146,10 @@ func main() {
 		defer close()
 	}
 
-	tracer, closer := initJaeger("smpp-notifier", cfg.jaegerURL, logger)
+	tracer, closer := internalauth.Jaeger("smpp-notifier", cfg.jaegerURL, logger)
 	defer closer.Close()
 
-	dbTracer, dbCloser := initJaeger("smpp-notifier_db", cfg.jaegerURL, logger)
+	dbTracer, dbCloser := internalauth.Jaeger("smpp-notifier_db", cfg.jaegerURL, logger)
 	defer dbCloser.Close()
 
 	svc := newService(db, dbTracer, auth, cfg, logger)
@@ -162,16 +158,13 @@ func main() {
 		logger.Error(fmt.Sprintf("Failed to create Postgres writer: %s", err))
 	}
 
+	hs := httpserver.New(ctx, cancel, svcName, "", cfg.httpPort, api.MakeHandler(svc, tracer, logger), cfg.serverCert, cfg.serverKey, logger)
 	g.Go(func() error {
-		return startHTTPServer(ctx, tracer, svc, cfg.httpPort, cfg.serverCert, cfg.serverKey, logger)
+		return hs.Start()
 	})
 
 	g.Go(func() error {
-		if sig := errors.SignalHandler(ctx); sig != nil {
-			cancel()
-			logger.Info(fmt.Sprintf("SMPP notifier service shutdown by signal: %s", sig))
-		}
-		return nil
+		return server.StopSignalHandler(ctx, cancel, logger, svcName, hs)
 	})
 
 	if err := g.Wait(); err != nil {
@@ -250,30 +243,6 @@ func loadConfig() config {
 
 }
 
-func initJaeger(svcName, url string, logger logger.Logger) (opentracing.Tracer, io.Closer) {
-	if url == "" {
-		return opentracing.NoopTracer{}, ioutil.NopCloser(nil)
-	}
-
-	tracer, closer, err := jconfig.Configuration{
-		ServiceName: svcName,
-		Sampler: &jconfig.SamplerConfig{
-			Type:  "const",
-			Param: 1,
-		},
-		Reporter: &jconfig.ReporterConfig{
-			LocalAgentHostPort: url,
-			LogSpans:           true,
-		},
-	}.NewTracer()
-	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to init Jaeger: %s", err))
-		os.Exit(1)
-	}
-
-	return tracer, closer
-}
-
 func connectToDB(dbConfig postgres.Config, logger logger.Logger) *sqlx.DB {
 	db, err := postgres.Connect(dbConfig)
 	if err != nil {
@@ -315,54 +284,8 @@ func newService(db *sqlx.DB, tracer opentracing.Tracer, auth mainflux.AuthServic
 	notifier := mfsmpp.New(c.smppConf)
 	svc := notifiers.New(auth, repo, idp, notifier, c.from)
 	svc = api.LoggingMiddleware(svc, logger)
-	svc = api.MetricsMiddleware(
-		svc,
-		kitprometheus.NewCounterFrom(stdprometheus.CounterOpts{
-			Namespace: "notifier",
-			Subsystem: "smpp",
-			Name:      "request_count",
-			Help:      "Number of requests received.",
-		}, []string{"method"}),
-		kitprometheus.NewSummaryFrom(stdprometheus.SummaryOpts{
-			Namespace: "notifier",
-			Subsystem: "smpp",
-			Name:      "request_latency_microseconds",
-			Help:      "Total duration of requests in microseconds.",
-		}, []string{"method"}),
-	)
+	counter, latency := internal.MakeMetrics("notifier", "smpp")
+	svc = api.MetricsMiddleware(svc, counter, latency)
+
 	return svc
-}
-
-func startHTTPServer(ctx context.Context, tracer opentracing.Tracer, svc notifiers.Service, port string, certFile string, keyFile string, logger logger.Logger) error {
-	p := fmt.Sprintf(":%s", port)
-	errCh := make(chan error)
-	server := &http.Server{Addr: p, Handler: api.MakeHandler(svc, tracer, logger)}
-
-	switch {
-	case certFile != "" || keyFile != "":
-		logger.Info(fmt.Sprintf("SMPP notifier service started using https, cert %s key %s, exposed port %s", certFile, keyFile, port))
-		go func() {
-			errCh <- server.ListenAndServeTLS(certFile, keyFile)
-		}()
-	default:
-		logger.Info(fmt.Sprintf("SMPP notifier service started using http, exposed port %s", port))
-		go func() {
-			errCh <- server.ListenAndServe()
-		}()
-	}
-
-	select {
-	case <-ctx.Done():
-		ctxShutdown, cancelShutdown := context.WithTimeout(context.Background(), stopWaitTime)
-		defer cancelShutdown()
-		if err := server.Shutdown(ctxShutdown); err != nil {
-			logger.Error(fmt.Sprintf("SMPP notifier service error occurred during shutdown at %s: %s", p, err))
-			return fmt.Errorf("smpp notifier service occurred during shutdown at %s: %w", p, err)
-		}
-		logger.Info(fmt.Sprintf("SMPP notifier service  shutdown of http at %s", p))
-		return nil
-	case err := <-errCh:
-		return err
-	}
-
 }

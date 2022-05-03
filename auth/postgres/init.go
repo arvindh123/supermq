@@ -12,15 +12,15 @@ import (
 
 // Config defines the options that are used when connecting to a PostgreSQL instance
 type Config struct {
-	Host        string
-	Port        string
-	User        string
-	Pass        string
-	Name        string
-	SSLMode     string
-	SSLCert     string
-	SSLKey      string
-	SSLRootCert string
+	Host        string `env:"MF_AUTH_DB_HOST"           envDefault:"localhost"`
+	Port        string `env:"MF_AUTH_DB_PORT"           envDefault:"5432"`
+	User        string `env:"MF_AUTH_DB_USER"           envDefault:"mainflux"`
+	Pass        string `env:"MF_AUTH_DB_PASS"           envDefault:"mainflux"`
+	Name        string `env:"MF_AUTH_DB"                envDefault:"auth"`
+	SSLMode     string `env:"MF_AUTH_DB_SSL_MODE"       envDefault:"disable"`
+	SSLCert     string `env:"MF_AUTH_DB_SSL_CERT"       envDefault:""`
+	SSLKey      string `env:"MF_AUTH_DB_SSL_KEY"        envDefault:""`
+	SSLRootCert string `env:"MF_AUTH_DB_SSL_ROOT_CERT"  envDefault:""`
 }
 
 // Connect creates a connection to the PostgreSQL instance and applies any

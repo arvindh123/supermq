@@ -6,20 +6,20 @@ package main
 import (
 	"context"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"log"
-	"net/http"
 	"os"
 	"strconv"
 	"time"
 
-	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
 	"github.com/go-redis/redis/v8"
 	"github.com/mainflux/mainflux"
 	authapi "github.com/mainflux/mainflux/auth/api/grpc"
+	"github.com/mainflux/mainflux/internal"
+	internalauth "github.com/mainflux/mainflux/internal/auth"
+	mfdatabase "github.com/mainflux/mainflux/internal/db"
+	"github.com/mainflux/mainflux/internal/server"
+	httpserver "github.com/mainflux/mainflux/internal/server/http"
 	"github.com/mainflux/mainflux/logger"
-	"github.com/mainflux/mainflux/pkg/errors"
 	"github.com/mainflux/mainflux/pkg/messaging"
 	"github.com/mainflux/mainflux/pkg/messaging/brokers"
 	"github.com/mainflux/mainflux/pkg/uuid"
@@ -31,18 +31,13 @@ import (
 	rediscache "github.com/mainflux/mainflux/twins/redis"
 	"github.com/mainflux/mainflux/twins/tracing"
 	opentracing "github.com/opentracing/opentracing-go"
-	stdprometheus "github.com/prometheus/client_golang/prometheus"
-	jconfig "github.com/uber/jaeger-client-go/config"
 	"go.mongodb.org/mongo-driver/mongo"
 	"golang.org/x/sync/errgroup"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 )
 
 const (
 	svcName            = "twins"
 	queue              = "twins"
-	stopWaitTime       = 5 * time.Second
 	defLogLevel        = "error"
 	defHTTPPort        = "8180"
 	defJaegerURL       = ""
@@ -115,8 +110,8 @@ func main() {
 		log.Fatalf(err.Error())
 	}
 
-	cacheClient := connectToRedis(cfg.cacheURL, cfg.cachePass, cfg.cacheDB, logger)
-	cacheTracer, cacheCloser := initJaeger("twins_cache", cfg.jaegerURL, logger)
+	cacheClient := mfdatabase.ConnectToRedis(cfg.cacheURL, cfg.cachePass, cfg.cacheDB, logger)
+	cacheTracer, cacheCloser := internalauth.Jaeger("twins_cache", cfg.jaegerURL, logger)
 	defer cacheCloser.Close()
 
 	db, err := twmongodb.Connect(cfg.dbCfg, logger)
@@ -124,10 +119,10 @@ func main() {
 		logger.Error(err.Error())
 		os.Exit(1)
 	}
-	dbTracer, dbCloser := initJaeger("twins_db", cfg.jaegerURL, logger)
+	dbTracer, dbCloser := internalauth.Jaeger("twins_db", cfg.jaegerURL, logger)
 	defer dbCloser.Close()
 
-	authTracer, authCloser := initJaeger("auth", cfg.jaegerURL, logger)
+	authTracer, authCloser := internalauth.Jaeger("auth", cfg.jaegerURL, logger)
 	defer authCloser.Close()
 	auth, _ := createAuthClient(cfg, authTracer, logger)
 
@@ -140,19 +135,16 @@ func main() {
 
 	svc := newService(svcName, pubSub, cfg.channelID, auth, dbTracer, db, cacheTracer, cacheClient, logger)
 
-	tracer, closer := initJaeger("twins", cfg.jaegerURL, logger)
+	tracer, closer := internalauth.Jaeger("twins", cfg.jaegerURL, logger)
 	defer closer.Close()
 
+	hs := httpserver.New(ctx, cancel, svcName, "", cfg.httpPort, twapi.MakeHandler(tracer, svc, logger), cfg.serverCert, cfg.serverKey, logger)
 	g.Go(func() error {
-		return startHTTPServer(ctx, twapi.MakeHandler(tracer, svc, logger), cfg.httpPort, cfg, logger)
+		return hs.Start()
 	})
 
 	g.Go(func() error {
-		if sig := errors.SignalHandler(ctx); sig != nil {
-			cancel()
-			logger.Info(fmt.Sprintf("Twins service shutdown by signal: %s", sig))
-		}
-		return nil
+		return server.StopSignalHandler(ctx, cancel, logger, svcName, hs)
 	})
 
 	if err := g.Wait(); err != nil {
@@ -198,76 +190,13 @@ func loadConfig() config {
 	}
 }
 
-func initJaeger(svcName, url string, logger logger.Logger) (opentracing.Tracer, io.Closer) {
-	if url == "" {
-		return opentracing.NoopTracer{}, ioutil.NopCloser(nil)
-	}
-
-	tracer, closer, err := jconfig.Configuration{
-		ServiceName: svcName,
-		Sampler: &jconfig.SamplerConfig{
-			Type:  "const",
-			Param: 1,
-		},
-		Reporter: &jconfig.ReporterConfig{
-			LocalAgentHostPort: url,
-			LogSpans:           true,
-		},
-	}.NewTracer()
-	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to init Jaeger client: %s", err))
-		os.Exit(1)
-	}
-
-	return tracer, closer
-}
-
 func createAuthClient(cfg config, tracer opentracing.Tracer, logger logger.Logger) (mainflux.AuthServiceClient, func() error) {
 	if cfg.standaloneEmail != "" && cfg.standaloneToken != "" {
 		return localusers.NewAuthService(cfg.standaloneEmail, cfg.standaloneToken), nil
 	}
 
-	conn := connectToAuth(cfg, logger)
+	conn := internalauth.ConnectToAuth(cfg.clientTLS, cfg.caCerts, cfg.authURL, svcName, logger)
 	return authapi.NewClient(tracer, conn, cfg.authTimeout), conn.Close
-}
-
-func connectToAuth(cfg config, logger logger.Logger) *grpc.ClientConn {
-	var opts []grpc.DialOption
-	if cfg.clientTLS {
-		if cfg.caCerts != "" {
-			tpc, err := credentials.NewClientTLSFromFile(cfg.caCerts, "")
-			if err != nil {
-				logger.Error(fmt.Sprintf("Failed to create tls credentials: %s", err))
-				os.Exit(1)
-			}
-			opts = append(opts, grpc.WithTransportCredentials(tpc))
-		}
-	} else {
-		opts = append(opts, grpc.WithInsecure())
-		logger.Info("gRPC communication is not encrypted")
-	}
-
-	conn, err := grpc.Dial(cfg.authURL, opts...)
-	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to connect to auth service: %s", err))
-		os.Exit(1)
-	}
-
-	return conn
-}
-
-func connectToRedis(cacheURL, cachePass, cacheDB string, logger logger.Logger) *redis.Client {
-	db, err := strconv.Atoi(cacheDB)
-	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to connect to cache: %s", err))
-		os.Exit(1)
-	}
-
-	return redis.NewClient(&redis.Options{
-		Addr:     cacheURL,
-		Password: cachePass,
-		DB:       db,
-	})
 }
 
 func newService(id string, ps messaging.PubSub, chanID string, users mainflux.AuthServiceClient, dbTracer opentracing.Tracer, db *mongo.Database, cacheTracer opentracing.Tracer, cacheClient *redis.Client, logger logger.Logger) twins.Service {
@@ -318,40 +247,6 @@ func handle(logger logger.Logger, chanID string, svc twins.Service) handlerFunc 
 		}
 
 		return nil
-	}
-}
-
-func startHTTPServer(ctx context.Context, handler http.Handler, port string, cfg config, logger logger.Logger) error {
-	p := fmt.Sprintf(":%s", port)
-	errCh := make(chan error)
-	server := &http.Server{Addr: p, Handler: handler}
-
-	switch {
-	case cfg.serverCert != "" || cfg.serverKey != "":
-		logger.Info(fmt.Sprintf("Twins service started using https on port %s with cert %s key %s",
-			port, cfg.serverCert, cfg.serverKey))
-		go func() {
-			errCh <- server.ListenAndServeTLS(cfg.serverCert, cfg.serverKey)
-		}()
-	default:
-		logger.Info(fmt.Sprintf("Twins service started using http on port %s", cfg.httpPort))
-		go func() {
-			errCh <- server.ListenAndServe()
-		}()
-	}
-
-	select {
-	case <-ctx.Done():
-		ctxShutdown, cancelShutdown := context.WithTimeout(context.Background(), stopWaitTime)
-		defer cancelShutdown()
-		if err := server.Shutdown(ctxShutdown); err != nil {
-			logger.Error(fmt.Sprintf("Twins service error occurred during shutdown at %s: %s", p, err))
-			return fmt.Errorf("twins service occurred during shutdown at %s: %w", p, err)
-		}
-		logger.Info(fmt.Sprintf("Twins service shutdown of http at %s", p))
-		return nil
-	case err := <-errCh:
-		return err
 	}
 }
 
