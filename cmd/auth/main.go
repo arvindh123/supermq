@@ -37,7 +37,7 @@ const (
 	stopWaitTime  = 5 * time.Second
 	httpProtocol  = "http"
 	httpsProtocol = "https"
-	serviceName   = "Authentication"
+	svcName       = "authentication"
 
 	defListenAddress = ""
 	defLogLevel      = "error"
@@ -129,9 +129,8 @@ func main() {
 
 	svc := newService(db, dbTracer, cfg.secret, logger, readerConn, writerConn, cfg.loginDuration)
 
-	hs := httpserver.New(ctx, cancel, serviceName, defListenAddress, cfg.httpPort, httpapi.MakeHandler(svc, tracer, logger), cfg.serverCert, cfg.serverKey, logger)
-	gs := grpcserver.New(ctx, cancel, serviceName, defListenAddress, cfg.httpPort, grpcapi.NewServer(tracer, svc), cfg.serverCert, cfg.serverKey, logger)
-
+	hs := httpserver.New(ctx, cancel, svcName, defListenAddress, cfg.httpPort, httpapi.MakeHandler(svc, tracer, logger), cfg.serverCert, cfg.serverKey, logger)
+	gs := grpcserver.New(ctx, cancel, svcName, defListenAddress, cfg.httpPort, grpcapi.NewServer(tracer, svc), cfg.serverCert, cfg.serverKey, logger)
 	g.Go(func() error {
 		return hs.Start()
 	})
@@ -140,7 +139,7 @@ func main() {
 	})
 
 	g.Go(func() error {
-		return mfserver.ServerStopSignalHandler(ctx, cancel, logger, hs, gs)
+		return mfserver.ServerStopSignalHandler(ctx, cancel, logger, svcName, hs, gs)
 	})
 	if err := g.Wait(); err != nil {
 		logger.Error(fmt.Sprintf("Authentication service terminated: %s", err))

@@ -9,7 +9,6 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
-	"net/http"
 	"os"
 	"strconv"
 	"time"
@@ -18,9 +17,10 @@ import (
 	"github.com/mainflux/mainflux"
 	"github.com/mainflux/mainflux/coap"
 	"github.com/mainflux/mainflux/coap/api"
+	"github.com/mainflux/mainflux/internal/apiutil/mfserver"
+	"github.com/mainflux/mainflux/internal/apiutil/mfserver/httpserver"
 	logger "github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/pkg/messaging/nats"
-	"github.com/mainflux/mainflux/pkg/errors"
 	thingsapi "github.com/mainflux/mainflux/things/api/auth/grpc"
 	opentracing "github.com/opentracing/opentracing-go"
 	gocoap "github.com/plgd-dev/go-coap/v2"
@@ -33,6 +33,7 @@ import (
 
 const (
 	stopWaitTime = 5 * time.Second
+	svcName      = "coap"
 
 	defPort              = "5683"
 	defNatsURL           = "nats://localhost:4222"
@@ -110,19 +111,16 @@ func main() {
 	)
 
 	g.Go(func() error {
-		return startHTTPServer(ctx, cfg.port, logger)
-	})
-
-	g.Go(func() error {
 		return startCOAPServer(ctx, cfg, svc, nil, logger)
 	})
 
+	hs := httpserver.New(ctx, cancel, svcName, "", cfg.port, api.MakeHTTPHandler(), "", "", logger)
 	g.Go(func() error {
-		if sig := errors.SignalHandler(ctx); sig != nil {
-			cancel()
-			logger.Info(fmt.Sprintf("CoAP adapter service shutdown by signal: %s", sig))
-		}
-		return nil
+		return hs.Start()
+	})
+
+	g.Go(func() error {
+		return mfserver.ServerStopSignalHandler(ctx, cancel, logger, svcName, hs)
 	})
 
 	if err := g.Wait(); err != nil {
@@ -199,31 +197,6 @@ func initJaeger(svcName, url string, logger logger.Logger) (opentracing.Tracer, 
 	}
 
 	return tracer, closer
-}
-
-func startHTTPServer(ctx context.Context, port string, logger logger.Logger) error {
-	p := fmt.Sprintf(":%s", port)
-	errCh := make(chan error)
-	server := &http.Server{Addr: p, Handler: api.MakeHTTPHandler()}
-	logger.Info(fmt.Sprintf("CoAP service started, exposed port %s", port))
-
-	go func() {
-		errCh <- server.ListenAndServe()
-	}()
-
-	select {
-	case <-ctx.Done():
-		ctxShutdown, cancelShutdown := context.WithTimeout(context.Background(), stopWaitTime)
-		defer cancelShutdown()
-		if err := server.Shutdown(ctxShutdown); err != nil {
-			logger.Error(fmt.Sprintf("CoAP adapter service error occurred during shutdown at %s: %s", p, err))
-			return fmt.Errorf("CoAP adapter service error occurred during shutdown at %s: %w", p, err)
-		}
-		logger.Info(fmt.Sprintf("CoAP adapter service shutdown at %s", p))
-		return nil
-	case err := <-errCh:
-		return err
-	}
 }
 
 func startCOAPServer(ctx context.Context, cfg config, svc coap.Service, auth mainflux.ThingsServiceClient, l logger.Logger) error {

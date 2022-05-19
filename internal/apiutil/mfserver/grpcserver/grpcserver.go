@@ -60,16 +60,16 @@ func (s *GRPCServer) Start() error {
 		if err != nil {
 			return fmt.Errorf("failed to load auth certificates: %w", err)
 		}
-		s.Logger.Info(fmt.Sprintf("Authentication gRPC service started using https on port %s with cert %s key %s", s.Port, s.CertFile, s.KeyFile))
+		s.Logger.Info(fmt.Sprintf("%s gRPC service started using https on port %s with cert %s key %s", s.Name, s.Port, s.CertFile, s.KeyFile))
 		s.server = grpc.NewServer(grpc.Creds(creds))
 	default:
-		s.Logger.Info(fmt.Sprintf("Authentication gRPC service started using http on port %s", s.Port))
+		s.Logger.Info(fmt.Sprintf("%s gRPC service started using http on port %s", s.Name, s.Port))
 		s.server = grpc.NewServer()
 	}
 
 	mainflux.RegisterAuthServiceServer(s.server, s.authSrvSvr)
 
-	s.Logger.Info(fmt.Sprintf("Authentication gRPC service started, exposed port %s", s.Port))
+	s.Logger.Info(fmt.Sprintf("%s gRPC service started, exposed port %s", s.Name, s.Port))
 	go func() {
 		errCh <- s.server.Serve(listener)
 	}()
@@ -94,7 +94,7 @@ func (s *GRPCServer) Stop() error {
 	case <-c:
 	case <-time.After(stopWaitTime):
 	}
-	s.Logger.Info(fmt.Sprintf("Authentication gRPC service shutdown at %s", s.Port))
+	s.Logger.Info(fmt.Sprintf("%s gRPC service shutdown at %s", s.Name, s.Port))
 
 	return nil
 }

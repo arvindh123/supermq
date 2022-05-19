@@ -42,7 +42,7 @@ func stopAllServer(servers ...Server) error {
 	return err
 }
 
-func ServerStopSignalHandler(ctx context.Context, cancel context.CancelFunc, logger logger.Logger, servers ...Server) error {
+func ServerStopSignalHandler(ctx context.Context, cancel context.CancelFunc, logger logger.Logger, svcName string, servers ...Server) error {
 	var err error
 	c := make(chan os.Signal)
 	signal.Notify(c, syscall.SIGINT, syscall.SIGABRT)
@@ -51,9 +51,9 @@ func ServerStopSignalHandler(ctx context.Context, cancel context.CancelFunc, log
 		defer cancel()
 		err = stopAllServer(servers...)
 		if err != nil {
-			logger.Error(fmt.Sprintf("Authentication service error during shutdown: %v", err))
+			logger.Error(fmt.Sprintf("%s service error during shutdown: %v", svcName, err))
 		}
-		logger.Info(fmt.Sprintf("Authentication service shutdown by signal: %s", sig))
+		logger.Info(fmt.Sprintf("%s service shutdown by signal: %s", svcName, sig))
 		return err
 	case <-ctx.Done():
 		return nil

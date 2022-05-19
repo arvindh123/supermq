@@ -9,7 +9,6 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
-	"net/http"
 	"os"
 	"strconv"
 	"time"
@@ -20,8 +19,9 @@ import (
 	"github.com/mainflux/mainflux"
 	adapter "github.com/mainflux/mainflux/http"
 	"github.com/mainflux/mainflux/http/api"
+	"github.com/mainflux/mainflux/internal/apiutil/mfserver"
+	"github.com/mainflux/mainflux/internal/apiutil/mfserver/httpserver"
 	"github.com/mainflux/mainflux/logger"
-	"github.com/mainflux/mainflux/pkg/errors"
 	"github.com/mainflux/mainflux/pkg/messaging/nats"
 	thingsapi "github.com/mainflux/mainflux/things/api/auth/grpc"
 	"github.com/opentracing/opentracing-go"
@@ -33,6 +33,7 @@ import (
 
 const (
 	stopWaitTime = 5 * time.Second
+	svcName      = "http"
 
 	defLogLevel          = "error"
 	defClientTLS         = "false"
@@ -110,15 +111,13 @@ func main() {
 		}, []string{"method"}),
 	)
 
+	hs := httpserver.New(ctx, cancel, svcName, "", cfg.port, api.MakeHandler(svc, tracer, logger), "", "", logger)
 	g.Go(func() error {
-		return startHTTPServer(ctx, svc, cfg, logger, tracer)
+		return hs.Start()
 	})
+
 	g.Go(func() error {
-		if sig := errors.SignalHandler(ctx); sig != nil {
-			cancel()
-			logger.Info(fmt.Sprintf("HTTP adapter service shutdown by signal: %s", sig))
-		}
-		return nil
+		return mfserver.ServerStopSignalHandler(ctx, cancel, logger, svcName, hs)
 	})
 
 	if err := g.Wait(); err != nil {
@@ -196,28 +195,4 @@ func connectToThings(cfg config, logger logger.Logger) *grpc.ClientConn {
 		os.Exit(1)
 	}
 	return conn
-}
-
-func startHTTPServer(ctx context.Context, svc adapter.Service, cfg config, logger logger.Logger, tracer opentracing.Tracer) error {
-	p := fmt.Sprintf(":%s", cfg.port)
-	errCh := make(chan error)
-	server := &http.Server{Addr: p, Handler: api.MakeHandler(svc, tracer, logger)}
-	logger.Info(fmt.Sprintf("HTTP adapter service started on port %s", cfg.port))
-	go func() {
-		errCh <- server.ListenAndServe()
-	}()
-
-	select {
-	case <-ctx.Done():
-		ctxShutdown, cancelShutdown := context.WithTimeout(context.Background(), stopWaitTime)
-		defer cancelShutdown()
-		if err := server.Shutdown(ctxShutdown); err != nil {
-			logger.Error(fmt.Sprintf("HTTP adapter service error occurred during shutdown at %s: %s", p, err))
-			return fmt.Errorf("http adapter service error occurred during shutdown at %s: %w", p, err)
-		}
-		logger.Info(fmt.Sprintf("HTTP adapter service shutdown of http at %s", p))
-		return nil
-	case err := <-errCh:
-		return err
-	}
 }
