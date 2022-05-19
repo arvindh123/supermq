@@ -7,10 +7,7 @@ import (
 	"crypto/aes"
 	"encoding/hex"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"log"
-	"net/http"
 	"os"
 	"strconv"
 	"time"
@@ -18,10 +15,10 @@ import (
 	authapi "github.com/mainflux/mainflux/auth/api/grpc"
 	rediscons "github.com/mainflux/mainflux/bootstrap/redis/consumer"
 	redisprod "github.com/mainflux/mainflux/bootstrap/redis/producer"
+	"github.com/mainflux/mainflux/internal/apiutil"
 	"github.com/mainflux/mainflux/internal/apiutil/mfserver"
 	"github.com/mainflux/mainflux/internal/apiutil/mfserver/httpserver"
 	"github.com/mainflux/mainflux/logger"
-	opentracing "github.com/opentracing/opentracing-go"
 	"golang.org/x/sync/errgroup"
 
 	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
@@ -31,10 +28,8 @@ import (
 	"github.com/mainflux/mainflux/bootstrap"
 	api "github.com/mainflux/mainflux/bootstrap/api"
 	"github.com/mainflux/mainflux/bootstrap/postgres"
-	mflog "github.com/mainflux/mainflux/logger"
 	mfsdk "github.com/mainflux/mainflux/pkg/sdk/go"
 	stdprometheus "github.com/prometheus/client_golang/prometheus"
-	jconfig "github.com/uber/jaeger-client-go/config"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
@@ -132,7 +127,7 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	g, ctx := errgroup.WithContext(ctx)
 
-	logger, err := mflog.New(os.Stdout, cfg.logLevel)
+	logger, err := logger.New(os.Stdout, cfg.logLevel)
 	if err != nil {
 		log.Fatalf(err.Error())
 	}
@@ -146,7 +141,7 @@ func main() {
 	esClient := connectToRedis(cfg.esURL, cfg.esPass, cfg.esDB, logger)
 	defer esClient.Close()
 
-	authTracer, authCloser := initJaeger("auth", cfg.jaegerURL, logger)
+	authTracer, authCloser := apiutil.InitJaeger("auth", cfg.jaegerURL, logger)
 	defer authCloser.Close()
 
 	authConn := connectToAuth(cfg, logger)
@@ -228,7 +223,7 @@ func loadConfig() config {
 	}
 }
 
-func connectToDB(cfg postgres.Config, logger mflog.Logger) *sqlx.DB {
+func connectToDB(cfg postgres.Config, logger logger.Logger) *sqlx.DB {
 	db, err := postgres.Connect(cfg)
 	if err != nil {
 		logger.Error(fmt.Sprintf("Failed to connect to postgres: %s", err))
@@ -237,7 +232,7 @@ func connectToDB(cfg postgres.Config, logger mflog.Logger) *sqlx.DB {
 	return db
 }
 
-func connectToRedis(redisURL, redisPass, redisDB string, logger mflog.Logger) *r.Client {
+func connectToRedis(redisURL, redisPass, redisDB string, logger logger.Logger) *r.Client {
 	db, err := strconv.Atoi(redisDB)
 	if err != nil {
 		logger.Error(fmt.Sprintf("Failed to connect to redis: %s", err))
@@ -251,31 +246,7 @@ func connectToRedis(redisURL, redisPass, redisDB string, logger mflog.Logger) *r
 	})
 }
 
-func initJaeger(svcName, url string, logger logger.Logger) (opentracing.Tracer, io.Closer) {
-	if url == "" {
-		return opentracing.NoopTracer{}, ioutil.NopCloser(nil)
-	}
-
-	tracer, closer, err := jconfig.Configuration{
-		ServiceName: svcName,
-		Sampler: &jconfig.SamplerConfig{
-			Type:  "const",
-			Param: 1,
-		},
-		Reporter: &jconfig.ReporterConfig{
-			LocalAgentHostPort: url,
-			LogSpans:           true,
-		},
-	}.NewTracer()
-	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to init Jaeger client: %s", err))
-		os.Exit(1)
-	}
-
-	return tracer, closer
-}
-
-func newService(auth mainflux.AuthServiceClient, db *sqlx.DB, logger mflog.Logger, esClient *r.Client, cfg config) bootstrap.Service {
+func newService(auth mainflux.AuthServiceClient, db *sqlx.DB, logger logger.Logger, esClient *r.Client, cfg config) bootstrap.Service {
 	thingsRepo := postgres.NewConfigRepository(db, logger)
 
 	config := mfsdk.Config{
@@ -330,43 +301,7 @@ func connectToAuth(cfg config, logger logger.Logger) *grpc.ClientConn {
 	return conn
 }
 
-func startHTTPServer(ctx context.Context, svc bootstrap.Service, cfg config, logger mflog.Logger) error {
-	p := fmt.Sprintf(":%s", cfg.httpPort)
-	server := &http.Server{Addr: p, Handler: api.MakeHandler(svc, bootstrap.NewConfigReader(cfg.encKey), logger)}
-	errCh := make(chan error)
-	protocol := httpProtocol
-	switch {
-	case cfg.serverCert != "" || cfg.serverKey != "":
-		logger.Info(fmt.Sprintf("Bootstrap service started using https on port %s with cert %s key %s",
-			cfg.httpPort, cfg.serverCert, cfg.serverKey))
-		go func() {
-			errCh <- server.ListenAndServeTLS(cfg.serverCert, cfg.serverKey)
-		}()
-		protocol = httpsProtocol
-
-	default:
-		logger.Info(fmt.Sprintf("Bootstrap service started using http on port %s", cfg.httpPort))
-		go func() {
-			errCh <- server.ListenAndServe()
-		}()
-	}
-
-	select {
-	case <-ctx.Done():
-		ctxShutdown, cancelShutdown := context.WithTimeout(context.Background(), stopWaitTime)
-		defer cancelShutdown()
-		if err := server.Shutdown(ctxShutdown); err != nil {
-			logger.Error(fmt.Sprintf("Bootstrap %s service error occurred during shutdown at %s: %s", protocol, p, err))
-			return fmt.Errorf("bootstrap %s service error occurred during shutdown at %s: %w", protocol, p, err)
-		}
-		logger.Info(fmt.Sprintf("Bootstrap %s service shutdown of http at %s", protocol, p))
-		return nil
-	case err := <-errCh:
-		return err
-	}
-}
-
-func subscribeToThingsES(svc bootstrap.Service, client *r.Client, consumer string, logger mflog.Logger) {
+func subscribeToThingsES(svc bootstrap.Service, client *r.Client, consumer string, logger logger.Logger) {
 	eventStore := rediscons.NewEventStore(svc, client, consumer, logger)
 	logger.Info("Subscribed to Redis Event Store")
 	if err := eventStore.Subscribe(context.Background(), "mainflux.things"); err != nil {

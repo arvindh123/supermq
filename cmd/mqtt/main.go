@@ -14,6 +14,7 @@ import (
 	"github.com/cenkalti/backoff/v4"
 	"github.com/go-redis/redis/v8"
 	"github.com/mainflux/mainflux"
+	"github.com/mainflux/mainflux/internal/apiutil"
 	mflog "github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/mqtt"
 	mqttredis "github.com/mainflux/mainflux/mqtt/redis"
@@ -179,7 +180,7 @@ func main() {
 	ac := connectToRedis(cfg.authURL, cfg.authPass, cfg.authDB, logger)
 	defer ac.Close()
 
-	thingsTracer, thingsCloser := initJaeger("things", cfg.jaegerURL, logger)
+	thingsTracer, thingsCloser := apiutil.InitJaeger("things", cfg.jaegerURL, logger)
 	defer thingsCloser.Close()
 	tc := thingsapi.NewClient(conn, thingsTracer, cfg.thingsAuthTimeout)
 

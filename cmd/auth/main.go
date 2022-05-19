@@ -3,8 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"time"
@@ -20,6 +18,7 @@ import (
 	"github.com/mainflux/mainflux/auth/keto"
 	"github.com/mainflux/mainflux/auth/postgres"
 	"github.com/mainflux/mainflux/auth/tracing"
+	"github.com/mainflux/mainflux/internal/apiutil"
 	"github.com/mainflux/mainflux/internal/apiutil/mfserver"
 	"github.com/mainflux/mainflux/internal/apiutil/mfserver/grpcserver"
 	"github.com/mainflux/mainflux/internal/apiutil/mfserver/httpserver"
@@ -28,7 +27,6 @@ import (
 	"github.com/opentracing/opentracing-go"
 	acl "github.com/ory/keto/proto/ory/keto/acl/v1alpha1"
 	stdprometheus "github.com/prometheus/client_golang/prometheus"
-	jconfig "github.com/uber/jaeger-client-go/config"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 )
@@ -119,13 +117,13 @@ func main() {
 	db := connectToDB(cfg.dbConfig, logger)
 	defer db.Close()
 
-	tracer, closer := initJaeger("auth", cfg.jaegerURL, logger)
+	tracer, closer := apiutil.InitJaeger("auth", cfg.jaegerURL, logger)
 	defer closer.Close()
 
-	dbTracer, dbCloser := initJaeger("auth_db", cfg.jaegerURL, logger)
+	dbTracer, dbCloser := apiutil.InitJaeger("auth_db", cfg.jaegerURL, logger)
 	defer dbCloser.Close()
 
-	readerConn, writerConn := initKeto(cfg.ketoReadHost, cfg.ketoReadPort, cfg.ketoWriteHost, cfg.ketoWritePort, logger)
+	readerConn, writerConn := apiutil.InitKeto(cfg.ketoReadHost, cfg.ketoReadPort, cfg.ketoWriteHost, cfg.ketoWritePort, logger)
 
 	svc := newService(db, dbTracer, cfg.secret, logger, readerConn, writerConn, cfg.loginDuration)
 
@@ -180,46 +178,6 @@ func loadConfig() config {
 		loginDuration: loginDuration,
 	}
 
-}
-
-func initJaeger(svcName, url string, logger logger.Logger) (opentracing.Tracer, io.Closer) {
-	if url == "" {
-		return opentracing.NoopTracer{}, ioutil.NopCloser(nil)
-	}
-
-	tracer, closer, err := jconfig.Configuration{
-		ServiceName: svcName,
-		Sampler: &jconfig.SamplerConfig{
-			Type:  "const",
-			Param: 1,
-		},
-		Reporter: &jconfig.ReporterConfig{
-			LocalAgentHostPort: url,
-			LogSpans:           true,
-		},
-	}.NewTracer()
-	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to init Jaeger: %s", err))
-		os.Exit(1)
-	}
-
-	return tracer, closer
-}
-
-func initKeto(hostReadAddress, readPort, hostWriteAddress, writePort string, logger logger.Logger) (readerConnection, writerConnection *grpc.ClientConn) {
-	readConn, err := grpc.Dial(fmt.Sprintf("%s:%s", hostReadAddress, readPort), grpc.WithInsecure())
-	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to dial %s:%s for Keto Read Service: %s", hostReadAddress, readPort, err))
-		os.Exit(1)
-	}
-
-	writeConn, err := grpc.Dial(fmt.Sprintf("%s:%s", hostWriteAddress, writePort), grpc.WithInsecure())
-	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to dial %s:%s for Keto Write Service: %s", hostWriteAddress, writePort, err))
-		os.Exit(1)
-	}
-
-	return readConn, writeConn
 }
 
 func connectToDB(dbConfig postgres.Config, logger logger.Logger) *sqlx.DB {

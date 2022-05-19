@@ -6,14 +6,13 @@ package main
 import (
 	"context"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"regexp"
 	"strconv"
 	"time"
 
+	"github.com/mainflux/mainflux/internal/apiutil"
 	"github.com/mainflux/mainflux/internal/apiutil/mfserver"
 	"github.com/mainflux/mainflux/internal/apiutil/mfserver/httpserver"
 	"github.com/mainflux/mainflux/internal/email"
@@ -36,7 +35,6 @@ import (
 	"github.com/mainflux/mainflux/users/postgres"
 	opentracing "github.com/opentracing/opentracing-go"
 	stdprometheus "github.com/prometheus/client_golang/prometheus"
-	jconfig "github.com/uber/jaeger-client-go/config"
 )
 
 const (
@@ -148,7 +146,7 @@ func main() {
 	db := connectToDB(cfg.dbConfig, logger)
 	defer db.Close()
 
-	authTracer, closer := initJaeger("auth", cfg.jaegerURL, logger)
+	authTracer, closer := apiutil.InitJaeger("auth", cfg.jaegerURL, logger)
 	defer closer.Close()
 
 	auth, close := connectToAuth(cfg, authTracer, logger)
@@ -156,10 +154,10 @@ func main() {
 		defer close()
 	}
 
-	tracer, closer := initJaeger("users", cfg.jaegerURL, logger)
+	tracer, closer := apiutil.InitJaeger("users", cfg.jaegerURL, logger)
 	defer closer.Close()
 
-	dbTracer, dbCloser := initJaeger("users_db", cfg.jaegerURL, logger)
+	dbTracer, dbCloser := apiutil.InitJaeger("users_db", cfg.jaegerURL, logger)
 	defer dbCloser.Close()
 
 	svc := newService(db, dbTracer, auth, cfg, logger)
@@ -242,29 +240,6 @@ func loadConfig() config {
 
 }
 
-func initJaeger(svcName, url string, logger logger.Logger) (opentracing.Tracer, io.Closer) {
-	if url == "" {
-		return opentracing.NoopTracer{}, ioutil.NopCloser(nil)
-	}
-
-	tracer, closer, err := jconfig.Configuration{
-		ServiceName: svcName,
-		Sampler: &jconfig.SamplerConfig{
-			Type:  "const",
-			Param: 1,
-		},
-		Reporter: &jconfig.ReporterConfig{
-			LocalAgentHostPort: url,
-			LogSpans:           true,
-		},
-	}.NewTracer()
-	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to init Jaeger: %s", err))
-		os.Exit(1)
-	}
-
-	return tracer, closer
-}
 func connectToDB(dbConfig postgres.Config, logger logger.Logger) *sqlx.DB {
 	db, err := postgres.Connect(dbConfig)
 	if err != nil {

@@ -6,8 +6,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -20,6 +18,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/mainflux/mainflux"
 	authapi "github.com/mainflux/mainflux/auth/api/grpc"
+	"github.com/mainflux/mainflux/internal/apiutil"
 	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/pkg/errors"
 	"github.com/mainflux/mainflux/pkg/uuid"
@@ -34,7 +33,6 @@ import (
 	"github.com/mainflux/mainflux/things/tracing"
 	opentracing "github.com/opentracing/opentracing-go"
 	stdprometheus "github.com/prometheus/client_golang/prometheus"
-	jconfig "github.com/uber/jaeger-client-go/config"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -135,7 +133,7 @@ func main() {
 		log.Fatalf(err.Error())
 	}
 
-	thingsTracer, thingsCloser := initJaeger("things", cfg.jaegerURL, logger)
+	thingsTracer, thingsCloser := apiutil.InitJaeger("things", cfg.jaegerURL, logger)
 	defer thingsCloser.Close()
 
 	cacheClient := connectToRedis(cfg.cacheURL, cfg.cachePass, cfg.cacheDB, logger)
@@ -145,7 +143,7 @@ func main() {
 	db := connectToDB(cfg.dbConfig, logger)
 	defer db.Close()
 
-	authTracer, authCloser := initJaeger("auth", cfg.jaegerURL, logger)
+	authTracer, authCloser := apiutil.InitJaeger("auth", cfg.jaegerURL, logger)
 	defer authCloser.Close()
 
 	auth, close := createAuthClient(cfg, authTracer, logger)
@@ -153,10 +151,10 @@ func main() {
 		defer close()
 	}
 
-	dbTracer, dbCloser := initJaeger("things_db", cfg.jaegerURL, logger)
+	dbTracer, dbCloser := apiutil.InitJaeger("things_db", cfg.jaegerURL, logger)
 	defer dbCloser.Close()
 
-	cacheTracer, cacheCloser := initJaeger("things_cache", cfg.jaegerURL, logger)
+	cacheTracer, cacheCloser := apiutil.InitJaeger("things_cache", cfg.jaegerURL, logger)
 	defer cacheCloser.Close()
 
 	svc := newService(auth, dbTracer, cacheTracer, db, cacheClient, esClient, logger)
@@ -231,30 +229,6 @@ func loadConfig() config {
 		authURL:         mainflux.Env(envAuthURL, defAuthURL),
 		authTimeout:     authTimeout,
 	}
-}
-
-func initJaeger(svcName, url string, logger logger.Logger) (opentracing.Tracer, io.Closer) {
-	if url == "" {
-		return opentracing.NoopTracer{}, ioutil.NopCloser(nil)
-	}
-
-	tracer, closer, err := jconfig.Configuration{
-		ServiceName: svcName,
-		Sampler: &jconfig.SamplerConfig{
-			Type:  "const",
-			Param: 1,
-		},
-		Reporter: &jconfig.ReporterConfig{
-			LocalAgentHostPort: url,
-			LogSpans:           true,
-		},
-	}.NewTracer()
-	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to init Jaeger client: %s", err))
-		os.Exit(1)
-	}
-
-	return tracer, closer
 }
 
 func connectToRedis(cacheURL, cachePass string, cacheDB string, logger logger.Logger) *redis.Client {

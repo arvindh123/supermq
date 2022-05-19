@@ -6,8 +6,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"strconv"
@@ -23,6 +21,7 @@ import (
 	"github.com/mainflux/mainflux/consumers/notifiers/postgres"
 	"github.com/mainflux/mainflux/consumers/notifiers/smtp"
 	"github.com/mainflux/mainflux/consumers/notifiers/tracing"
+	"github.com/mainflux/mainflux/internal/apiutil"
 	"github.com/mainflux/mainflux/internal/apiutil/mfserver"
 	"github.com/mainflux/mainflux/internal/apiutil/mfserver/httpserver"
 	"github.com/mainflux/mainflux/internal/email"
@@ -31,7 +30,6 @@ import (
 	"github.com/mainflux/mainflux/pkg/ulid"
 	opentracing "github.com/opentracing/opentracing-go"
 	stdprometheus "github.com/prometheus/client_golang/prometheus"
-	jconfig "github.com/uber/jaeger-client-go/config"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -140,7 +138,7 @@ func main() {
 	}
 	defer pubSub.Close()
 
-	authTracer, closer := initJaeger("auth", cfg.jaegerURL, logger)
+	authTracer, closer := apiutil.InitJaeger("auth", cfg.jaegerURL, logger)
 	defer closer.Close()
 
 	auth, close := connectToAuth(cfg, authTracer, logger)
@@ -148,10 +146,10 @@ func main() {
 		defer close()
 	}
 
-	tracer, closer := initJaeger("smtp-notifier", cfg.jaegerURL, logger)
+	tracer, closer := apiutil.InitJaeger("smtp-notifier", cfg.jaegerURL, logger)
 	defer closer.Close()
 
-	dbTracer, dbCloser := initJaeger("smtp-notifier_db", cfg.jaegerURL, logger)
+	dbTracer, dbCloser := apiutil.InitJaeger("smtp-notifier_db", cfg.jaegerURL, logger)
 	defer dbCloser.Close()
 
 	svc := newService(db, dbTracer, auth, cfg, logger)
@@ -225,30 +223,6 @@ func loadConfig() config {
 		authTimeout: authTimeout,
 	}
 
-}
-
-func initJaeger(svcName, url string, logger logger.Logger) (opentracing.Tracer, io.Closer) {
-	if url == "" {
-		return opentracing.NoopTracer{}, ioutil.NopCloser(nil)
-	}
-
-	tracer, closer, err := jconfig.Configuration{
-		ServiceName: svcName,
-		Sampler: &jconfig.SamplerConfig{
-			Type:  "const",
-			Param: 1,
-		},
-		Reporter: &jconfig.ReporterConfig{
-			LocalAgentHostPort: url,
-			LogSpans:           true,
-		},
-	}.NewTracer()
-	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to init Jaeger: %s", err))
-		os.Exit(1)
-	}
-
-	return tracer, closer
 }
 
 func connectToDB(dbConfig postgres.Config, logger logger.Logger) *sqlx.DB {

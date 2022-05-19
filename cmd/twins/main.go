@@ -6,8 +6,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"strconv"
@@ -17,6 +15,7 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/mainflux/mainflux"
 	authapi "github.com/mainflux/mainflux/auth/api/grpc"
+	"github.com/mainflux/mainflux/internal/apiutil"
 	"github.com/mainflux/mainflux/internal/apiutil/mfserver"
 	"github.com/mainflux/mainflux/internal/apiutil/mfserver/httpserver"
 	"github.com/mainflux/mainflux/logger"
@@ -32,7 +31,6 @@ import (
 	"github.com/mainflux/mainflux/twins/tracing"
 	opentracing "github.com/opentracing/opentracing-go"
 	stdprometheus "github.com/prometheus/client_golang/prometheus"
-	jconfig "github.com/uber/jaeger-client-go/config"
 	"go.mongodb.org/mongo-driver/mongo"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
@@ -116,7 +114,7 @@ func main() {
 	}
 
 	cacheClient := connectToRedis(cfg.cacheURL, cfg.cachePass, cfg.cacheDB, logger)
-	cacheTracer, cacheCloser := initJaeger("twins_cache", cfg.jaegerURL, logger)
+	cacheTracer, cacheCloser := apiutil.InitJaeger("twins_cache", cfg.jaegerURL, logger)
 	defer cacheCloser.Close()
 
 	db, err := twmongodb.Connect(cfg.dbCfg, logger)
@@ -124,10 +122,10 @@ func main() {
 		logger.Error(err.Error())
 		os.Exit(1)
 	}
-	dbTracer, dbCloser := initJaeger("twins_db", cfg.jaegerURL, logger)
+	dbTracer, dbCloser := apiutil.InitJaeger("twins_db", cfg.jaegerURL, logger)
 	defer dbCloser.Close()
 
-	authTracer, authCloser := initJaeger("auth", cfg.jaegerURL, logger)
+	authTracer, authCloser := apiutil.InitJaeger("auth", cfg.jaegerURL, logger)
 	defer authCloser.Close()
 	auth, _ := createAuthClient(cfg, authTracer, logger)
 
@@ -140,7 +138,7 @@ func main() {
 
 	svc := newService(svcName, pubSub, cfg.channelID, auth, dbTracer, db, cacheTracer, cacheClient, logger)
 
-	tracer, closer := initJaeger("twins", cfg.jaegerURL, logger)
+	tracer, closer := apiutil.InitJaeger("twins", cfg.jaegerURL, logger)
 	defer closer.Close()
 
 	hs := httpserver.New(ctx, cancel, svcName, "", cfg.httpPort, twapi.MakeHandler(tracer, svc, logger), cfg.serverCert, cfg.serverKey, logger)
@@ -193,30 +191,6 @@ func loadConfig() config {
 		authURL:         mainflux.Env(envAuthURL, defAuthURL),
 		authTimeout:     authTimeout,
 	}
-}
-
-func initJaeger(svcName, url string, logger logger.Logger) (opentracing.Tracer, io.Closer) {
-	if url == "" {
-		return opentracing.NoopTracer{}, ioutil.NopCloser(nil)
-	}
-
-	tracer, closer, err := jconfig.Configuration{
-		ServiceName: svcName,
-		Sampler: &jconfig.SamplerConfig{
-			Type:  "const",
-			Param: 1,
-		},
-		Reporter: &jconfig.ReporterConfig{
-			LocalAgentHostPort: url,
-			LogSpans:           true,
-		},
-	}.NewTracer()
-	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to init Jaeger client: %s", err))
-		os.Exit(1)
-	}
-
-	return tracer, closer
 }
 
 func createAuthClient(cfg config, tracer opentracing.Tracer, logger logger.Logger) (mainflux.AuthServiceClient, func() error) {

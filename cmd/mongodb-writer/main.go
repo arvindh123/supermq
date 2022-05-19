@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"net/http"
 	"os"
 	"time"
 
@@ -136,31 +135,4 @@ func makeMetrics() (*kitprometheus.Counter, *kitprometheus.Summary) {
 	}, []string{"method"})
 
 	return counter, latency
-}
-
-func startHTTPService(ctx context.Context, port string, logger logger.Logger) error {
-	p := fmt.Sprintf(":%s", port)
-	errCh := make(chan error)
-	server := &http.Server{Addr: p, Handler: api.MakeHandler(svcName)}
-
-	logger.Info(fmt.Sprintf("MongoDB writer service started, exposed port %s", p))
-
-	go func() {
-		errCh <- server.ListenAndServe()
-	}()
-
-	select {
-	case <-ctx.Done():
-		ctxShutdown, cancelShutdown := context.WithTimeout(context.Background(), stopWaitTime)
-		defer cancelShutdown()
-		if err := server.Shutdown(ctxShutdown); err != nil {
-			logger.Error(fmt.Sprintf("MongoDB writer service error occurred during shutdown at %s: %s", p, err))
-			return fmt.Errorf("mongodb writer service occurred during shutdown at %s: %w", p, err)
-		}
-		logger.Info(fmt.Sprintf("MongoDB writer service  shutdown of http at %s", p))
-		return nil
-	case err := <-errCh:
-		return err
-	}
-
 }
