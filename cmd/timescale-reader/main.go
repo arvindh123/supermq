@@ -11,7 +11,6 @@ import (
 	"strconv"
 	"time"
 
-	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
 	"github.com/jmoiron/sqlx"
 	"github.com/mainflux/mainflux"
 	authapi "github.com/mainflux/mainflux/auth/api/grpc"
@@ -23,10 +22,7 @@ import (
 	"github.com/mainflux/mainflux/readers/api"
 	"github.com/mainflux/mainflux/readers/timescale"
 	thingsapi "github.com/mainflux/mainflux/things/api/auth/grpc"
-	stdprometheus "github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sync/errgroup"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 )
 
 const (
@@ -91,7 +87,7 @@ func main() {
 		log.Fatalf(err.Error())
 	}
 
-	conn := connectToThings(cfg, logger)
+	conn := apiutil.ConnectToThings(cfg.clientTLS, cfg.caCerts, cfg.thingsAuthURL, svcName, logger)
 	defer conn.Close()
 
 	thingsTracer, thingsCloser := apiutil.InitJaeger("things", cfg.jaegerURL, logger)
@@ -100,7 +96,7 @@ func main() {
 	authTracer, authCloser := apiutil.InitJaeger("auth", cfg.jaegerURL, logger)
 	defer authCloser.Close()
 
-	authConn := connectToAuth(cfg, logger)
+	authConn := apiutil.ConnectToAuth(cfg.clientTLS, cfg.caCerts, cfg.usersAuthURL, svcName, logger)
 	defer authConn.Close()
 	auth := authapi.NewClient(authTracer, authConn, cfg.usersAuthTimeout)
 
@@ -160,32 +156,6 @@ func loadConfig() config {
 	}
 }
 
-func connectToAuth(cfg config, logger logger.Logger) *grpc.ClientConn {
-	var opts []grpc.DialOption
-	logger.Info("Connecting to auth via gRPC")
-	if cfg.clientTLS {
-		if cfg.caCerts != "" {
-			tpc, err := credentials.NewClientTLSFromFile(cfg.caCerts, "")
-			if err != nil {
-				logger.Error(fmt.Sprintf("Failed to create tls credentials: %s", err))
-				os.Exit(1)
-			}
-			opts = append(opts, grpc.WithTransportCredentials(tpc))
-		}
-	} else {
-		opts = append(opts, grpc.WithInsecure())
-		logger.Info("gRPC communication is not encrypted")
-	}
-
-	conn, err := grpc.Dial(cfg.usersAuthURL, opts...)
-	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to connect to auth service: %s", err))
-		os.Exit(1)
-	}
-	logger.Info(fmt.Sprintf("Established gRPC connection to auth via gRPC: %s", cfg.usersAuthURL))
-	return conn
-}
-
 func connectToDB(dbConfig timescale.Config, logger logger.Logger) *sqlx.DB {
 	db, err := timescale.Connect(dbConfig)
 	if err != nil {
@@ -195,48 +165,11 @@ func connectToDB(dbConfig timescale.Config, logger logger.Logger) *sqlx.DB {
 	return db
 }
 
-func connectToThings(cfg config, logger logger.Logger) *grpc.ClientConn {
-	var opts []grpc.DialOption
-	if cfg.clientTLS {
-		if cfg.caCerts != "" {
-			tpc, err := credentials.NewClientTLSFromFile(cfg.caCerts, "")
-			if err != nil {
-				logger.Error(fmt.Sprintf("Failed to load certs: %s", err))
-				os.Exit(1)
-			}
-			opts = append(opts, grpc.WithTransportCredentials(tpc))
-		}
-	} else {
-		logger.Info("gRPC communication is not encrypted")
-		opts = append(opts, grpc.WithInsecure())
-	}
-
-	conn, err := grpc.Dial(cfg.thingsAuthURL, opts...)
-	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to connect to things service: %s", err))
-		os.Exit(1)
-	}
-	return conn
-}
-
 func newService(db *sqlx.DB, logger logger.Logger) readers.MessageRepository {
 	svc := timescale.New(db)
 	svc = api.LoggingMiddleware(svc, logger)
-	svc = api.MetricsMiddleware(
-		svc,
-		kitprometheus.NewCounterFrom(stdprometheus.CounterOpts{
-			Namespace: "timescale",
-			Subsystem: "message_reader",
-			Name:      "request_count",
-			Help:      "Number of requests received.",
-		}, []string{"method"}),
-		kitprometheus.NewSummaryFrom(stdprometheus.SummaryOpts{
-			Namespace: "timescale",
-			Subsystem: "message_reader",
-			Name:      "request_latency_microseconds",
-			Help:      "Total duration of requests in microseconds.",
-		}, []string{"method"}),
-	)
+	counter, latency := apiutil.MakeMetrics(svcName)
+	svc = api.MetricsMiddleware(svc, counter, latency)
 
 	return svc
 }

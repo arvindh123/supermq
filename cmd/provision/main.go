@@ -23,8 +23,8 @@ import (
 )
 
 const (
-	stopWaitTime = 5 * time.Second
 	svcName      = "provision"
+	stopWaitTime = 5 * time.Second
 
 	defLogLevel        = "error"
 	defConfigFile      = "config.toml"

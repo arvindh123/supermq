@@ -10,17 +10,16 @@ import (
 	"os"
 	"time"
 
-	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
 	influxdata "github.com/influxdata/influxdb/client/v2"
 	"github.com/mainflux/mainflux"
 	"github.com/mainflux/mainflux/consumers"
 	"github.com/mainflux/mainflux/consumers/writers/api"
 	"github.com/mainflux/mainflux/consumers/writers/influxdb"
+	"github.com/mainflux/mainflux/internal/apiutil"
 	"github.com/mainflux/mainflux/internal/apiutil/mfserver"
 	"github.com/mainflux/mainflux/internal/apiutil/mfserver/httpserver"
 	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/pkg/messaging/nats"
-	stdprometheus "github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -85,11 +84,7 @@ func main() {
 	}
 	defer client.Close()
 
-	repo := influxdb.New(client, cfg.dbName)
-
-	counter, latency := makeMetrics()
-	repo = api.LoggingMiddleware(repo, logger)
-	repo = api.MetricsMiddleware(repo, counter, latency)
+	repo := newService(client, cfg.dbName, logger)
 
 	if err := consumers.Start(svcName, pubSub, repo, cfg.configPath, logger); err != nil {
 		logger.Error(fmt.Sprintf("Failed to start InfluxDB writer: %s", err))
@@ -132,20 +127,11 @@ func loadConfigs() (config, influxdata.HTTPConfig) {
 	return cfg, clientCfg
 }
 
-func makeMetrics() (*kitprometheus.Counter, *kitprometheus.Summary) {
-	counter := kitprometheus.NewCounterFrom(stdprometheus.CounterOpts{
-		Namespace: "influxdb",
-		Subsystem: "message_writer",
-		Name:      "request_count",
-		Help:      "Number of database inserts.",
-	}, []string{"method"})
+func newService(client influxdata.Client, dbName string, logger logger.Logger) consumers.Consumer {
+	repo := influxdb.New(client, dbName)
+	repo = api.LoggingMiddleware(repo, logger)
+	counter, latency := apiutil.MakeMetrics(svcName)
+	repo = api.MetricsMiddleware(repo, counter, latency)
 
-	latency := kitprometheus.NewSummaryFrom(stdprometheus.SummaryOpts{
-		Namespace: "influxdb",
-		Subsystem: "message_writer",
-		Name:      "request_latency_microseconds",
-		Help:      "Total duration of inserts in microseconds.",
-	}, []string{"method"})
-
-	return counter, latency
+	return repo
 }

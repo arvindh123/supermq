@@ -13,12 +13,12 @@ import (
 	"strconv"
 	"time"
 
-	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
 	"github.com/go-redis/redis/v8"
 	"github.com/jmoiron/sqlx"
 	"github.com/mainflux/mainflux"
 	authapi "github.com/mainflux/mainflux/auth/api/grpc"
 	"github.com/mainflux/mainflux/internal/apiutil"
+	"github.com/mainflux/mainflux/internal/apiutil/mfdatabase"
 	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/pkg/errors"
 	"github.com/mainflux/mainflux/pkg/uuid"
@@ -32,13 +32,13 @@ import (
 	localusers "github.com/mainflux/mainflux/things/standalone"
 	"github.com/mainflux/mainflux/things/tracing"
 	opentracing "github.com/opentracing/opentracing-go"
-	stdprometheus "github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
 
 const (
+	svcName      = "things"
 	stopWaitTime = 5 * time.Second
 
 	defLogLevel        = "error"
@@ -136,9 +136,9 @@ func main() {
 	thingsTracer, thingsCloser := apiutil.InitJaeger("things", cfg.jaegerURL, logger)
 	defer thingsCloser.Close()
 
-	cacheClient := connectToRedis(cfg.cacheURL, cfg.cachePass, cfg.cacheDB, logger)
+	cacheClient := mfdatabase.ConnectToRedis(cfg.cacheURL, cfg.cachePass, cfg.cacheDB, logger)
 
-	esClient := connectToRedis(cfg.esURL, cfg.esPass, cfg.esDB, logger)
+	esClient := mfdatabase.ConnectToRedis(cfg.esURL, cfg.esPass, cfg.esDB, logger)
 
 	db := connectToDB(cfg.dbConfig, logger)
 	defer db.Close()
@@ -231,20 +231,6 @@ func loadConfig() config {
 	}
 }
 
-func connectToRedis(cacheURL, cachePass string, cacheDB string, logger logger.Logger) *redis.Client {
-	db, err := strconv.Atoi(cacheDB)
-	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to connect to cache: %s", err))
-		os.Exit(1)
-	}
-
-	return redis.NewClient(&redis.Options{
-		Addr:     cacheURL,
-		Password: cachePass,
-		DB:       db,
-	})
-}
-
 func connectToDB(dbConfig postgres.Config, logger logger.Logger) *sqlx.DB {
 	db, err := postgres.Connect(dbConfig)
 	if err != nil {
@@ -259,33 +245,8 @@ func createAuthClient(cfg config, tracer opentracing.Tracer, logger logger.Logge
 		return localusers.NewAuthService(cfg.standaloneEmail, cfg.standaloneToken), nil
 	}
 
-	conn := connectToAuth(cfg, logger)
+	conn := apiutil.ConnectToAuth(cfg.clientTLS, cfg.caCerts, cfg.authURL, svcName, logger)
 	return authapi.NewClient(tracer, conn, cfg.authTimeout), conn.Close
-}
-
-func connectToAuth(cfg config, logger logger.Logger) *grpc.ClientConn {
-	var opts []grpc.DialOption
-	if cfg.clientTLS {
-		if cfg.caCerts != "" {
-			tpc, err := credentials.NewClientTLSFromFile(cfg.caCerts, "")
-			if err != nil {
-				logger.Error(fmt.Sprintf("Failed to create tls credentials: %s", err))
-				os.Exit(1)
-			}
-			opts = append(opts, grpc.WithTransportCredentials(tpc))
-		}
-	} else {
-		opts = append(opts, grpc.WithInsecure())
-		logger.Info("gRPC communication is not encrypted")
-	}
-
-	conn, err := grpc.Dial(cfg.authURL, opts...)
-	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to connect to auth service: %s", err))
-		os.Exit(1)
-	}
-
-	return conn
 }
 
 func newService(auth mainflux.AuthServiceClient, dbTracer opentracing.Tracer, cacheTracer opentracing.Tracer, db *sqlx.DB, cacheClient *redis.Client, esClient *redis.Client, logger logger.Logger) things.Service {
@@ -307,21 +268,9 @@ func newService(auth mainflux.AuthServiceClient, dbTracer opentracing.Tracer, ca
 	svc := things.New(auth, thingsRepo, channelsRepo, chanCache, thingCache, idProvider)
 	svc = rediscache.NewEventStoreMiddleware(svc, esClient)
 	svc = api.LoggingMiddleware(svc, logger)
-	svc = api.MetricsMiddleware(
-		svc,
-		kitprometheus.NewCounterFrom(stdprometheus.CounterOpts{
-			Namespace: "things",
-			Subsystem: "api",
-			Name:      "request_count",
-			Help:      "Number of requests received.",
-		}, []string{"method"}),
-		kitprometheus.NewSummaryFrom(stdprometheus.SummaryOpts{
-			Namespace: "things",
-			Subsystem: "api",
-			Name:      "request_latency_microseconds",
-			Help:      "Total duration of requests in microseconds.",
-		}, []string{"method"}),
-	)
+	counter, latency := apiutil.MakeMetrics(svcName)
+	svc = api.MetricsMiddleware(svc, counter, latency)
+
 	return svc
 }
 

@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"time"
 
-	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
 	influxdata "github.com/influxdata/influxdb/client/v2"
 	"github.com/mainflux/mainflux"
 	authapi "github.com/mainflux/mainflux/auth/api/grpc"
@@ -20,16 +19,13 @@ import (
 	"github.com/mainflux/mainflux/readers/api"
 	"github.com/mainflux/mainflux/readers/influxdb"
 	thingsapi "github.com/mainflux/mainflux/things/api/auth/grpc"
-	stdprometheus "github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sync/errgroup"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 )
 
 const (
+	svcName      = "influxdb-reader"
 	stopWaitTime = 5 * time.Second
 
-	svcName              = "influxdb-reader"
 	defLogLevel          = "error"
 	defPort              = "8180"
 	defDB                = "mainflux"
@@ -93,7 +89,7 @@ func main() {
 	if err != nil {
 		log.Fatalf(err.Error())
 	}
-	conn := connectToThings(cfg, logger)
+	conn := apiutil.ConnectToThings(cfg.clientTLS, cfg.caCerts, cfg.thingsAuthURL, svcName, logger)
 	defer conn.Close()
 
 	thingsTracer, thingsCloser := apiutil.InitJaeger("things", cfg.jaegerURL, logger)
@@ -104,7 +100,7 @@ func main() {
 	authTracer, authCloser := apiutil.InitJaeger("auth", cfg.jaegerURL, logger)
 	defer authCloser.Close()
 
-	authConn := connectToAuth(cfg, logger)
+	authConn := apiutil.ConnectToAuth(cfg.clientTLS, cfg.caCerts, cfg.usersAuthURL, svcName, logger)
 	defer authConn.Close()
 
 	auth := authapi.NewClient(authTracer, authConn, cfg.usersAuthTimeout)
@@ -130,32 +126,6 @@ func main() {
 	if err := g.Wait(); err != nil {
 		logger.Error(fmt.Sprintf("InfluxDB reader service terminated: %s", err))
 	}
-}
-
-func connectToAuth(cfg config, logger logger.Logger) *grpc.ClientConn {
-	var opts []grpc.DialOption
-	logger.Info("Connecting to auth via gRPC")
-	if cfg.clientTLS {
-		if cfg.caCerts != "" {
-			tpc, err := credentials.NewClientTLSFromFile(cfg.caCerts, "")
-			if err != nil {
-				logger.Error(fmt.Sprintf("Failed to create tls credentials: %s", err))
-				os.Exit(1)
-			}
-			opts = append(opts, grpc.WithTransportCredentials(tpc))
-		}
-	} else {
-		opts = append(opts, grpc.WithInsecure())
-		logger.Info("gRPC communication is not encrypted")
-	}
-
-	conn, err := grpc.Dial(cfg.usersAuthURL, opts...)
-	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to connect to auth service: %s", err))
-		os.Exit(1)
-	}
-	logger.Info("Established gRPC connection to auth via gRPC")
-	return conn
 }
 
 func loadConfigs() (config, influxdata.HTTPConfig) {
@@ -202,50 +172,11 @@ func loadConfigs() (config, influxdata.HTTPConfig) {
 	return cfg, clientCfg
 }
 
-func connectToThings(cfg config, logger logger.Logger) *grpc.ClientConn {
-	var opts []grpc.DialOption
-	logger.Info("connecting to things via gRPC")
-	if cfg.clientTLS {
-		if cfg.caCerts != "" {
-			tpc, err := credentials.NewClientTLSFromFile(cfg.caCerts, "")
-			if err != nil {
-				logger.Error(fmt.Sprintf("Failed to load certs: %s", err))
-				os.Exit(1)
-			}
-			opts = append(opts, grpc.WithTransportCredentials(tpc))
-		}
-	} else {
-		logger.Info("gRPC communication is not encrypted")
-		opts = append(opts, grpc.WithInsecure())
-	}
-
-	conn, err := grpc.Dial(cfg.thingsAuthURL, opts...)
-	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to connect to things service: %s", err))
-		os.Exit(1)
-	}
-	logger.Info(fmt.Sprintf("Established gRPC connection to things via gRPC: %s", cfg.thingsAuthURL))
-	return conn
-}
-
 func newService(client influxdata.Client, dbName string, logger logger.Logger) readers.MessageRepository {
 	repo := influxdb.New(client, dbName)
 	repo = api.LoggingMiddleware(repo, logger)
-	repo = api.MetricsMiddleware(
-		repo,
-		kitprometheus.NewCounterFrom(stdprometheus.CounterOpts{
-			Namespace: "influxdb",
-			Subsystem: "message_reader",
-			Name:      "request_count",
-			Help:      "Number of requests received.",
-		}, []string{"method"}),
-		kitprometheus.NewSummaryFrom(stdprometheus.SummaryOpts{
-			Namespace: "influxdb",
-			Subsystem: "message_reader",
-			Name:      "request_latency_microseconds",
-			Help:      "Total duration of requests in microseconds.",
-		}, []string{"method"}),
-	)
+	counter, latency := apiutil.MakeMetrics(svcName)
+	repo = api.MetricsMiddleware(repo, counter, latency)
 
 	return repo
 }

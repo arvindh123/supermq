@@ -10,17 +10,16 @@ import (
 	"os"
 	"time"
 
-	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
 	"github.com/jmoiron/sqlx"
 	"github.com/mainflux/mainflux"
 	"github.com/mainflux/mainflux/consumers"
 	"github.com/mainflux/mainflux/consumers/writers/api"
 	"github.com/mainflux/mainflux/consumers/writers/postgres"
+	"github.com/mainflux/mainflux/internal/apiutil"
 	"github.com/mainflux/mainflux/internal/apiutil/mfserver"
 	"github.com/mainflux/mainflux/internal/apiutil/mfserver/httpserver"
 	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/pkg/messaging/nats"
-	stdprometheus "github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -141,21 +140,8 @@ func connectToDB(dbConfig postgres.Config, logger logger.Logger) *sqlx.DB {
 func newService(db *sqlx.DB, logger logger.Logger) consumers.Consumer {
 	svc := postgres.New(db)
 	svc = api.LoggingMiddleware(svc, logger)
-	svc = api.MetricsMiddleware(
-		svc,
-		kitprometheus.NewCounterFrom(stdprometheus.CounterOpts{
-			Namespace: "postgres",
-			Subsystem: "message_writer",
-			Name:      "request_count",
-			Help:      "Number of requests received.",
-		}, []string{"method"}),
-		kitprometheus.NewSummaryFrom(stdprometheus.SummaryOpts{
-			Namespace: "postgres",
-			Subsystem: "message_writer",
-			Name:      "request_latency_microseconds",
-			Help:      "Total duration of requests in microseconds.",
-		}, []string{"method"}),
-	)
+	counter, latency := apiutil.MakeMetrics(svcName)
+	svc = api.MetricsMiddleware(svc, counter, latency)
 
 	return svc
 }

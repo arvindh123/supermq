@@ -7,7 +7,6 @@ import (
 	"os"
 	"time"
 
-	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
 	"github.com/jmoiron/sqlx"
 	"github.com/mainflux/mainflux"
 	"github.com/mainflux/mainflux/auth"
@@ -26,16 +25,15 @@ import (
 	"github.com/mainflux/mainflux/pkg/uuid"
 	"github.com/opentracing/opentracing-go"
 	acl "github.com/ory/keto/proto/ory/keto/acl/v1alpha1"
-	stdprometheus "github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 )
 
 const (
+	svcName       = "authentication"
 	stopWaitTime  = 5 * time.Second
 	httpProtocol  = "http"
 	httpsProtocol = "https"
-	svcName       = "authentication"
 
 	defListenAddress = ""
 	defLogLevel      = "error"
@@ -203,21 +201,9 @@ func newService(db *sqlx.DB, tracer opentracing.Tracer, secret string, logger lo
 
 	svc := auth.New(keysRepo, groupsRepo, idProvider, t, pa, duration)
 	svc = api.LoggingMiddleware(svc, logger)
-	svc = api.MetricsMiddleware(
-		svc,
-		kitprometheus.NewCounterFrom(stdprometheus.CounterOpts{
-			Namespace: "auth",
-			Subsystem: "api",
-			Name:      "request_count",
-			Help:      "Number of requests received.",
-		}, []string{"method"}),
-		kitprometheus.NewSummaryFrom(stdprometheus.SummaryOpts{
-			Namespace: "auth",
-			Subsystem: "api",
-			Name:      "request_latency_microseconds",
-			Help:      "Total duration of requests in microseconds.",
-		}, []string{"method"}),
-	)
+
+	counter, latency := apiutil.MakeMetrics(svcName)
+	svc = api.MetricsMiddleware(svc, counter, latency)
 
 	return svc
 }

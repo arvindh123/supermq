@@ -11,7 +11,6 @@ import (
 	"strconv"
 	"time"
 
-	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
 	"github.com/mainflux/mainflux"
 	"github.com/mainflux/mainflux/coap"
 	"github.com/mainflux/mainflux/coap/api"
@@ -22,15 +21,12 @@ import (
 	"github.com/mainflux/mainflux/pkg/messaging/nats"
 	thingsapi "github.com/mainflux/mainflux/things/api/auth/grpc"
 	gocoap "github.com/plgd-dev/go-coap/v2"
-	stdprometheus "github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sync/errgroup"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 )
 
 const (
+	svcName      = "coap_adapter"
 	stopWaitTime = 5 * time.Second
-	svcName      = "coap"
 
 	defPort              = "5683"
 	defNatsURL           = "nats://localhost:4222"
@@ -72,7 +68,7 @@ func main() {
 		log.Fatalf(err.Error())
 	}
 
-	conn := connectToThings(cfg, logger)
+	conn := apiutil.ConnectToThings(cfg.clientTLS, cfg.caCerts, cfg.thingsAuthURL, svcName, logger)
 	defer conn.Close()
 
 	thingsTracer, thingsCloser := apiutil.InitJaeger("things", cfg.jaegerURL, logger)
@@ -91,21 +87,8 @@ func main() {
 
 	svc = api.LoggingMiddleware(svc, logger)
 
-	svc = api.MetricsMiddleware(
-		svc,
-		kitprometheus.NewCounterFrom(stdprometheus.CounterOpts{
-			Namespace: "coap_adapter",
-			Subsystem: "api",
-			Name:      "request_count",
-			Help:      "Number of requests received.",
-		}, []string{"method"}),
-		kitprometheus.NewSummaryFrom(stdprometheus.SummaryOpts{
-			Namespace: "coap_adapter",
-			Subsystem: "api",
-			Name:      "request_latency_microseconds",
-			Help:      "Total duration of requests in microseconds.",
-		}, []string{"method"}),
-	)
+	counter, latency := apiutil.MakeMetrics(svcName)
+	svc = api.MetricsMiddleware(svc, counter, latency)
 
 	g.Go(func() error {
 		return startCOAPServer(ctx, cfg, svc, nil, logger)
@@ -146,30 +129,6 @@ func loadConfig() config {
 		thingsAuthURL:     mainflux.Env(envThingsAuthURL, defThingsAuthURL),
 		thingsAuthTimeout: authTimeout,
 	}
-}
-
-func connectToThings(cfg config, logger logger.Logger) *grpc.ClientConn {
-	var opts []grpc.DialOption
-	if cfg.clientTLS {
-		if cfg.caCerts != "" {
-			tpc, err := credentials.NewClientTLSFromFile(cfg.caCerts, "")
-			if err != nil {
-				logger.Error(fmt.Sprintf("Failed to load certs: %s", err))
-				os.Exit(1)
-			}
-			opts = append(opts, grpc.WithTransportCredentials(tpc))
-		}
-	} else {
-		logger.Info("gRPC communication is not encrypted")
-		opts = append(opts, grpc.WithInsecure())
-	}
-
-	conn, err := grpc.Dial(cfg.thingsAuthURL, opts...)
-	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to connect to things service: %s", err))
-		os.Exit(1)
-	}
-	return conn
 }
 
 func startCOAPServer(ctx context.Context, cfg config, svc coap.Service, auth mainflux.ThingsServiceClient, l logger.Logger) error {

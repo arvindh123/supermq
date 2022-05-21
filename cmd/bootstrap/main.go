@@ -16,12 +16,12 @@ import (
 	rediscons "github.com/mainflux/mainflux/bootstrap/redis/consumer"
 	redisprod "github.com/mainflux/mainflux/bootstrap/redis/producer"
 	"github.com/mainflux/mainflux/internal/apiutil"
+	"github.com/mainflux/mainflux/internal/apiutil/mfdatabase"
 	"github.com/mainflux/mainflux/internal/apiutil/mfserver"
 	"github.com/mainflux/mainflux/internal/apiutil/mfserver/httpserver"
 	"github.com/mainflux/mainflux/logger"
 	"golang.org/x/sync/errgroup"
 
-	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
 	r "github.com/go-redis/redis/v8"
 	"github.com/jmoiron/sqlx"
 	"github.com/mainflux/mainflux"
@@ -29,16 +29,13 @@ import (
 	api "github.com/mainflux/mainflux/bootstrap/api"
 	"github.com/mainflux/mainflux/bootstrap/postgres"
 	mfsdk "github.com/mainflux/mainflux/pkg/sdk/go"
-	stdprometheus "github.com/prometheus/client_golang/prometheus"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 )
 
 const (
+	svcName       = "bootstrap"
 	stopWaitTime  = 5 * time.Second
 	httpProtocol  = "http"
 	httpsProtocol = "https"
-	svcName       = "bootstrap"
 
 	defLogLevel       = "error"
 	defDBHost         = "localhost"
@@ -135,16 +132,16 @@ func main() {
 	db := connectToDB(cfg.dbConfig, logger)
 	defer db.Close()
 
-	thingsESConn := connectToRedis(cfg.esThingsURL, cfg.esThingsPass, cfg.esThingsDB, logger)
+	thingsESConn := mfdatabase.ConnectToRedis(cfg.esThingsURL, cfg.esThingsPass, cfg.esThingsDB, logger)
 	defer thingsESConn.Close()
 
-	esClient := connectToRedis(cfg.esURL, cfg.esPass, cfg.esDB, logger)
+	esClient := mfdatabase.ConnectToRedis(cfg.esURL, cfg.esPass, cfg.esDB, logger)
 	defer esClient.Close()
 
 	authTracer, authCloser := apiutil.InitJaeger("auth", cfg.jaegerURL, logger)
 	defer authCloser.Close()
 
-	authConn := connectToAuth(cfg, logger)
+	authConn := apiutil.ConnectToAuth(cfg.clientTLS, cfg.caCerts, cfg.authURL, svcName, logger)
 	defer authConn.Close()
 
 	auth := authapi.NewClient(authTracer, authConn, cfg.authTimeout)
@@ -232,20 +229,6 @@ func connectToDB(cfg postgres.Config, logger logger.Logger) *sqlx.DB {
 	return db
 }
 
-func connectToRedis(redisURL, redisPass, redisDB string, logger logger.Logger) *r.Client {
-	db, err := strconv.Atoi(redisDB)
-	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to connect to redis: %s", err))
-		os.Exit(1)
-	}
-
-	return r.NewClient(&r.Options{
-		Addr:     redisURL,
-		Password: redisPass,
-		DB:       db,
-	})
-}
-
 func newService(auth mainflux.AuthServiceClient, db *sqlx.DB, logger logger.Logger, esClient *r.Client, cfg config) bootstrap.Service {
 	thingsRepo := postgres.NewConfigRepository(db, logger)
 
@@ -258,47 +241,10 @@ func newService(auth mainflux.AuthServiceClient, db *sqlx.DB, logger logger.Logg
 	svc := bootstrap.New(auth, thingsRepo, sdk, cfg.encKey)
 	svc = redisprod.NewEventStoreMiddleware(svc, esClient)
 	svc = api.NewLoggingMiddleware(svc, logger)
-	svc = api.MetricsMiddleware(
-		svc,
-		kitprometheus.NewCounterFrom(stdprometheus.CounterOpts{
-			Namespace: "bootstrap",
-			Subsystem: "api",
-			Name:      "request_count",
-			Help:      "Number of requests received.",
-		}, []string{"method"}),
-		kitprometheus.NewSummaryFrom(stdprometheus.SummaryOpts{
-			Namespace: "bootstrap",
-			Subsystem: "api",
-			Name:      "request_latency_microseconds",
-			Help:      "Total duration of requests in microseconds.",
-		}, []string{"method"}),
-	)
+	counter, latency := apiutil.MakeMetrics(svcName)
+	svc = api.MetricsMiddleware(svc, counter, latency)
+
 	return svc
-}
-
-func connectToAuth(cfg config, logger logger.Logger) *grpc.ClientConn {
-	var opts []grpc.DialOption
-	if cfg.clientTLS {
-		if cfg.caCerts != "" {
-			tpc, err := credentials.NewClientTLSFromFile(cfg.caCerts, "")
-			if err != nil {
-				logger.Error(fmt.Sprintf("Failed to create tls credentials: %s", err))
-				os.Exit(1)
-			}
-			opts = append(opts, grpc.WithTransportCredentials(tpc))
-		}
-	} else {
-		opts = append(opts, grpc.WithInsecure())
-		logger.Info("gRPC communication is not encrypted")
-	}
-
-	conn, err := grpc.Dial(cfg.authURL, opts...)
-	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to connect to auth service: %s", err))
-		os.Exit(1)
-	}
-
-	return conn
 }
 
 func subscribeToThingsES(svc bootstrap.Service, client *r.Client, consumer string, logger logger.Logger) {

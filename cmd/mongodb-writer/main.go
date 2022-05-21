@@ -10,18 +10,17 @@ import (
 	"os"
 	"time"
 
-	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
 	"github.com/mainflux/mainflux"
 	"github.com/mainflux/mainflux/consumers"
 	"github.com/mainflux/mainflux/consumers/writers/api"
 	"github.com/mainflux/mainflux/consumers/writers/mongodb"
+	"github.com/mainflux/mainflux/internal/apiutil"
+	"github.com/mainflux/mainflux/internal/apiutil/mfdatabase"
 	"github.com/mainflux/mainflux/internal/apiutil/mfserver"
 	"github.com/mainflux/mainflux/internal/apiutil/mfserver/httpserver"
 	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/pkg/messaging/nats"
-	stdprometheus "github.com/prometheus/client_golang/prometheus"
 	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -73,19 +72,9 @@ func main() {
 	}
 	defer pubSub.Close()
 
-	addr := fmt.Sprintf("mongodb://%s:%s", cfg.dbHost, cfg.dbPort)
-	client, err := mongo.Connect(context.Background(), options.Client().ApplyURI(addr))
-	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to connect to database: %s", err))
-		os.Exit(1)
-	}
+	db := mfdatabase.ConnectToMongoDB(cfg.dbHost, cfg.dbPort, cfg.dbName, logger)
 
-	db := client.Database(cfg.dbName)
-	repo := mongodb.New(db)
-
-	counter, latency := makeMetrics()
-	repo = api.LoggingMiddleware(repo, logger)
-	repo = api.MetricsMiddleware(repo, counter, latency)
+	repo := newService(db, logger)
 
 	if err := consumers.Start(svcName, pubSub, repo, cfg.configPath, logger); err != nil {
 		logger.Error(fmt.Sprintf("Failed to start MongoDB writer: %s", err))
@@ -119,20 +108,11 @@ func loadConfigs() config {
 	}
 }
 
-func makeMetrics() (*kitprometheus.Counter, *kitprometheus.Summary) {
-	counter := kitprometheus.NewCounterFrom(stdprometheus.CounterOpts{
-		Namespace: "mongodb",
-		Subsystem: "message_writer",
-		Name:      "request_count",
-		Help:      "Number of database inserts.",
-	}, []string{"method"})
+func newService(db *mongo.Database, logger logger.Logger) consumers.Consumer {
+	repo := mongodb.New(db)
+	repo = api.LoggingMiddleware(repo, logger)
+	counter, latency := apiutil.MakeMetrics(svcName)
+	repo = api.MetricsMiddleware(repo, counter, latency)
 
-	latency := kitprometheus.NewSummaryFrom(stdprometheus.SummaryOpts{
-		Namespace: "mongodb",
-		Subsystem: "message_writer",
-		Name:      "request_latency_microseconds",
-		Help:      "Total duration of inserts in microseconds.",
-	}, []string{"method"})
-
-	return counter, latency
+	return repo
 }

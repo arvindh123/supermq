@@ -11,7 +11,6 @@ import (
 	"strconv"
 	"time"
 
-	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
 	"github.com/jmoiron/sqlx"
 	"github.com/mainflux/mainflux"
 	authapi "github.com/mainflux/mainflux/auth/api/grpc"
@@ -30,7 +29,6 @@ import (
 	"github.com/mainflux/mainflux/pkg/messaging/nats"
 	"github.com/mainflux/mainflux/pkg/ulid"
 	opentracing "github.com/opentracing/opentracing-go"
-	stdprometheus "github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
@@ -286,20 +284,8 @@ func newService(db *sqlx.DB, tracer opentracing.Tracer, auth mainflux.AuthServic
 	notifier := mfsmpp.New(c.smppConf)
 	svc := notifiers.New(auth, repo, idp, notifier, c.from)
 	svc = api.LoggingMiddleware(svc, logger)
-	svc = api.MetricsMiddleware(
-		svc,
-		kitprometheus.NewCounterFrom(stdprometheus.CounterOpts{
-			Namespace: "notifier",
-			Subsystem: "smpp",
-			Name:      "request_count",
-			Help:      "Number of requests received.",
-		}, []string{"method"}),
-		kitprometheus.NewSummaryFrom(stdprometheus.SummaryOpts{
-			Namespace: "notifier",
-			Subsystem: "smpp",
-			Name:      "request_latency_microseconds",
-			Help:      "Total duration of requests in microseconds.",
-		}, []string{"method"}),
-	)
+	counter, latency := apiutil.MakeMetrics(svcName)
+	svc = api.MetricsMiddleware(svc, counter, latency)
+
 	return svc
 }

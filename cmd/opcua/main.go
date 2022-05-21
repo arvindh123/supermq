@@ -8,11 +8,12 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strconv"
 	"time"
 
 	r "github.com/go-redis/redis/v8"
 	"github.com/mainflux/mainflux"
+	"github.com/mainflux/mainflux/internal/apiutil"
+	"github.com/mainflux/mainflux/internal/apiutil/mfdatabase"
 	"github.com/mainflux/mainflux/internal/apiutil/mfserver"
 	"github.com/mainflux/mainflux/internal/apiutil/mfserver/httpserver"
 	"github.com/mainflux/mainflux/logger"
@@ -23,9 +24,6 @@ import (
 	"github.com/mainflux/mainflux/opcua/redis"
 	"github.com/mainflux/mainflux/pkg/messaging/nats"
 	"golang.org/x/sync/errgroup"
-
-	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
-	stdprometheus "github.com/prometheus/client_golang/prometheus"
 )
 
 const (
@@ -93,14 +91,14 @@ func main() {
 		log.Fatalf(err.Error())
 	}
 
-	rmConn := connectToRedis(cfg.routeMapURL, cfg.routeMapPass, cfg.routeMapDB, logger)
+	rmConn := mfdatabase.ConnectToRedis(cfg.routeMapURL, cfg.routeMapPass, cfg.routeMapDB, logger)
 	defer rmConn.Close()
 
 	thingRM := newRouteMapRepositoy(rmConn, thingsRMPrefix, logger)
 	chanRM := newRouteMapRepositoy(rmConn, channelsRMPrefix, logger)
 	connRM := newRouteMapRepositoy(rmConn, connectionRMPrefix, logger)
 
-	esConn := connectToRedis(cfg.esURL, cfg.esPass, cfg.esDB, logger)
+	esConn := mfdatabase.ConnectToRedis(cfg.esURL, cfg.esPass, cfg.esDB, logger)
 	defer esConn.Close()
 
 	pubSub, err := nats.NewPubSub(cfg.natsURL, "", logger)
@@ -114,23 +112,7 @@ func main() {
 	sub := gopcua.NewSubscriber(ctx, pubSub, thingRM, chanRM, connRM, logger)
 	browser := gopcua.NewBrowser(ctx, logger)
 
-	svc := opcua.New(sub, browser, thingRM, chanRM, connRM, cfg.opcuaConfig, logger)
-	svc = api.LoggingMiddleware(svc, logger)
-	svc = api.MetricsMiddleware(
-		svc,
-		kitprometheus.NewCounterFrom(stdprometheus.CounterOpts{
-			Namespace: "opc_adapter",
-			Subsystem: "api",
-			Name:      "request_count",
-			Help:      "Number of requests received.",
-		}, []string{"method"}),
-		kitprometheus.NewSummaryFrom(stdprometheus.SummaryOpts{
-			Namespace: "opc_adapter",
-			Subsystem: "api",
-			Name:      "request_latency_microseconds",
-			Help:      "Total duration of requests in microseconds.",
-		}, []string{"method"}),
-	)
+	svc := newService(sub, browser, thingRM, chanRM, connRM, cfg.opcuaConfig, logger)
 
 	go subscribeToStoredSubs(sub, cfg.opcuaConfig, logger)
 	go subscribeToThingsES(svc, esConn, cfg.esConsumerName, logger)
@@ -172,20 +154,6 @@ func loadConfig() config {
 	}
 }
 
-func connectToRedis(redisURL, redisPass, redisDB string, logger logger.Logger) *r.Client {
-	db, err := strconv.Atoi(redisDB)
-	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to connect to redis: %s", err))
-		os.Exit(1)
-	}
-
-	return r.NewClient(&r.Options{
-		Addr:     redisURL,
-		Password: redisPass,
-		DB:       db,
-	})
-}
-
 func subscribeToStoredSubs(sub opcua.Subscriber, cfg opcua.Config, logger logger.Logger) {
 	// Get all stored subscriptions
 	nodes, err := db.ReadAll()
@@ -220,4 +188,13 @@ func subscribeToThingsES(svc opcua.Service, client *r.Client, prefix string, log
 func newRouteMapRepositoy(client *r.Client, prefix string, logger logger.Logger) opcua.RouteMapRepository {
 	logger.Info(fmt.Sprintf("Connected to %s Redis Route-map", prefix))
 	return redis.NewRouteMapRepository(client, prefix)
+}
+
+func newService(sub opcua.Subscriber, browser opcua.Browser, thingRM, chanRM, connRM opcua.RouteMapRepository, opcuaConfig opcua.Config, logger logger.Logger) opcua.Service {
+	svc := opcua.New(sub, browser, thingRM, chanRM, connRM, opcuaConfig, logger)
+	svc = api.LoggingMiddleware(svc, logger)
+	counter, latency := apiutil.MakeMetrics(svcName)
+	svc = api.MetricsMiddleware(svc, counter, latency)
+
+	return svc
 }

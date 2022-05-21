@@ -11,9 +11,6 @@ import (
 	"strconv"
 	"time"
 
-	"google.golang.org/grpc/credentials"
-
-	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
 	"github.com/mainflux/mainflux"
 	adapter "github.com/mainflux/mainflux/http"
 	"github.com/mainflux/mainflux/http/api"
@@ -23,14 +20,12 @@ import (
 	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/pkg/messaging/nats"
 	thingsapi "github.com/mainflux/mainflux/things/api/auth/grpc"
-	stdprometheus "github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sync/errgroup"
-	"google.golang.org/grpc"
 )
 
 const (
+	svcName      = "http_adapter"
 	stopWaitTime = 5 * time.Second
-	svcName      = "http"
 
 	defLogLevel          = "error"
 	defClientTLS         = "false"
@@ -72,7 +67,7 @@ func main() {
 		log.Fatalf(err.Error())
 	}
 
-	conn := connectToThings(cfg, logger)
+	conn := apiutil.ConnectToThings(cfg.clientTLS, cfg.caCerts, cfg.thingsAuthURL, svcName, logger)
 	defer conn.Close()
 
 	tracer, closer := apiutil.InitJaeger("http_adapter", cfg.jaegerURL, logger)
@@ -89,24 +84,8 @@ func main() {
 	defer pub.Close()
 
 	tc := thingsapi.NewClient(conn, thingsTracer, cfg.thingsAuthTimeout)
-	svc := adapter.New(pub, tc)
 
-	svc = api.LoggingMiddleware(svc, logger)
-	svc = api.MetricsMiddleware(
-		svc,
-		kitprometheus.NewCounterFrom(stdprometheus.CounterOpts{
-			Namespace: "http_adapter",
-			Subsystem: "api",
-			Name:      "request_count",
-			Help:      "Number of requests received.",
-		}, []string{"method"}),
-		kitprometheus.NewSummaryFrom(stdprometheus.SummaryOpts{
-			Namespace: "http_adapter",
-			Subsystem: "api",
-			Name:      "request_latency_microseconds",
-			Help:      "Total duration of requests in microseconds.",
-		}, []string{"method"}),
-	)
+	svc := newService(pub, tc, logger)
 
 	hs := httpserver.New(ctx, cancel, svcName, "", cfg.port, api.MakeHandler(svc, tracer, logger), "", "", logger)
 	g.Go(func() error {
@@ -146,26 +125,11 @@ func loadConfig() config {
 	}
 }
 
-func connectToThings(cfg config, logger logger.Logger) *grpc.ClientConn {
-	var opts []grpc.DialOption
-	if cfg.clientTLS {
-		if cfg.caCerts != "" {
-			tpc, err := credentials.NewClientTLSFromFile(cfg.caCerts, "")
-			if err != nil {
-				logger.Error(fmt.Sprintf("Failed to load certs: %s", err))
-				os.Exit(1)
-			}
-			opts = append(opts, grpc.WithTransportCredentials(tpc))
-		}
-	} else {
-		logger.Info("gRPC communication is not encrypted")
-		opts = append(opts, grpc.WithInsecure())
-	}
+func newService(pub nats.Publisher, tc mainflux.ThingsServiceClient, logger logger.Logger) adapter.Service {
+	svc := adapter.New(pub, tc)
+	svc = api.LoggingMiddleware(svc, logger)
+	counter, latency := apiutil.MakeMetrics(svcName)
+	svc = api.MetricsMiddleware(svc, counter, latency)
 
-	conn, err := grpc.Dial(cfg.thingsAuthURL, opts...)
-	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to connect to things service: %s", err))
-		os.Exit(1)
-	}
-	return conn
+	return svc
 }

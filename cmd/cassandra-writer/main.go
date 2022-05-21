@@ -12,17 +12,16 @@ import (
 	"strings"
 	"time"
 
-	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
 	"github.com/gocql/gocql"
 	"github.com/mainflux/mainflux"
 	"github.com/mainflux/mainflux/consumers"
 	"github.com/mainflux/mainflux/consumers/writers/api"
 	"github.com/mainflux/mainflux/consumers/writers/cassandra"
+	"github.com/mainflux/mainflux/internal/apiutil"
 	"github.com/mainflux/mainflux/internal/apiutil/mfserver"
 	"github.com/mainflux/mainflux/internal/apiutil/mfserver/httpserver"
 	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/pkg/messaging/nats"
-	stdprometheus "github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -136,21 +135,8 @@ func connectToCassandra(dbCfg cassandra.DBConfig, logger logger.Logger) *gocql.S
 func newService(session *gocql.Session, logger logger.Logger) consumers.Consumer {
 	repo := cassandra.New(session)
 	repo = api.LoggingMiddleware(repo, logger)
-	repo = api.MetricsMiddleware(
-		repo,
-		kitprometheus.NewCounterFrom(stdprometheus.CounterOpts{
-			Namespace: "cassandra",
-			Subsystem: "message_writer",
-			Name:      "request_count",
-			Help:      "Number of requests received.",
-		}, []string{"method"}),
-		kitprometheus.NewSummaryFrom(stdprometheus.SummaryOpts{
-			Namespace: "cassandra",
-			Subsystem: "message_writer",
-			Name:      "request_latency_microseconds",
-			Help:      "Total duration of requests in microseconds.",
-		}, []string{"method"}),
-	)
+	counter, latency := apiutil.MakeMetrics(svcName)
+	repo = api.MetricsMiddleware(repo, counter, latency)
 
 	return repo
 }

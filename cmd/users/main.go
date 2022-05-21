@@ -23,10 +23,7 @@ import (
 	"github.com/mainflux/mainflux/users/emailer"
 	"github.com/mainflux/mainflux/users/tracing"
 	"golang.org/x/sync/errgroup"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 
-	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
 	"github.com/jmoiron/sqlx"
 	"github.com/mainflux/mainflux"
 	authapi "github.com/mainflux/mainflux/auth/api/grpc"
@@ -34,7 +31,6 @@ import (
 	"github.com/mainflux/mainflux/users/api"
 	"github.com/mainflux/mainflux/users/postgres"
 	opentracing "github.com/opentracing/opentracing-go"
-	stdprometheus "github.com/prometheus/client_golang/prometheus"
 )
 
 const (
@@ -149,10 +145,9 @@ func main() {
 	authTracer, closer := apiutil.InitJaeger("auth", cfg.jaegerURL, logger)
 	defer closer.Close()
 
-	auth, close := connectToAuth(cfg, authTracer, logger)
-	if close != nil {
-		defer close()
-	}
+	authConn := apiutil.ConnectToAuth(cfg.authTLS, cfg.authCACerts, cfg.authURL, svcName, logger)
+	defer authConn.Close()
+	auth := authapi.NewClient(authTracer, authConn, cfg.authTimeout)
 
 	tracer, closer := apiutil.InitJaeger("users", cfg.jaegerURL, logger)
 	defer closer.Close()
@@ -249,31 +244,6 @@ func connectToDB(dbConfig postgres.Config, logger logger.Logger) *sqlx.DB {
 	return db
 }
 
-func connectToAuth(cfg config, tracer opentracing.Tracer, logger logger.Logger) (mainflux.AuthServiceClient, func() error) {
-	var opts []grpc.DialOption
-	if cfg.authTLS {
-		if cfg.authCACerts != "" {
-			tpc, err := credentials.NewClientTLSFromFile(cfg.authCACerts, "")
-			if err != nil {
-				logger.Error(fmt.Sprintf("Failed to create tls credentials: %s", err))
-				os.Exit(1)
-			}
-			opts = append(opts, grpc.WithTransportCredentials(tpc))
-		}
-	} else {
-		opts = append(opts, grpc.WithInsecure())
-		logger.Info("gRPC communication is not encrypted")
-	}
-
-	conn, err := grpc.Dial(cfg.authURL, opts...)
-	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to connect to auth service: %s", err))
-		os.Exit(1)
-	}
-
-	return authapi.NewClient(tracer, conn, cfg.authTimeout), conn.Close
-}
-
 func newService(db *sqlx.DB, tracer opentracing.Tracer, auth mainflux.AuthServiceClient, c config, logger logger.Logger) users.Service {
 	database := postgres.NewDatabase(db)
 	hasher := bcrypt.New()
@@ -288,21 +258,9 @@ func newService(db *sqlx.DB, tracer opentracing.Tracer, auth mainflux.AuthServic
 
 	svc := users.New(userRepo, hasher, auth, emailer, idProvider, c.passRegex)
 	svc = api.LoggingMiddleware(svc, logger)
-	svc = api.MetricsMiddleware(
-		svc,
-		kitprometheus.NewCounterFrom(stdprometheus.CounterOpts{
-			Namespace: "users",
-			Subsystem: "api",
-			Name:      "request_count",
-			Help:      "Number of requests received.",
-		}, []string{"method"}),
-		kitprometheus.NewSummaryFrom(stdprometheus.SummaryOpts{
-			Namespace: "users",
-			Subsystem: "api",
-			Name:      "request_latency_microseconds",
-			Help:      "Total duration of requests in microseconds.",
-		}, []string{"method"}),
-	)
+	counter, latency := apiutil.MakeMetrics(svcName)
+	svc = api.MetricsMiddleware(svc, counter, latency)
+
 	if err := createAdmin(svc, userRepo, c, auth); err != nil {
 		logger.Error("failed to create admin user: " + err.Error())
 		os.Exit(1)

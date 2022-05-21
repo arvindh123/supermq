@@ -8,12 +8,13 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strconv"
 	"time"
 
 	mqttPaho "github.com/eclipse/paho.mqtt.golang"
 	r "github.com/go-redis/redis/v8"
 	"github.com/mainflux/mainflux"
+	"github.com/mainflux/mainflux/internal/apiutil"
+	"github.com/mainflux/mainflux/internal/apiutil/mfdatabase"
 	"github.com/mainflux/mainflux/internal/apiutil/mfserver"
 	"github.com/mainflux/mainflux/internal/apiutil/mfserver/httpserver"
 	"github.com/mainflux/mainflux/logger"
@@ -23,14 +24,12 @@ import (
 	"github.com/mainflux/mainflux/pkg/messaging/nats"
 	"golang.org/x/sync/errgroup"
 
-	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
 	"github.com/mainflux/mainflux/lora/redis"
-	stdprometheus "github.com/prometheus/client_golang/prometheus"
 )
 
 const (
-	stopWaitTime = 5 * time.Second
 	svcName      = "lora-adapter"
+	stopWaitTime = 5 * time.Second
 
 	defLogLevel       = "error"
 	defHTTPPort       = "8180"
@@ -97,10 +96,10 @@ func main() {
 		log.Fatalf(err.Error())
 	}
 
-	rmConn := connectToRedis(cfg.routeMapURL, cfg.routeMapPass, cfg.routeMapDB, logger)
+	rmConn := mfdatabase.ConnectToRedis(cfg.routeMapURL, cfg.routeMapPass, cfg.routeMapDB, logger)
 	defer rmConn.Close()
 
-	esConn := connectToRedis(cfg.esURL, cfg.esPass, cfg.esDB, logger)
+	esConn := mfdatabase.ConnectToRedis(cfg.esURL, cfg.esPass, cfg.esDB, logger)
 	defer esConn.Close()
 
 	pub, err := nats.NewPublisher(cfg.natsURL)
@@ -110,27 +109,7 @@ func main() {
 	}
 	defer pub.Close()
 
-	thingsRM := newRouteMapRepository(rmConn, thingsRMPrefix, logger)
-	chansRM := newRouteMapRepository(rmConn, channelsRMPrefix, logger)
-	connsRM := newRouteMapRepository(rmConn, connsRMPrefix, logger)
-
-	svc := lora.New(pub, thingsRM, chansRM, connsRM)
-	svc = api.LoggingMiddleware(svc, logger)
-	svc = api.MetricsMiddleware(
-		svc,
-		kitprometheus.NewCounterFrom(stdprometheus.CounterOpts{
-			Namespace: "lora_adapter",
-			Subsystem: "api",
-			Name:      "request_count",
-			Help:      "Number of requests received.",
-		}, []string{"method"}),
-		kitprometheus.NewSummaryFrom(stdprometheus.SummaryOpts{
-			Namespace: "lora_adapter",
-			Subsystem: "api",
-			Name:      "request_latency_microseconds",
-			Help:      "Total duration of requests in microseconds.",
-		}, []string{"method"}),
-	)
+	svc := newService(pub, rmConn, thingsRMPrefix, channelsRMPrefix, connsRMPrefix, logger)
 
 	mqttConn := connectToMQTTBroker(cfg.loraMsgURL, cfg.loraMsgUser, cfg.loraMsgPass, cfg.loraMsgTimeout, logger)
 
@@ -200,20 +179,6 @@ func connectToMQTTBroker(url, user, password string, timeout time.Duration, logg
 	return client
 }
 
-func connectToRedis(redisURL, redisPass, redisDB string, logger logger.Logger) *r.Client {
-	db, err := strconv.Atoi(redisDB)
-	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to connect to redis: %s", err))
-		os.Exit(1)
-	}
-
-	return r.NewClient(&r.Options{
-		Addr:     redisURL,
-		Password: redisPass,
-		DB:       db,
-	})
-}
-
 func subscribeToLoRaBroker(svc lora.Service, mc mqttPaho.Client, timeout time.Duration, topic string, logger logger.Logger) {
 	mqtt := mqtt.NewBroker(svc, mc, timeout, logger)
 	logger.Info("Subscribed to Lora MQTT broker")
@@ -234,4 +199,17 @@ func subscribeToThingsES(svc lora.Service, client *r.Client, consumer string, lo
 func newRouteMapRepository(client *r.Client, prefix string, logger logger.Logger) lora.RouteMapRepository {
 	logger.Info(fmt.Sprintf("Connected to %s Redis Route-map", prefix))
 	return redis.NewRouteMapRepository(client, prefix)
+}
+
+func newService(pub nats.Publisher, rmConn *r.Client, thingsRMPrefix, channelsRMPrefix, connsRMPrefix string, logger logger.Logger) lora.Service {
+	thingsRM := newRouteMapRepository(rmConn, thingsRMPrefix, logger)
+	chansRM := newRouteMapRepository(rmConn, channelsRMPrefix, logger)
+	connsRM := newRouteMapRepository(rmConn, connsRMPrefix, logger)
+
+	svc := lora.New(pub, thingsRM, chansRM, connsRM)
+	svc = api.LoggingMiddleware(svc, logger)
+	counter, latency := apiutil.MakeMetrics(svcName)
+	svc = api.MetricsMiddleware(svc, counter, latency)
+
+	return svc
 }
