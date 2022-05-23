@@ -111,7 +111,7 @@ func main() {
 	}
 
 	cacheClient := mfdatabase.ConnectToRedis(cfg.cacheURL, cfg.cachePass, cfg.cacheDB, logger)
-	cacheTracer, cacheCloser := apiutil.InitJaeger("twins_cache", cfg.jaegerURL, logger)
+	cacheTracer, cacheCloser := apiutil.Jaeger("twins_cache", cfg.jaegerURL, logger)
 	defer cacheCloser.Close()
 
 	db, err := twmongodb.Connect(cfg.dbCfg, logger)
@@ -119,10 +119,10 @@ func main() {
 		logger.Error(err.Error())
 		os.Exit(1)
 	}
-	dbTracer, dbCloser := apiutil.InitJaeger("twins_db", cfg.jaegerURL, logger)
+	dbTracer, dbCloser := apiutil.Jaeger("twins_db", cfg.jaegerURL, logger)
 	defer dbCloser.Close()
 
-	authTracer, authCloser := apiutil.InitJaeger("auth", cfg.jaegerURL, logger)
+	authTracer, authCloser := apiutil.Jaeger("auth", cfg.jaegerURL, logger)
 	defer authCloser.Close()
 	auth, _ := createAuthClient(cfg, authTracer, logger)
 
@@ -135,7 +135,7 @@ func main() {
 
 	svc := newService(svcName, pubSub, cfg.channelID, auth, dbTracer, db, cacheTracer, cacheClient, logger)
 
-	tracer, closer := apiutil.InitJaeger("twins", cfg.jaegerURL, logger)
+	tracer, closer := apiutil.Jaeger("twins", cfg.jaegerURL, logger)
 	defer closer.Close()
 
 	hs := httpserver.New(ctx, cancel, svcName, "", cfg.httpPort, twapi.MakeHandler(tracer, svc, logger), cfg.serverCert, cfg.serverKey, logger)

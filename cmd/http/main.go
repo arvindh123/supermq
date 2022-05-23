@@ -70,10 +70,10 @@ func main() {
 	conn := apiutil.ConnectToThings(cfg.clientTLS, cfg.caCerts, cfg.thingsAuthURL, svcName, logger)
 	defer conn.Close()
 
-	tracer, closer := apiutil.InitJaeger("http_adapter", cfg.jaegerURL, logger)
+	tracer, closer := apiutil.Jaeger("http_adapter", cfg.jaegerURL, logger)
 	defer closer.Close()
 
-	thingsTracer, thingsCloser := apiutil.InitJaeger("things", cfg.jaegerURL, logger)
+	thingsTracer, thingsCloser := apiutil.Jaeger("things", cfg.jaegerURL, logger)
 	defer thingsCloser.Close()
 
 	pub, err := nats.NewPublisher(cfg.natsURL)

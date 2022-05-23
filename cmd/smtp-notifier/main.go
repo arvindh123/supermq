@@ -134,7 +134,7 @@ func main() {
 	}
 	defer pubSub.Close()
 
-	authTracer, closer := apiutil.InitJaeger("auth", cfg.jaegerURL, logger)
+	authTracer, closer := apiutil.Jaeger("auth", cfg.jaegerURL, logger)
 	defer closer.Close()
 
 	authConn := apiutil.ConnectToAuth(cfg.authTLS, cfg.authCACerts, cfg.authURL, svcName, logger)
@@ -142,10 +142,10 @@ func main() {
 
 	auth := authapi.NewClient(authTracer, authConn, cfg.authTimeout)
 
-	tracer, closer := apiutil.InitJaeger("smtp-notifier", cfg.jaegerURL, logger)
+	tracer, closer := apiutil.Jaeger("smtp-notifier", cfg.jaegerURL, logger)
 	defer closer.Close()
 
-	dbTracer, dbCloser := apiutil.InitJaeger("smtp-notifier_db", cfg.jaegerURL, logger)
+	dbTracer, dbCloser := apiutil.Jaeger("smtp-notifier_db", cfg.jaegerURL, logger)
 	defer dbCloser.Close()
 
 	svc := newService(db, dbTracer, auth, cfg, logger)

@@ -162,7 +162,7 @@ func main() {
 	db := connectToDB(cfg.dbConfig, logger)
 	defer db.Close()
 
-	authTracer, authCloser := apiutil.InitJaeger("auth", cfg.jaegerURL, logger)
+	authTracer, authCloser := apiutil.Jaeger("auth", cfg.jaegerURL, logger)
 	defer authCloser.Close()
 
 	authConn := apiutil.ConnectToAuth(cfg.clientTLS, cfg.caCerts, cfg.authURL, svcName, logger)

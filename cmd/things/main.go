@@ -133,7 +133,7 @@ func main() {
 		log.Fatalf(err.Error())
 	}
 
-	thingsTracer, thingsCloser := apiutil.InitJaeger("things", cfg.jaegerURL, logger)
+	thingsTracer, thingsCloser := apiutil.Jaeger("things", cfg.jaegerURL, logger)
 	defer thingsCloser.Close()
 
 	cacheClient := mfdatabase.ConnectToRedis(cfg.cacheURL, cfg.cachePass, cfg.cacheDB, logger)
@@ -143,7 +143,7 @@ func main() {
 	db := connectToDB(cfg.dbConfig, logger)
 	defer db.Close()
 
-	authTracer, authCloser := apiutil.InitJaeger("auth", cfg.jaegerURL, logger)
+	authTracer, authCloser := apiutil.Jaeger("auth", cfg.jaegerURL, logger)
 	defer authCloser.Close()
 
 	auth, close := createAuthClient(cfg, authTracer, logger)
@@ -151,10 +151,10 @@ func main() {
 		defer close()
 	}
 
-	dbTracer, dbCloser := apiutil.InitJaeger("things_db", cfg.jaegerURL, logger)
+	dbTracer, dbCloser := apiutil.Jaeger("things_db", cfg.jaegerURL, logger)
 	defer dbCloser.Close()
 
-	cacheTracer, cacheCloser := apiutil.InitJaeger("things_cache", cfg.jaegerURL, logger)
+	cacheTracer, cacheCloser := apiutil.Jaeger("things_cache", cfg.jaegerURL, logger)
 	defer cacheCloser.Close()
 
 	svc := newService(auth, dbTracer, cacheTracer, db, cacheClient, esClient, logger)

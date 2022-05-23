@@ -90,10 +90,10 @@ func main() {
 	conn := apiutil.ConnectToThings(cfg.clientTLS, cfg.caCerts, cfg.thingsAuthURL, svcName, logger)
 	defer conn.Close()
 
-	thingsTracer, thingsCloser := apiutil.InitJaeger("things", cfg.jaegerURL, logger)
+	thingsTracer, thingsCloser := apiutil.Jaeger("things", cfg.jaegerURL, logger)
 	defer thingsCloser.Close()
 
-	authTracer, authCloser := apiutil.InitJaeger("auth", cfg.jaegerURL, logger)
+	authTracer, authCloser := apiutil.Jaeger("auth", cfg.jaegerURL, logger)
 	defer authCloser.Close()
 
 	authConn := apiutil.ConnectToAuth(cfg.clientTLS, cfg.caCerts, cfg.usersAuthURL, svcName, logger)

@@ -115,13 +115,13 @@ func main() {
 	db := connectToDB(cfg.dbConfig, logger)
 	defer db.Close()
 
-	tracer, closer := apiutil.InitJaeger("auth", cfg.jaegerURL, logger)
+	tracer, closer := apiutil.Jaeger("auth", cfg.jaegerURL, logger)
 	defer closer.Close()
 
-	dbTracer, dbCloser := apiutil.InitJaeger("auth_db", cfg.jaegerURL, logger)
+	dbTracer, dbCloser := apiutil.Jaeger("auth_db", cfg.jaegerURL, logger)
 	defer dbCloser.Close()
 
-	readerConn, writerConn := apiutil.InitKeto(cfg.ketoReadHost, cfg.ketoReadPort, cfg.ketoWriteHost, cfg.ketoWritePort, logger)
+	readerConn, writerConn := apiutil.Keto(cfg.ketoReadHost, cfg.ketoReadPort, cfg.ketoWriteHost, cfg.ketoWritePort, logger)
 
 	svc := newService(db, dbTracer, cfg.secret, logger, readerConn, writerConn, cfg.loginDuration)
 

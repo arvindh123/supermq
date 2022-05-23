@@ -14,8 +14,8 @@ import (
 	jconfig "github.com/uber/jaeger-client-go/config"
 )
 
-// InitJaeger initializes Jaeger
-func InitJaeger(svcName, url string, logger logger.Logger) (opentracing.Tracer, io.Closer) {
+// Jaeger initializes Jaeger
+func Jaeger(svcName, url string, logger logger.Logger) (opentracing.Tracer, io.Closer) {
 	if url == "" {
 		return opentracing.NoopTracer{}, ioutil.NopCloser(nil)
 	}

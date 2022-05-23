@@ -175,7 +175,7 @@ func main() {
 	ac := mfdatabase.ConnectToRedis(cfg.authURL, cfg.authPass, cfg.authDB, logger)
 	defer ac.Close()
 
-	thingsTracer, thingsCloser := apiutil.InitJaeger("things", cfg.jaegerURL, logger)
+	thingsTracer, thingsCloser := apiutil.Jaeger("things", cfg.jaegerURL, logger)
 	defer thingsCloser.Close()
 	tc := thingsapi.NewClient(conn, thingsTracer, cfg.thingsAuthTimeout)
 
