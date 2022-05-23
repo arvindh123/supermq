@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/mainflux/mainflux"
-	"github.com/mainflux/mainflux/internal/apiutil"
+	apiutil "github.com/mainflux/mainflux/internal/init"
 )
 
 const (

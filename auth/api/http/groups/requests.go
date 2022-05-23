@@ -2,7 +2,7 @@ package groups
 
 import (
 	"github.com/mainflux/mainflux/auth"
-	"github.com/mainflux/mainflux/internal/apiutil"
+	apiutil "github.com/mainflux/mainflux/internal/init"
 )
 
 type createGroupReq struct {

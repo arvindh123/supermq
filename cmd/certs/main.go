@@ -20,9 +20,9 @@ import (
 	"github.com/mainflux/mainflux/certs/api"
 	vault "github.com/mainflux/mainflux/certs/pki"
 	"github.com/mainflux/mainflux/certs/postgres"
-	"github.com/mainflux/mainflux/internal/apiutil"
-	"github.com/mainflux/mainflux/internal/apiutil/mfserver"
-	"github.com/mainflux/mainflux/internal/apiutil/mfserver/httpserver"
+	apiutil "github.com/mainflux/mainflux/internal/init"
+	"github.com/mainflux/mainflux/internal/init/mfserver"
+	"github.com/mainflux/mainflux/internal/init/mfserver/httpserver"
 	"github.com/mainflux/mainflux/logger"
 	"golang.org/x/sync/errgroup"
 

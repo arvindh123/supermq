@@ -3,7 +3,7 @@
 
 package grpc
 
-import "github.com/mainflux/mainflux/internal/apiutil"
+import apiutil "github.com/mainflux/mainflux/internal/init"
 
 type accessByKeyReq struct {
 	thingKey string

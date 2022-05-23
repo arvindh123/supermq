@@ -3,7 +3,7 @@
 
 package api
 
-import "github.com/mainflux/mainflux/internal/apiutil"
+import apiutil "github.com/mainflux/mainflux/internal/init"
 
 type browseReq struct {
 	ServerURI  string

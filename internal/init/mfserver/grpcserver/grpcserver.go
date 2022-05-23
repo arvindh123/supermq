@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/mainflux/mainflux"
-	"github.com/mainflux/mainflux/internal/apiutil/mfserver"
+	"github.com/mainflux/mainflux/internal/init/mfserver"
 	"github.com/mainflux/mainflux/logger"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"

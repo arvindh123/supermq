@@ -5,7 +5,7 @@ package http
 
 import (
 	"github.com/gofrs/uuid"
-	"github.com/mainflux/mainflux/internal/apiutil"
+	apiutil "github.com/mainflux/mainflux/internal/init"
 	"github.com/mainflux/mainflux/things"
 )
 

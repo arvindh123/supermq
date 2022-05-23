@@ -12,8 +12,8 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/mainflux/mainflux"
-	"github.com/mainflux/mainflux/internal/apiutil"
-	mfdatabase "github.com/mainflux/mainflux/internal/apiutil/db"
+	apiutil "github.com/mainflux/mainflux/internal/init"
+	mfdatabase "github.com/mainflux/mainflux/internal/init/db"
 	mflog "github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/mqtt"
 	mqttredis "github.com/mainflux/mainflux/mqtt/redis"

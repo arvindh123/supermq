@@ -5,7 +5,7 @@ package api
 
 import (
 	"github.com/mainflux/mainflux/bootstrap"
-	"github.com/mainflux/mainflux/internal/apiutil"
+	apiutil "github.com/mainflux/mainflux/internal/init"
 )
 
 const maxLimitSize = 100

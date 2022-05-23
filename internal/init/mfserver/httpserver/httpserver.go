@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/mainflux/mainflux/internal/apiutil/mfserver"
+	"github.com/mainflux/mainflux/internal/init/mfserver"
 	"github.com/mainflux/mainflux/logger"
 )
 
