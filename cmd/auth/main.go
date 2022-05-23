@@ -30,7 +30,7 @@ import (
 )
 
 const (
-	svcName       = "authentication"
+	svcName       = "auth"
 	stopWaitTime  = 5 * time.Second
 	httpProtocol  = "http"
 	httpsProtocol = "https"
