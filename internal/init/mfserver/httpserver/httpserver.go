@@ -48,19 +48,18 @@ func (s *HTTPServer) Start() error {
 	case s.CertFile != "" || s.KeyFile != "":
 		s.Logger.Info(fmt.Sprintf("%s service started using https, cert %s key %s, exposed port %s", s.Name, s.CertFile, s.KeyFile, s.Port))
 		go func() {
-			s.server.ListenAndServeTLS(s.CertFile, s.KeyFile)
+			errCh <- s.server.ListenAndServeTLS(s.CertFile, s.KeyFile)
 		}()
 		s.Protocol = httpsProtocol
 	default:
 		s.Logger.Info(fmt.Sprintf("%s service started using http, exposed port %s", s.Name, s.Port))
 		go func() {
-			s.server.ListenAndServe()
+			errCh <- s.server.ListenAndServe()
 		}()
 	}
-
 	select {
 	case <-s.Ctx.Done():
-		return nil
+		return s.Stop()
 	case err := <-errCh:
 		return err
 	}

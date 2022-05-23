@@ -125,8 +125,12 @@ func main() {
 
 	svc := newService(db, dbTracer, cfg.secret, logger, readerConn, writerConn, cfg.loginDuration)
 
+	registerAuthServiceServer := func(srv *grpc.Server) {
+		mainflux.RegisterAuthServiceServer(srv, grpcapi.NewServer(tracer, svc))
+	}
+
 	hs := httpserver.New(ctx, cancel, svcName, defListenAddress, cfg.httpPort, httpapi.MakeHandler(svc, tracer, logger), cfg.serverCert, cfg.serverKey, logger)
-	gs := grpcserver.New(ctx, cancel, svcName, defListenAddress, cfg.httpPort, grpcapi.NewServer(tracer, svc), cfg.serverCert, cfg.serverKey, logger)
+	gs := grpcserver.New(ctx, cancel, svcName, defListenAddress, cfg.httpPort, registerAuthServiceServer, cfg.serverCert, cfg.serverKey, logger)
 	g.Go(func() error {
 		return hs.Start()
 	})
