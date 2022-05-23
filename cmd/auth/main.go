@@ -202,7 +202,7 @@ func newService(db *sqlx.DB, tracer opentracing.Tracer, secret string, logger lo
 	svc := auth.New(keysRepo, groupsRepo, idProvider, t, pa, duration)
 	svc = api.LoggingMiddleware(svc, logger)
 
-	counter, latency := apiutil.MakeMetrics(svcName)
+	counter, latency := apiutil.MakeMetrics(svcName, "api")
 	svc = api.MetricsMiddleware(svc, counter, latency)
 
 	return svc

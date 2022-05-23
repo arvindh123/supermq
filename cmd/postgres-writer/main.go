@@ -140,7 +140,7 @@ func connectToDB(dbConfig postgres.Config, logger logger.Logger) *sqlx.DB {
 func newService(db *sqlx.DB, logger logger.Logger) consumers.Consumer {
 	svc := postgres.New(db)
 	svc = api.LoggingMiddleware(svc, logger)
-	counter, latency := apiutil.MakeMetrics(svcName)
+	counter, latency := apiutil.MakeMetrics("postgres", "message_writer")
 	svc = api.MetricsMiddleware(svc, counter, latency)
 
 	return svc

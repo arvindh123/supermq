@@ -138,7 +138,7 @@ func connectToDB(dbConfig timescale.Config, logger logger.Logger) *sqlx.DB {
 func newService(db *sqlx.DB, logger logger.Logger) consumers.Consumer {
 	svc := timescale.New(db)
 	svc = api.LoggingMiddleware(svc, logger)
-	counter, latency := apiutil.MakeMetrics(svcName)
+	counter, latency := apiutil.MakeMetrics("timescale", "message_writer")
 	svc = api.MetricsMiddleware(svc, counter, latency)
 
 	return svc

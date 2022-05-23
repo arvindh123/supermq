@@ -244,7 +244,7 @@ func newService(db *sqlx.DB, tracer opentracing.Tracer, auth mainflux.AuthServic
 	notifier := smtp.New(agent)
 	svc := notifiers.New(auth, repo, idp, notifier, c.from)
 	svc = api.LoggingMiddleware(svc, logger)
-	counter, latency := apiutil.MakeMetrics(svcName)
+	counter, latency := apiutil.MakeMetrics("notifier", "smtp")
 	svc = api.MetricsMiddleware(svc, counter, latency)
 
 	return svc

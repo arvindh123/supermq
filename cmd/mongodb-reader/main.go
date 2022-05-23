@@ -14,7 +14,7 @@ import (
 	"github.com/mainflux/mainflux"
 	authapi "github.com/mainflux/mainflux/auth/api/grpc"
 	"github.com/mainflux/mainflux/internal/apiutil"
-	"github.com/mainflux/mainflux/internal/apiutil/mfdatabase"
+	mfdatabase "github.com/mainflux/mainflux/internal/apiutil/db"
 	"github.com/mainflux/mainflux/internal/apiutil/mfserver"
 	"github.com/mainflux/mainflux/internal/apiutil/mfserver/httpserver"
 	"github.com/mainflux/mainflux/logger"
@@ -159,7 +159,7 @@ func loadConfigs() config {
 func newService(db *mongo.Database, logger logger.Logger) readers.MessageRepository {
 	repo := mongodb.New(db)
 	repo = api.LoggingMiddleware(repo, logger)
-	counter, latency := apiutil.MakeMetrics(svcName)
+	counter, latency := apiutil.MakeMetrics("mongodb", "message_reader")
 	repo = api.MetricsMiddleware(repo, counter, latency)
 
 	return repo

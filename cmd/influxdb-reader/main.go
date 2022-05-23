@@ -175,7 +175,7 @@ func loadConfigs() (config, influxdata.HTTPConfig) {
 func newService(client influxdata.Client, dbName string, logger logger.Logger) readers.MessageRepository {
 	repo := influxdb.New(client, dbName)
 	repo = api.LoggingMiddleware(repo, logger)
-	counter, latency := apiutil.MakeMetrics(svcName)
+	counter, latency := apiutil.MakeMetrics("influxdb", "message_reader")
 	repo = api.MetricsMiddleware(repo, counter, latency)
 
 	return repo

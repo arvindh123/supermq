@@ -183,7 +183,7 @@ func connectToCassandra(dbCfg cassandra.DBConfig, logger logger.Logger) *gocql.S
 func newService(session *gocql.Session, logger logger.Logger) readers.MessageRepository {
 	repo := cassandra.New(session)
 	repo = api.LoggingMiddleware(repo, logger)
-	counter, latency := apiutil.MakeMetrics(svcName)
+	counter, latency := apiutil.MakeMetrics("cassandra", "message_reader")
 	repo = api.MetricsMiddleware(repo, counter, latency)
 
 	return repo

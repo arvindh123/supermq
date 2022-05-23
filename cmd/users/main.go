@@ -258,7 +258,7 @@ func newService(db *sqlx.DB, tracer opentracing.Tracer, auth mainflux.AuthServic
 
 	svc := users.New(userRepo, hasher, auth, emailer, idProvider, c.passRegex)
 	svc = api.LoggingMiddleware(svc, logger)
-	counter, latency := apiutil.MakeMetrics(svcName)
+	counter, latency := apiutil.MakeMetrics(svcName, "api")
 	svc = api.MetricsMiddleware(svc, counter, latency)
 
 	if err := createAdmin(svc, userRepo, c, auth); err != nil {

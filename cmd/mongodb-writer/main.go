@@ -15,7 +15,7 @@ import (
 	"github.com/mainflux/mainflux/consumers/writers/api"
 	"github.com/mainflux/mainflux/consumers/writers/mongodb"
 	"github.com/mainflux/mainflux/internal/apiutil"
-	"github.com/mainflux/mainflux/internal/apiutil/mfdatabase"
+	mfdatabase "github.com/mainflux/mainflux/internal/apiutil/db"
 	"github.com/mainflux/mainflux/internal/apiutil/mfserver"
 	"github.com/mainflux/mainflux/internal/apiutil/mfserver/httpserver"
 	"github.com/mainflux/mainflux/logger"
@@ -111,7 +111,7 @@ func loadConfigs() config {
 func newService(db *mongo.Database, logger logger.Logger) consumers.Consumer {
 	repo := mongodb.New(db)
 	repo = api.LoggingMiddleware(repo, logger)
-	counter, latency := apiutil.MakeMetrics(svcName)
+	counter, latency := apiutil.MakeMetrics("mongodb", "message_writer")
 	repo = api.MetricsMiddleware(repo, counter, latency)
 
 	return repo

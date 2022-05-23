@@ -87,7 +87,7 @@ func main() {
 
 	svc = api.LoggingMiddleware(svc, logger)
 
-	counter, latency := apiutil.MakeMetrics(svcName)
+	counter, latency := apiutil.MakeMetrics(svcName, "api")
 	svc = api.MetricsMiddleware(svc, counter, latency)
 
 	g.Go(func() error {

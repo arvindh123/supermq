@@ -128,7 +128,7 @@ func loadConfig() config {
 func newService(pub nats.Publisher, tc mainflux.ThingsServiceClient, logger logger.Logger) adapter.Service {
 	svc := adapter.New(pub, tc)
 	svc = api.LoggingMiddleware(svc, logger)
-	counter, latency := apiutil.MakeMetrics(svcName)
+	counter, latency := apiutil.MakeMetrics(svcName, "api")
 	svc = api.MetricsMiddleware(svc, counter, latency)
 
 	return svc
