@@ -16,7 +16,7 @@ import (
 	"github.com/mainflux/mainflux/http/api"
 	"github.com/mainflux/mainflux/internal"
 	"github.com/mainflux/mainflux/internal/server"
-	"github.com/mainflux/mainflux/internal/server/httpserver"
+	mfhttpserver "github.com/mainflux/mainflux/internal/server/http"
 	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/pkg/messaging/nats"
 	thingsapi "github.com/mainflux/mainflux/things/api/auth/grpc"
@@ -87,7 +87,7 @@ func main() {
 
 	svc := newService(pub, tc, logger)
 
-	hs := httpserver.New(ctx, cancel, svcName, "", cfg.port, api.MakeHandler(svc, tracer, logger), "", "", logger)
+	hs := mfhttpserver.New(ctx, cancel, svcName, "", cfg.port, api.MakeHandler(svc, tracer, logger), "", "", logger)
 	g.Go(func() error {
 		return hs.Start()
 	})

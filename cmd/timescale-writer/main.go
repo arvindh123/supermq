@@ -17,7 +17,7 @@ import (
 	"github.com/mainflux/mainflux/consumers/writers/timescale"
 	"github.com/mainflux/mainflux/internal"
 	"github.com/mainflux/mainflux/internal/server"
-	"github.com/mainflux/mainflux/internal/server/httpserver"
+	mfhttpserver "github.com/mainflux/mainflux/internal/server/http"
 	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/pkg/messaging/nats"
 	"golang.org/x/sync/errgroup"
@@ -90,7 +90,7 @@ func main() {
 		logger.Error(fmt.Sprintf("Failed to create Timescale writer: %s", err))
 	}
 
-	hs := httpserver.New(ctx, cancel, svcName, "", cfg.port, api.MakeHandler(svcName), "", "", logger)
+	hs := mfhttpserver.New(ctx, cancel, svcName, "", cfg.port, api.MakeHandler(svcName), "", "", logger)
 	g.Go(func() error {
 		return hs.Start()
 	})

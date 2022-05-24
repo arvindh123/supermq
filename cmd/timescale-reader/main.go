@@ -16,7 +16,7 @@ import (
 	authapi "github.com/mainflux/mainflux/auth/api/grpc"
 	"github.com/mainflux/mainflux/internal"
 	"github.com/mainflux/mainflux/internal/server"
-	"github.com/mainflux/mainflux/internal/server/httpserver"
+	mfhttpserver "github.com/mainflux/mainflux/internal/server/http"
 	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/readers"
 	"github.com/mainflux/mainflux/readers/api"
@@ -107,7 +107,7 @@ func main() {
 
 	repo := newService(db, logger)
 
-	hs := httpserver.New(ctx, cancel, svcName, "", cfg.port, api.MakeHandler(repo, tc, auth, svcName, logger), cfg.dbConfig.SSLCert, cfg.dbConfig.SSLKey, logger)
+	hs := mfhttpserver.New(ctx, cancel, svcName, "", cfg.port, api.MakeHandler(repo, tc, auth, svcName, logger), cfg.dbConfig.SSLCert, cfg.dbConfig.SSLKey, logger)
 	g.Go(func() error {
 		return hs.Start()
 	})

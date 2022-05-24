@@ -15,7 +15,7 @@ import (
 	"github.com/mainflux/mainflux/internal"
 	"github.com/mainflux/mainflux/internal/email"
 	"github.com/mainflux/mainflux/internal/server"
-	"github.com/mainflux/mainflux/internal/server/httpserver"
+	mfhttpserver "github.com/mainflux/mainflux/internal/server/http"
 	"github.com/mainflux/mainflux/pkg/errors"
 	"github.com/mainflux/mainflux/pkg/uuid"
 	"github.com/mainflux/mainflux/users"
@@ -157,7 +157,7 @@ func main() {
 
 	svc := newService(db, dbTracer, auth, cfg, logger)
 
-	hs := httpserver.New(ctx, cancel, svcName, "", cfg.httpPort, api.MakeHandler(svc, tracer, logger), cfg.serverCert, cfg.serverKey, logger)
+	hs := mfhttpserver.New(ctx, cancel, svcName, "", cfg.httpPort, api.MakeHandler(svc, tracer, logger), cfg.serverCert, cfg.serverKey, logger)
 	g.Go(func() error {
 		return hs.Start()
 	})

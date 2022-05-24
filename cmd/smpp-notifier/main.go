@@ -20,7 +20,7 @@ import (
 	"github.com/mainflux/mainflux/consumers/notifiers/postgres"
 	"github.com/mainflux/mainflux/internal"
 	"github.com/mainflux/mainflux/internal/server"
-	"github.com/mainflux/mainflux/internal/server/httpserver"
+	mfhttpserver "github.com/mainflux/mainflux/internal/server/http"
 	"golang.org/x/sync/errgroup"
 
 	mfsmpp "github.com/mainflux/mainflux/consumers/notifiers/smpp"
@@ -158,7 +158,7 @@ func main() {
 		logger.Error(fmt.Sprintf("Failed to create Postgres writer: %s", err))
 	}
 
-	hs := httpserver.New(ctx, cancel, svcName, "", cfg.httpPort, api.MakeHandler(svc, tracer, logger), cfg.serverCert, cfg.serverKey, logger)
+	hs := mfhttpserver.New(ctx, cancel, svcName, "", cfg.httpPort, api.MakeHandler(svc, tracer, logger), cfg.serverCert, cfg.serverKey, logger)
 	g.Go(func() error {
 		return hs.Start()
 	})

@@ -18,7 +18,7 @@ import (
 	"github.com/mainflux/mainflux/internal"
 	mfdatabase "github.com/mainflux/mainflux/internal/db"
 	"github.com/mainflux/mainflux/internal/server"
-	"github.com/mainflux/mainflux/internal/server/httpserver"
+	mfhttpserver "github.com/mainflux/mainflux/internal/server/http"
 	"github.com/mainflux/mainflux/logger"
 	"golang.org/x/sync/errgroup"
 
@@ -148,7 +148,7 @@ func main() {
 
 	svc := newService(auth, db, logger, esClient, cfg)
 
-	hs := httpserver.New(ctx, cancel, svcName, "", cfg.httpPort, api.MakeHandler(svc, bootstrap.NewConfigReader(cfg.encKey), logger), cfg.serverCert, cfg.serverKey, logger)
+	hs := mfhttpserver.New(ctx, cancel, svcName, "", cfg.httpPort, api.MakeHandler(svc, bootstrap.NewConfigReader(cfg.encKey), logger), cfg.serverCert, cfg.serverKey, logger)
 	g.Go(func() error {
 		return hs.Start()
 	})

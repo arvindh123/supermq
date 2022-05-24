@@ -17,7 +17,7 @@ import (
 	"github.com/mainflux/mainflux/internal"
 	mfdatabase "github.com/mainflux/mainflux/internal/db"
 	"github.com/mainflux/mainflux/internal/server"
-	"github.com/mainflux/mainflux/internal/server/httpserver"
+	mfhttpserver "github.com/mainflux/mainflux/internal/server/http"
 	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/pkg/messaging"
 	"github.com/mainflux/mainflux/pkg/messaging/nats"
@@ -138,7 +138,7 @@ func main() {
 	tracer, closer := internal.Jaeger("twins", cfg.jaegerURL, logger)
 	defer closer.Close()
 
-	hs := httpserver.New(ctx, cancel, svcName, "", cfg.httpPort, twapi.MakeHandler(tracer, svc, logger), cfg.serverCert, cfg.serverKey, logger)
+	hs := mfhttpserver.New(ctx, cancel, svcName, "", cfg.httpPort, twapi.MakeHandler(tracer, svc, logger), cfg.serverCert, cfg.serverKey, logger)
 	g.Go(func() error {
 		return hs.Start()
 	})

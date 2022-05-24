@@ -18,8 +18,8 @@ import (
 	"github.com/mainflux/mainflux/internal"
 	mfdatabase "github.com/mainflux/mainflux/internal/db"
 	"github.com/mainflux/mainflux/internal/server"
-	"github.com/mainflux/mainflux/internal/server/grpcserver"
-	"github.com/mainflux/mainflux/internal/server/httpserver"
+	mfgrpcserver "github.com/mainflux/mainflux/internal/server/grpc"
+	mfhttpserver "github.com/mainflux/mainflux/internal/server/http"
 	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/pkg/uuid"
 	"github.com/mainflux/mainflux/things"
@@ -164,9 +164,9 @@ func main() {
 
 	}
 
-	hs1 := httpserver.New(ctx, cancel, "thing-http", defListenAddress, cfg.httpPort, thhttpapi.MakeHandler(thingsTracer, svc, logger), cfg.serverCert, cfg.serverKey, logger)
-	hs2 := httpserver.New(ctx, cancel, "auth-http", defListenAddress, cfg.authHTTPPort, authhttpapi.MakeHandler(thingsTracer, svc, logger), cfg.serverCert, cfg.serverKey, logger)
-	gs := grpcserver.New(ctx, cancel, svcName, defListenAddress, cfg.authGRPCPort, registerThingsServiceServer, cfg.serverCert, cfg.serverKey, logger)
+	hs1 := mfhttpserver.New(ctx, cancel, "thing-http", defListenAddress, cfg.httpPort, thhttpapi.MakeHandler(thingsTracer, svc, logger), cfg.serverCert, cfg.serverKey, logger)
+	hs2 := mfhttpserver.New(ctx, cancel, "auth-http", defListenAddress, cfg.authHTTPPort, authhttpapi.MakeHandler(thingsTracer, svc, logger), cfg.serverCert, cfg.serverKey, logger)
+	gs := mfgrpcserver.New(ctx, cancel, svcName, defListenAddress, cfg.authGRPCPort, registerThingsServiceServer, cfg.serverCert, cfg.serverKey, logger)
 	g.Go(func() error {
 		return hs1.Start()
 	})

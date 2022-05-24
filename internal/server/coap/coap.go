@@ -1,4 +1,4 @@
-package coapserver
+package coap
 
 import (
 	"context"

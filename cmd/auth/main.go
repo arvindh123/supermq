@@ -19,8 +19,8 @@ import (
 	"github.com/mainflux/mainflux/auth/tracing"
 	"github.com/mainflux/mainflux/internal"
 	"github.com/mainflux/mainflux/internal/server"
-	"github.com/mainflux/mainflux/internal/server/grpcserver"
-	"github.com/mainflux/mainflux/internal/server/httpserver"
+	mfgrpcserver "github.com/mainflux/mainflux/internal/server/grpc"
+	mfhttpserver "github.com/mainflux/mainflux/internal/server/http"
 	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/pkg/uuid"
 	"github.com/opentracing/opentracing-go"
@@ -129,8 +129,8 @@ func main() {
 		mainflux.RegisterAuthServiceServer(srv, grpcapi.NewServer(tracer, svc))
 	}
 
-	hs := httpserver.New(ctx, cancel, svcName, defListenAddress, cfg.httpPort, httpapi.MakeHandler(svc, tracer, logger), cfg.serverCert, cfg.serverKey, logger)
-	gs := grpcserver.New(ctx, cancel, svcName, defListenAddress, cfg.httpPort, registerAuthServiceServer, cfg.serverCert, cfg.serverKey, logger)
+	hs := mfhttpserver.New(ctx, cancel, svcName, defListenAddress, cfg.httpPort, httpapi.MakeHandler(svc, tracer, logger), cfg.serverCert, cfg.serverKey, logger)
+	gs := mfgrpcserver.New(ctx, cancel, svcName, defListenAddress, cfg.httpPort, registerAuthServiceServer, cfg.serverCert, cfg.serverKey, logger)
 	g.Go(func() error {
 		return hs.Start()
 	})
