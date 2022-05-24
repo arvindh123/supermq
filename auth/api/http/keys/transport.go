@@ -14,7 +14,7 @@ import (
 	"github.com/go-zoo/bone"
 	"github.com/mainflux/mainflux"
 	"github.com/mainflux/mainflux/auth"
-	initutil "github.com/mainflux/mainflux/internal/init"
+	"github.com/mainflux/mainflux/internal"
 	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/pkg/errors"
 	"github.com/opentracing/opentracing-go"
@@ -25,7 +25,7 @@ const contentType = "application/json"
 // MakeHandler returns a HTTP handler for API endpoints.
 func MakeHandler(svc auth.Service, mux *bone.Mux, tracer opentracing.Tracer, logger logger.Logger) *bone.Mux {
 	opts := []kithttp.ServerOption{
-		kithttp.ServerErrorEncoder(initutil.LoggingErrorEncoder(logger, encodeError)),
+		kithttp.ServerErrorEncoder(internal.LoggingErrorEncoder(logger, encodeError)),
 	}
 	mux.Post("/keys", kithttp.NewServer(
 		kitot.TraceServer(tracer, "issue")(issueEndpoint(svc)),
@@ -56,7 +56,7 @@ func decodeIssue(_ context.Context, r *http.Request) (interface{}, error) {
 		return nil, errors.ErrUnsupportedContentType
 	}
 
-	req := issueKeyReq{token: initutil.ExtractBearerToken(r)}
+	req := issueKeyReq{token: internal.ExtractBearerToken(r)}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return nil, errors.Wrap(errors.ErrMalformedEntity, err)
 	}
@@ -66,7 +66,7 @@ func decodeIssue(_ context.Context, r *http.Request) (interface{}, error) {
 
 func decodeKeyReq(_ context.Context, r *http.Request) (interface{}, error) {
 	req := keyReq{
-		token: initutil.ExtractBearerToken(r),
+		token: internal.ExtractBearerToken(r),
 		id:    bone.GetValue(r, "id"),
 	}
 	return req, nil
@@ -93,11 +93,11 @@ func encodeResponse(_ context.Context, w http.ResponseWriter, response interface
 func encodeError(_ context.Context, err error, w http.ResponseWriter) {
 	switch {
 	case errors.Contains(err, errors.ErrMalformedEntity),
-		err == initutil.ErrMissingID,
-		err == initutil.ErrInvalidAPIKey:
+		err == internal.ErrMissingID,
+		err == internal.ErrInvalidAPIKey:
 		w.WriteHeader(http.StatusBadRequest)
 	case errors.Contains(err, errors.ErrAuthentication),
-		err == initutil.ErrBearerToken:
+		err == internal.ErrBearerToken:
 		w.WriteHeader(http.StatusUnauthorized)
 	case errors.Contains(err, errors.ErrNotFound):
 		w.WriteHeader(http.StatusNotFound)
@@ -111,7 +111,7 @@ func encodeError(_ context.Context, err error, w http.ResponseWriter) {
 
 	if errorVal, ok := err.(errors.Error); ok {
 		w.Header().Set("Content-Type", contentType)
-		if err := json.NewEncoder(w).Encode(initutil.ErrorRes{Err: errorVal.Msg()}); err != nil {
+		if err := json.NewEncoder(w).Encode(internal.ErrorRes{Err: errorVal.Msg()}); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 		}
 	}

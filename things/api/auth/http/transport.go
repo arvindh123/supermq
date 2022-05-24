@@ -13,7 +13,7 @@ import (
 	kithttp "github.com/go-kit/kit/transport/http"
 	"github.com/go-zoo/bone"
 	"github.com/mainflux/mainflux"
-	initutil "github.com/mainflux/mainflux/internal/init"
+	"github.com/mainflux/mainflux/internal"
 	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/pkg/errors"
 	"github.com/mainflux/mainflux/things"
@@ -25,7 +25,7 @@ const contentType = "application/json"
 // MakeHandler returns a HTTP handler for auth API endpoints.
 func MakeHandler(tracer opentracing.Tracer, svc things.Service, logger logger.Logger) http.Handler {
 	opts := []kithttp.ServerOption{
-		kithttp.ServerErrorEncoder(initutil.LoggingErrorEncoder(logger, encodeError)),
+		kithttp.ServerErrorEncoder(internal.LoggingErrorEncoder(logger, encodeError)),
 	}
 
 	r := bone.New()
@@ -115,7 +115,7 @@ func encodeResponse(_ context.Context, w http.ResponseWriter, response interface
 
 func encodeError(_ context.Context, err error, w http.ResponseWriter) {
 	switch {
-	case err == initutil.ErrBearerToken,
+	case err == internal.ErrBearerToken,
 		errors.Contains(err, errors.ErrAuthentication):
 		w.WriteHeader(http.StatusUnauthorized)
 	case errors.Contains(err, errors.ErrNotFound):
@@ -125,7 +125,7 @@ func encodeError(_ context.Context, err error, w http.ResponseWriter) {
 	case errors.Contains(err, errors.ErrUnsupportedContentType):
 		w.WriteHeader(http.StatusUnsupportedMediaType)
 	case errors.Contains(err, errors.ErrMalformedEntity),
-		err == initutil.ErrMissingID:
+		err == internal.ErrMissingID:
 		w.WriteHeader(http.StatusBadRequest)
 	default:
 		w.WriteHeader(http.StatusInternalServerError)
@@ -133,7 +133,7 @@ func encodeError(_ context.Context, err error, w http.ResponseWriter) {
 
 	if errorVal, ok := err.(errors.Error); ok {
 		w.Header().Set("Content-Type", contentType)
-		if err := json.NewEncoder(w).Encode(initutil.ErrorRes{Err: errorVal.Msg()}); err != nil {
+		if err := json.NewEncoder(w).Encode(internal.ErrorRes{Err: errorVal.Msg()}); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 		}
 	}

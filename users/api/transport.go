@@ -13,7 +13,7 @@ import (
 	kithttp "github.com/go-kit/kit/transport/http"
 	"github.com/go-zoo/bone"
 	"github.com/mainflux/mainflux"
-	initutil "github.com/mainflux/mainflux/internal/init"
+	"github.com/mainflux/mainflux/internal"
 	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/pkg/errors"
 	"github.com/mainflux/mainflux/pkg/uuid"
@@ -35,7 +35,7 @@ const (
 // MakeHandler returns a HTTP handler for API endpoints.
 func MakeHandler(svc users.Service, tracer opentracing.Tracer, logger logger.Logger) http.Handler {
 	opts := []kithttp.ServerOption{
-		kithttp.ServerErrorEncoder(initutil.LoggingErrorEncoder(logger, encodeError)),
+		kithttp.ServerErrorEncoder(internal.LoggingErrorEncoder(logger, encodeError)),
 	}
 
 	mux := bone.New()
@@ -118,7 +118,7 @@ func MakeHandler(svc users.Service, tracer opentracing.Tracer, logger logger.Log
 
 func decodeViewUser(_ context.Context, r *http.Request) (interface{}, error) {
 	req := viewUserReq{
-		token:  initutil.ExtractBearerToken(r),
+		token:  internal.ExtractBearerToken(r),
 		userID: bone.GetValue(r, "userID"),
 	}
 
@@ -126,34 +126,34 @@ func decodeViewUser(_ context.Context, r *http.Request) (interface{}, error) {
 }
 
 func decodeViewProfile(_ context.Context, r *http.Request) (interface{}, error) {
-	req := viewUserReq{token: initutil.ExtractBearerToken(r)}
+	req := viewUserReq{token: internal.ExtractBearerToken(r)}
 
 	return req, nil
 }
 
 func decodeListUsers(_ context.Context, r *http.Request) (interface{}, error) {
-	o, err := initutil.ReadUintQuery(r, offsetKey, defOffset)
+	o, err := internal.ReadUintQuery(r, offsetKey, defOffset)
 	if err != nil {
 		return nil, err
 	}
 
-	l, err := initutil.ReadUintQuery(r, limitKey, defLimit)
+	l, err := internal.ReadUintQuery(r, limitKey, defLimit)
 	if err != nil {
 		return nil, err
 	}
 
-	e, err := initutil.ReadStringQuery(r, emailKey, "")
+	e, err := internal.ReadStringQuery(r, emailKey, "")
 	if err != nil {
 		return nil, err
 	}
 
-	m, err := initutil.ReadMetadataQuery(r, metadataKey, nil)
+	m, err := internal.ReadMetadataQuery(r, metadataKey, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	req := listUsersReq{
-		token:    initutil.ExtractBearerToken(r),
+		token:    internal.ExtractBearerToken(r),
 		offset:   o,
 		limit:    l,
 		email:    e,
@@ -163,7 +163,7 @@ func decodeListUsers(_ context.Context, r *http.Request) (interface{}, error) {
 }
 
 func decodeUpdateUser(_ context.Context, r *http.Request) (interface{}, error) {
-	req := updateUserReq{token: initutil.ExtractBearerToken(r)}
+	req := updateUserReq{token: internal.ExtractBearerToken(r)}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return nil, errors.Wrap(errors.ErrMalformedEntity, err)
 	}
@@ -196,7 +196,7 @@ func decodeCreateUserReq(_ context.Context, r *http.Request) (interface{}, error
 
 	req := createUserReq{
 		user:  user,
-		token: initutil.ExtractBearerToken(r),
+		token: internal.ExtractBearerToken(r),
 	}
 
 	return req, nil
@@ -235,7 +235,7 @@ func decodePasswordChange(_ context.Context, r *http.Request) (interface{}, erro
 		return nil, errors.ErrUnsupportedContentType
 	}
 
-	req := passwChangeReq{token: initutil.ExtractBearerToken(r)}
+	req := passwChangeReq{token: internal.ExtractBearerToken(r)}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return nil, errors.Wrap(errors.ErrMalformedEntity, err)
 	}
@@ -244,23 +244,23 @@ func decodePasswordChange(_ context.Context, r *http.Request) (interface{}, erro
 }
 
 func decodeListMembersRequest(_ context.Context, r *http.Request) (interface{}, error) {
-	o, err := initutil.ReadUintQuery(r, offsetKey, defOffset)
+	o, err := internal.ReadUintQuery(r, offsetKey, defOffset)
 	if err != nil {
 		return nil, err
 	}
 
-	l, err := initutil.ReadUintQuery(r, limitKey, defLimit)
+	l, err := internal.ReadUintQuery(r, limitKey, defLimit)
 	if err != nil {
 		return nil, err
 	}
 
-	m, err := initutil.ReadMetadataQuery(r, metadataKey, nil)
+	m, err := internal.ReadMetadataQuery(r, metadataKey, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	req := listMemberGroupReq{
-		token:    initutil.ExtractBearerToken(r),
+		token:    internal.ExtractBearerToken(r),
 		groupID:  bone.GetValue(r, "groupId"),
 		offset:   o,
 		limit:    l,
@@ -290,14 +290,14 @@ func encodeError(_ context.Context, err error, w http.ResponseWriter) {
 	case errors.Contains(err, errors.ErrInvalidQueryParams),
 		errors.Contains(err, errors.ErrMalformedEntity),
 		errors.Contains(err, users.ErrPasswordFormat),
-		err == initutil.ErrMissingEmail,
-		err == initutil.ErrMissingHost,
-		err == initutil.ErrMissingPass,
-		err == initutil.ErrMissingConfPass,
-		err == initutil.ErrInvalidResetPass:
+		err == internal.ErrMissingEmail,
+		err == internal.ErrMissingHost,
+		err == internal.ErrMissingPass,
+		err == internal.ErrMissingConfPass,
+		err == internal.ErrInvalidResetPass:
 		w.WriteHeader(http.StatusBadRequest)
 	case errors.Contains(err, errors.ErrAuthentication),
-		err == initutil.ErrBearerToken:
+		err == internal.ErrBearerToken:
 		w.WriteHeader(http.StatusUnauthorized)
 	case errors.Contains(err, errors.ErrAuthorization):
 		w.WriteHeader(http.StatusForbidden)
@@ -325,7 +325,7 @@ func encodeError(_ context.Context, err error, w http.ResponseWriter) {
 
 	if errorVal, ok := err.(errors.Error); ok {
 		w.Header().Set("Content-Type", contentType)
-		if err := json.NewEncoder(w).Encode(initutil.ErrorRes{Err: errorVal.Msg()}); err != nil {
+		if err := json.NewEncoder(w).Encode(internal.ErrorRes{Err: errorVal.Msg()}); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 		}
 	}

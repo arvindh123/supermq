@@ -3,7 +3,7 @@
 
 package http
 
-import initutil "github.com/mainflux/mainflux/internal/init"
+import "github.com/mainflux/mainflux/internal"
 
 type identifyReq struct {
 	Token string `json:"token"`
@@ -11,7 +11,7 @@ type identifyReq struct {
 
 func (req identifyReq) validate() error {
 	if req.Token == "" {
-		return initutil.ErrBearerToken
+		return internal.ErrBearerToken
 	}
 
 	return nil
@@ -24,11 +24,11 @@ type canAccessByKeyReq struct {
 
 func (req canAccessByKeyReq) validate() error {
 	if req.Token == "" {
-		return initutil.ErrBearerToken
+		return internal.ErrBearerToken
 	}
 
 	if req.chanID == "" {
-		return initutil.ErrMissingID
+		return internal.ErrMissingID
 	}
 
 	return nil
@@ -41,7 +41,7 @@ type canAccessByIDReq struct {
 
 func (req canAccessByIDReq) validate() error {
 	if req.ThingID == "" || req.chanID == "" {
-		return initutil.ErrMissingID
+		return internal.ErrMissingID
 	}
 
 	return nil

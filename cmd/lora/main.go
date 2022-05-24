@@ -13,10 +13,10 @@ import (
 	mqttPaho "github.com/eclipse/paho.mqtt.golang"
 	r "github.com/go-redis/redis/v8"
 	"github.com/mainflux/mainflux"
-	initutil "github.com/mainflux/mainflux/internal/init"
-	mfdatabase "github.com/mainflux/mainflux/internal/init/db"
-	"github.com/mainflux/mainflux/internal/init/mfserver"
-	"github.com/mainflux/mainflux/internal/init/mfserver/httpserver"
+	"github.com/mainflux/mainflux/internal"
+	mfdatabase "github.com/mainflux/mainflux/internal/db"
+	"github.com/mainflux/mainflux/internal/server"
+	"github.com/mainflux/mainflux/internal/server/httpserver"
 	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/lora"
 	"github.com/mainflux/mainflux/lora/api"
@@ -122,7 +122,7 @@ func main() {
 	})
 
 	g.Go(func() error {
-		return mfserver.ServerStopSignalHandler(ctx, cancel, logger, svcName, hs)
+		return server.ServerStopSignalHandler(ctx, cancel, logger, svcName, hs)
 	})
 
 	if err := g.Wait(); err != nil {
@@ -208,7 +208,7 @@ func newService(pub nats.Publisher, rmConn *r.Client, thingsRMPrefix, channelsRM
 
 	svc := lora.New(pub, thingsRM, chansRM, connsRM)
 	svc = api.LoggingMiddleware(svc, logger)
-	counter, latency := initutil.MakeMetrics(svcName, "api")
+	counter, latency := internal.MakeMetrics(svcName, "api")
 	svc = api.MetricsMiddleware(svc, counter, latency)
 
 	return svc

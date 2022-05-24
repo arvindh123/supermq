@@ -20,9 +20,9 @@ import (
 	"github.com/mainflux/mainflux/certs/api"
 	vault "github.com/mainflux/mainflux/certs/pki"
 	"github.com/mainflux/mainflux/certs/postgres"
-	initutil "github.com/mainflux/mainflux/internal/init"
-	"github.com/mainflux/mainflux/internal/init/mfserver"
-	"github.com/mainflux/mainflux/internal/init/mfserver/httpserver"
+	"github.com/mainflux/mainflux/internal"
+	"github.com/mainflux/mainflux/internal/server"
+	"github.com/mainflux/mainflux/internal/server/httpserver"
 	"github.com/mainflux/mainflux/logger"
 	"golang.org/x/sync/errgroup"
 
@@ -162,10 +162,10 @@ func main() {
 	db := connectToDB(cfg.dbConfig, logger)
 	defer db.Close()
 
-	authTracer, authCloser := initutil.Jaeger("auth", cfg.jaegerURL, logger)
+	authTracer, authCloser := internal.Jaeger("auth", cfg.jaegerURL, logger)
 	defer authCloser.Close()
 
-	authConn := initutil.ConnectToAuth(cfg.clientTLS, cfg.caCerts, cfg.authURL, svcName, logger)
+	authConn := internal.ConnectToAuth(cfg.clientTLS, cfg.caCerts, cfg.authURL, svcName, logger)
 	defer authConn.Close()
 
 	auth := authapi.NewClient(authTracer, authConn, cfg.authTimeout)
@@ -178,7 +178,7 @@ func main() {
 	})
 
 	g.Go(func() error {
-		return mfserver.ServerStopSignalHandler(ctx, cancel, logger, svcName, hs)
+		return server.ServerStopSignalHandler(ctx, cancel, logger, svcName, hs)
 	})
 
 	if err := g.Wait(); err != nil {
@@ -282,7 +282,7 @@ func newService(auth mainflux.AuthServiceClient, db *sqlx.DB, logger logger.Logg
 
 	svc := certs.New(auth, certsRepo, sdk, certsConfig, pkiAgent)
 	svc = api.NewLoggingMiddleware(svc, logger)
-	counter, latency := initutil.MakeMetrics(svcName, "api")
+	counter, latency := internal.MakeMetrics(svcName, "api")
 	svc = api.MetricsMiddleware(svc, counter, latency)
 
 	return svc

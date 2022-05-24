@@ -6,7 +6,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/mainflux/mainflux/internal/init/mfserver"
+	"github.com/mainflux/mainflux/internal/server"
 	"github.com/mainflux/mainflux/logger"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -19,18 +19,18 @@ const (
 )
 
 type GRPCServer struct {
-	mfserver.BaseServer
+	server.BaseServer
 	server          *grpc.Server
 	registerService serviceRegister
 }
 
 type serviceRegister func(srv *grpc.Server)
 
-var _ mfserver.Server = (*GRPCServer)(nil)
+var _ server.Server = (*GRPCServer)(nil)
 
-func New(ctx context.Context, cancel context.CancelFunc, name string, address string, port string, registerService serviceRegister, certPath string, keyPath string, logger logger.Logger) mfserver.Server {
+func New(ctx context.Context, cancel context.CancelFunc, name string, address string, port string, registerService serviceRegister, certPath string, keyPath string, logger logger.Logger) server.Server {
 	return &GRPCServer{
-		BaseServer: mfserver.BaseServer{
+		BaseServer: server.BaseServer{
 			Ctx:      ctx,
 			Cancel:   cancel,
 			Name:     name,

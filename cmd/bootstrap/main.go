@@ -15,10 +15,10 @@ import (
 	authapi "github.com/mainflux/mainflux/auth/api/grpc"
 	rediscons "github.com/mainflux/mainflux/bootstrap/redis/consumer"
 	redisprod "github.com/mainflux/mainflux/bootstrap/redis/producer"
-	initutil "github.com/mainflux/mainflux/internal/init"
-	mfdatabase "github.com/mainflux/mainflux/internal/init/db"
-	"github.com/mainflux/mainflux/internal/init/mfserver"
-	"github.com/mainflux/mainflux/internal/init/mfserver/httpserver"
+	"github.com/mainflux/mainflux/internal"
+	mfdatabase "github.com/mainflux/mainflux/internal/db"
+	"github.com/mainflux/mainflux/internal/server"
+	"github.com/mainflux/mainflux/internal/server/httpserver"
 	"github.com/mainflux/mainflux/logger"
 	"golang.org/x/sync/errgroup"
 
@@ -138,10 +138,10 @@ func main() {
 	esClient := mfdatabase.ConnectToRedis(cfg.esURL, cfg.esPass, cfg.esDB, logger)
 	defer esClient.Close()
 
-	authTracer, authCloser := initutil.Jaeger("auth", cfg.jaegerURL, logger)
+	authTracer, authCloser := internal.Jaeger("auth", cfg.jaegerURL, logger)
 	defer authCloser.Close()
 
-	authConn := initutil.ConnectToAuth(cfg.clientTLS, cfg.caCerts, cfg.authURL, svcName, logger)
+	authConn := internal.ConnectToAuth(cfg.clientTLS, cfg.caCerts, cfg.authURL, svcName, logger)
 	defer authConn.Close()
 
 	auth := authapi.NewClient(authTracer, authConn, cfg.authTimeout)
@@ -156,7 +156,7 @@ func main() {
 	go subscribeToThingsES(svc, thingsESConn, cfg.esConsumerName, logger)
 
 	g.Go(func() error {
-		return mfserver.ServerStopSignalHandler(ctx, cancel, logger, svcName, hs)
+		return server.ServerStopSignalHandler(ctx, cancel, logger, svcName, hs)
 	})
 
 	if err := g.Wait(); err != nil {
@@ -241,7 +241,7 @@ func newService(auth mainflux.AuthServiceClient, db *sqlx.DB, logger logger.Logg
 	svc := bootstrap.New(auth, thingsRepo, sdk, cfg.encKey)
 	svc = redisprod.NewEventStoreMiddleware(svc, esClient)
 	svc = api.NewLoggingMiddleware(svc, logger)
-	counter, latency := initutil.MakeMetrics(svcName, "api")
+	counter, latency := internal.MakeMetrics(svcName, "api")
 	svc = api.MetricsMiddleware(svc, counter, latency)
 
 	return svc

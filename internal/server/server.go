@@ -1,4 +1,4 @@
-package mfserver
+package server
 
 import (
 	"context"

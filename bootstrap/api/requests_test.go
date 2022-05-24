@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/mainflux/mainflux/bootstrap"
-	initutil "github.com/mainflux/mainflux/internal/init"
+	"github.com/mainflux/mainflux/internal"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -22,21 +22,21 @@ func TestAddReqValidation(t *testing.T) {
 			token:       "",
 			externalID:  "external-id",
 			externalKey: "external-key",
-			err:         initutil.ErrBearerToken,
+			err:         internal.ErrBearerToken,
 		},
 		{
 			desc:        "empty external ID",
 			token:       "token",
 			externalID:  "",
 			externalKey: "external-key",
-			err:         initutil.ErrMissingID,
+			err:         internal.ErrMissingID,
 		},
 		{
 			desc:        "empty external key",
 			token:       "token",
 			externalID:  "external-id",
 			externalKey: "",
-			err:         initutil.ErrBearerKey,
+			err:         internal.ErrBearerKey,
 		},
 	}
 
@@ -63,13 +63,13 @@ func TestEntityReqValidation(t *testing.T) {
 			desc:  "empty token",
 			token: "",
 			id:    "id",
-			err:   initutil.ErrBearerToken,
+			err:   internal.ErrBearerToken,
 		},
 		{
 			desc:  "empty id",
 			token: "token",
 			id:    "",
-			err:   initutil.ErrMissingID,
+			err:   internal.ErrMissingID,
 		},
 	}
 
@@ -94,13 +94,13 @@ func TestUpdateReqValidation(t *testing.T) {
 			desc:  "empty token",
 			token: "",
 			id:    "id",
-			err:   initutil.ErrBearerToken,
+			err:   internal.ErrBearerToken,
 		},
 		{
 			desc:  "empty id",
 			token: "token",
 			id:    "",
-			err:   initutil.ErrMissingID,
+			err:   internal.ErrMissingID,
 		},
 	}
 
@@ -126,13 +126,13 @@ func TestUpdateCertReqValidation(t *testing.T) {
 			desc:    "empty token",
 			token:   "",
 			thingID: "thingID",
-			err:     initutil.ErrBearerToken,
+			err:     internal.ErrBearerToken,
 		},
 		{
 			desc:    "empty thing id",
 			token:   "token",
 			thingID: "",
-			err:     initutil.ErrMissingID,
+			err:     internal.ErrMissingID,
 		},
 	}
 
@@ -158,13 +158,13 @@ func TestUpdateConnReqValidation(t *testing.T) {
 			desc:  "empty token",
 			token: "",
 			id:    "id",
-			err:   initutil.ErrBearerToken,
+			err:   internal.ErrBearerToken,
 		},
 		{
 			desc:  "empty id",
 			token: "token",
 			id:    "",
-			err:   initutil.ErrMissingID,
+			err:   internal.ErrMissingID,
 		},
 	}
 
@@ -192,14 +192,14 @@ func TestListReqValidation(t *testing.T) {
 			token:  "",
 			offset: 0,
 			limit:  1,
-			err:    initutil.ErrBearerToken,
+			err:    internal.ErrBearerToken,
 		},
 		{
 			desc:   "too large limit",
 			token:  "token",
 			offset: 0,
 			limit:  maxLimitSize + 1,
-			err:    initutil.ErrLimitSize,
+			err:    internal.ErrLimitSize,
 		},
 		{
 			desc:   "default limit",
@@ -233,13 +233,13 @@ func TestBootstrapReqValidation(t *testing.T) {
 			desc:      "empty external key",
 			externKey: "",
 			externID:  "id",
-			err:       initutil.ErrBearerKey,
+			err:       internal.ErrBearerKey,
 		},
 		{
 			desc:      "empty external id",
 			externKey: "key",
 			externID:  "",
-			err:       initutil.ErrMissingID,
+			err:       internal.ErrMissingID,
 		},
 	}
 
@@ -267,21 +267,21 @@ func TestChangeStateReqValidation(t *testing.T) {
 			token: "",
 			id:    "id",
 			state: bootstrap.State(1),
-			err:   initutil.ErrBearerToken,
+			err:   internal.ErrBearerToken,
 		},
 		{
 			desc:  "empty id",
 			token: "token",
 			id:    "",
 			state: bootstrap.State(0),
-			err:   initutil.ErrMissingID,
+			err:   internal.ErrMissingID,
 		},
 		{
 			desc:  "invalid state",
 			token: "token",
 			id:    "id",
 			state: bootstrap.State(14),
-			err:   initutil.ErrBootstrapState,
+			err:   internal.ErrBootstrapState,
 		},
 	}
 

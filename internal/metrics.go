@@ -1,7 +1,7 @@
 // Copyright (c) Mainflux
 // SPDX-License-Identifier: Apache-2.0
 
-package init
+package internal
 
 import (
 	kitprometheus "github.com/go-kit/kit/metrics/prometheus"

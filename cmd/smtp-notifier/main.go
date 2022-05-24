@@ -20,10 +20,10 @@ import (
 	"github.com/mainflux/mainflux/consumers/notifiers/postgres"
 	"github.com/mainflux/mainflux/consumers/notifiers/smtp"
 	"github.com/mainflux/mainflux/consumers/notifiers/tracing"
+	"github.com/mainflux/mainflux/internal"
 	"github.com/mainflux/mainflux/internal/email"
-	initutil "github.com/mainflux/mainflux/internal/init"
-	"github.com/mainflux/mainflux/internal/init/mfserver"
-	"github.com/mainflux/mainflux/internal/init/mfserver/httpserver"
+	"github.com/mainflux/mainflux/internal/server"
+	"github.com/mainflux/mainflux/internal/server/httpserver"
 	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/pkg/messaging/nats"
 	"github.com/mainflux/mainflux/pkg/ulid"
@@ -134,18 +134,18 @@ func main() {
 	}
 	defer pubSub.Close()
 
-	authTracer, closer := initutil.Jaeger("auth", cfg.jaegerURL, logger)
+	authTracer, closer := internal.Jaeger("auth", cfg.jaegerURL, logger)
 	defer closer.Close()
 
-	authConn := initutil.ConnectToAuth(cfg.authTLS, cfg.authCACerts, cfg.authURL, svcName, logger)
+	authConn := internal.ConnectToAuth(cfg.authTLS, cfg.authCACerts, cfg.authURL, svcName, logger)
 	defer authConn.Close()
 
 	auth := authapi.NewClient(authTracer, authConn, cfg.authTimeout)
 
-	tracer, closer := initutil.Jaeger("smtp-notifier", cfg.jaegerURL, logger)
+	tracer, closer := internal.Jaeger("smtp-notifier", cfg.jaegerURL, logger)
 	defer closer.Close()
 
-	dbTracer, dbCloser := initutil.Jaeger("smtp-notifier_db", cfg.jaegerURL, logger)
+	dbTracer, dbCloser := internal.Jaeger("smtp-notifier_db", cfg.jaegerURL, logger)
 	defer dbCloser.Close()
 
 	svc := newService(db, dbTracer, auth, cfg, logger)
@@ -160,7 +160,7 @@ func main() {
 	})
 
 	g.Go(func() error {
-		return mfserver.ServerStopSignalHandler(ctx, cancel, logger, svcName, hs)
+		return server.ServerStopSignalHandler(ctx, cancel, logger, svcName, hs)
 	})
 
 	if err := g.Wait(); err != nil {
@@ -244,7 +244,7 @@ func newService(db *sqlx.DB, tracer opentracing.Tracer, auth mainflux.AuthServic
 	notifier := smtp.New(agent)
 	svc := notifiers.New(auth, repo, idp, notifier, c.from)
 	svc = api.LoggingMiddleware(svc, logger)
-	counter, latency := initutil.MakeMetrics("notifier", "smtp")
+	counter, latency := internal.MakeMetrics("notifier", "smtp")
 	svc = api.MetricsMiddleware(svc, counter, latency)
 
 	return svc

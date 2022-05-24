@@ -17,7 +17,7 @@ import (
 	adapter "github.com/mainflux/mainflux/http"
 	"github.com/mainflux/mainflux/http/api"
 	"github.com/mainflux/mainflux/http/mocks"
-	initutil "github.com/mainflux/mainflux/internal/init"
+	"github.com/mainflux/mainflux/internal"
 	"github.com/mainflux/mainflux/logger"
 	"github.com/stretchr/testify/assert"
 )
@@ -50,7 +50,7 @@ func (tr testRequest) make() (*http.Response, error) {
 	}
 
 	if tr.token != "" {
-		req.Header.Set("Authorization", initutil.ThingPrefix+tr.token)
+		req.Header.Set("Authorization", internal.ThingPrefix+tr.token)
 	}
 	if tr.basicAuth && tr.token != "" {
 		req.SetBasicAuth("", tr.token)

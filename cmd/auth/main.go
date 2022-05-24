@@ -17,10 +17,10 @@ import (
 	"github.com/mainflux/mainflux/auth/keto"
 	"github.com/mainflux/mainflux/auth/postgres"
 	"github.com/mainflux/mainflux/auth/tracing"
-	initutil "github.com/mainflux/mainflux/internal/init"
-	"github.com/mainflux/mainflux/internal/init/mfserver"
-	"github.com/mainflux/mainflux/internal/init/mfserver/grpcserver"
-	"github.com/mainflux/mainflux/internal/init/mfserver/httpserver"
+	"github.com/mainflux/mainflux/internal"
+	"github.com/mainflux/mainflux/internal/server"
+	"github.com/mainflux/mainflux/internal/server/grpcserver"
+	"github.com/mainflux/mainflux/internal/server/httpserver"
 	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/pkg/uuid"
 	"github.com/opentracing/opentracing-go"
@@ -115,13 +115,13 @@ func main() {
 	db := connectToDB(cfg.dbConfig, logger)
 	defer db.Close()
 
-	tracer, closer := initutil.Jaeger("auth", cfg.jaegerURL, logger)
+	tracer, closer := internal.Jaeger("auth", cfg.jaegerURL, logger)
 	defer closer.Close()
 
-	dbTracer, dbCloser := initutil.Jaeger("auth_db", cfg.jaegerURL, logger)
+	dbTracer, dbCloser := internal.Jaeger("auth_db", cfg.jaegerURL, logger)
 	defer dbCloser.Close()
 
-	readerConn, writerConn := initutil.Keto(cfg.ketoReadHost, cfg.ketoReadPort, cfg.ketoWriteHost, cfg.ketoWritePort, logger)
+	readerConn, writerConn := internal.Keto(cfg.ketoReadHost, cfg.ketoReadPort, cfg.ketoWriteHost, cfg.ketoWritePort, logger)
 
 	svc := newService(db, dbTracer, cfg.secret, logger, readerConn, writerConn, cfg.loginDuration)
 
@@ -139,7 +139,7 @@ func main() {
 	})
 
 	g.Go(func() error {
-		return mfserver.ServerStopSignalHandler(ctx, cancel, logger, svcName, hs, gs)
+		return server.ServerStopSignalHandler(ctx, cancel, logger, svcName, hs, gs)
 	})
 	if err := g.Wait(); err != nil {
 		logger.Error(fmt.Sprintf("Authentication service terminated: %s", err))
@@ -206,7 +206,7 @@ func newService(db *sqlx.DB, tracer opentracing.Tracer, secret string, logger lo
 	svc := auth.New(keysRepo, groupsRepo, idProvider, t, pa, duration)
 	svc = api.LoggingMiddleware(svc, logger)
 
-	counter, latency := initutil.MakeMetrics(svcName, "api")
+	counter, latency := internal.MakeMetrics(svcName, "api")
 	svc = api.MetricsMiddleware(svc, counter, latency)
 
 	return svc

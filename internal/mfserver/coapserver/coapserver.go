@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/mainflux/mainflux/internal/init/mfserver"
+	"github.com/mainflux/mainflux/internal/server"
 	"github.com/mainflux/mainflux/logger"
 	gocoap "github.com/plgd-dev/go-coap/v2"
 	"github.com/plgd-dev/go-coap/v2/mux"
@@ -16,15 +16,15 @@ const (
 )
 
 type COAPServer struct {
-	mfserver.BaseServer
+	server.BaseServer
 	handler mux.HandlerFunc
 }
 
-var _ mfserver.Server = (*COAPServer)(nil)
+var _ server.Server = (*COAPServer)(nil)
 
-func New(ctx context.Context, cancel context.CancelFunc, name string, address string, port string, handler mux.HandlerFunc, logger logger.Logger) mfserver.Server {
+func New(ctx context.Context, cancel context.CancelFunc, name string, address string, port string, handler mux.HandlerFunc, logger logger.Logger) server.Server {
 	return &COAPServer{
-		BaseServer: mfserver.BaseServer{
+		BaseServer: server.BaseServer{
 			Ctx:     ctx,
 			Cancel:  cancel,
 			Name:    name,

@@ -10,7 +10,7 @@ import (
 	kitgrpc "github.com/go-kit/kit/transport/grpc"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/mainflux/mainflux"
-	initutil "github.com/mainflux/mainflux/internal/init"
+	"github.com/mainflux/mainflux/internal"
 	"github.com/mainflux/mainflux/pkg/errors"
 	"github.com/mainflux/mainflux/things"
 	opentracing "github.com/opentracing/opentracing-go"
@@ -124,8 +124,8 @@ func encodeError(err error) error {
 	case nil:
 		return nil
 	case errors.ErrMalformedEntity,
-		initutil.ErrMissingID,
-		initutil.ErrBearerKey:
+		internal.ErrMissingID,
+		internal.ErrBearerKey:
 		return status.Error(codes.InvalidArgument, "received invalid can access request")
 	case errors.ErrAuthentication:
 		return status.Error(codes.Unauthenticated, "missing or invalid credentials provided")

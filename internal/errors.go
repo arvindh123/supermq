@@ -1,7 +1,7 @@
 // Copyright (c) Mainflux
 // SPDX-License-Identifier: Apache-2.0
 
-package init
+package internal
 
 import "github.com/mainflux/mainflux/pkg/errors"
 

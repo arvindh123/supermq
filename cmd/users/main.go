@@ -12,10 +12,10 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/mainflux/mainflux/internal"
 	"github.com/mainflux/mainflux/internal/email"
-	initutil "github.com/mainflux/mainflux/internal/init"
-	"github.com/mainflux/mainflux/internal/init/mfserver"
-	"github.com/mainflux/mainflux/internal/init/mfserver/httpserver"
+	"github.com/mainflux/mainflux/internal/server"
+	"github.com/mainflux/mainflux/internal/server/httpserver"
 	"github.com/mainflux/mainflux/pkg/errors"
 	"github.com/mainflux/mainflux/pkg/uuid"
 	"github.com/mainflux/mainflux/users"
@@ -142,17 +142,17 @@ func main() {
 	db := connectToDB(cfg.dbConfig, logger)
 	defer db.Close()
 
-	authTracer, closer := initutil.Jaeger("auth", cfg.jaegerURL, logger)
+	authTracer, closer := internal.Jaeger("auth", cfg.jaegerURL, logger)
 	defer closer.Close()
 
-	authConn := initutil.ConnectToAuth(cfg.authTLS, cfg.authCACerts, cfg.authURL, svcName, logger)
+	authConn := internal.ConnectToAuth(cfg.authTLS, cfg.authCACerts, cfg.authURL, svcName, logger)
 	defer authConn.Close()
 	auth := authapi.NewClient(authTracer, authConn, cfg.authTimeout)
 
-	tracer, closer := initutil.Jaeger("users", cfg.jaegerURL, logger)
+	tracer, closer := internal.Jaeger("users", cfg.jaegerURL, logger)
 	defer closer.Close()
 
-	dbTracer, dbCloser := initutil.Jaeger("users_db", cfg.jaegerURL, logger)
+	dbTracer, dbCloser := internal.Jaeger("users_db", cfg.jaegerURL, logger)
 	defer dbCloser.Close()
 
 	svc := newService(db, dbTracer, auth, cfg, logger)
@@ -163,7 +163,7 @@ func main() {
 	})
 
 	g.Go(func() error {
-		return mfserver.ServerStopSignalHandler(ctx, cancel, logger, svcName, hs)
+		return server.ServerStopSignalHandler(ctx, cancel, logger, svcName, hs)
 	})
 
 	if err := g.Wait(); err != nil {
@@ -258,7 +258,7 @@ func newService(db *sqlx.DB, tracer opentracing.Tracer, auth mainflux.AuthServic
 
 	svc := users.New(userRepo, hasher, auth, emailer, idProvider, c.passRegex)
 	svc = api.LoggingMiddleware(svc, logger)
-	counter, latency := initutil.MakeMetrics(svcName, "api")
+	counter, latency := internal.MakeMetrics(svcName, "api")
 	svc = api.MetricsMiddleware(svc, counter, latency)
 
 	if err := createAdmin(svc, userRepo, c, auth); err != nil {

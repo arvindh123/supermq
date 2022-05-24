@@ -5,7 +5,7 @@ package api
 
 import (
 	"github.com/mainflux/mainflux/bootstrap"
-	initutil "github.com/mainflux/mainflux/internal/init"
+	"github.com/mainflux/mainflux/internal"
 )
 
 const maxLimitSize = 100
@@ -29,15 +29,15 @@ type addReq struct {
 
 func (req addReq) validate() error {
 	if req.token == "" {
-		return initutil.ErrBearerToken
+		return internal.ErrBearerToken
 	}
 
 	if req.ExternalID == "" {
-		return initutil.ErrMissingID
+		return internal.ErrMissingID
 	}
 
 	if req.ExternalKey == "" {
-		return initutil.ErrBearerKey
+		return internal.ErrBearerKey
 	}
 
 	return nil
@@ -50,11 +50,11 @@ type entityReq struct {
 
 func (req entityReq) validate() error {
 	if req.token == "" {
-		return initutil.ErrBearerToken
+		return internal.ErrBearerToken
 	}
 
 	if req.id == "" {
-		return initutil.ErrMissingID
+		return internal.ErrMissingID
 	}
 
 	return nil
@@ -69,11 +69,11 @@ type updateReq struct {
 
 func (req updateReq) validate() error {
 	if req.token == "" {
-		return initutil.ErrBearerToken
+		return internal.ErrBearerToken
 	}
 
 	if req.id == "" {
-		return initutil.ErrMissingID
+		return internal.ErrMissingID
 	}
 
 	return nil
@@ -89,11 +89,11 @@ type updateCertReq struct {
 
 func (req updateCertReq) validate() error {
 	if req.token == "" {
-		return initutil.ErrBearerToken
+		return internal.ErrBearerToken
 	}
 
 	if req.thingID == "" {
-		return initutil.ErrMissingID
+		return internal.ErrMissingID
 	}
 
 	return nil
@@ -107,11 +107,11 @@ type updateConnReq struct {
 
 func (req updateConnReq) validate() error {
 	if req.token == "" {
-		return initutil.ErrBearerToken
+		return internal.ErrBearerToken
 	}
 
 	if req.id == "" {
-		return initutil.ErrMissingID
+		return internal.ErrMissingID
 	}
 
 	return nil
@@ -126,11 +126,11 @@ type listReq struct {
 
 func (req listReq) validate() error {
 	if req.token == "" {
-		return initutil.ErrBearerToken
+		return internal.ErrBearerToken
 	}
 
 	if req.limit > maxLimitSize {
-		return initutil.ErrLimitSize
+		return internal.ErrLimitSize
 	}
 
 	return nil
@@ -143,11 +143,11 @@ type bootstrapReq struct {
 
 func (req bootstrapReq) validate() error {
 	if req.key == "" {
-		return initutil.ErrBearerKey
+		return internal.ErrBearerKey
 	}
 
 	if req.id == "" {
-		return initutil.ErrMissingID
+		return internal.ErrMissingID
 	}
 
 	return nil
@@ -161,16 +161,16 @@ type changeStateReq struct {
 
 func (req changeStateReq) validate() error {
 	if req.token == "" {
-		return initutil.ErrBearerToken
+		return internal.ErrBearerToken
 	}
 
 	if req.id == "" {
-		return initutil.ErrMissingID
+		return internal.ErrMissingID
 	}
 
 	if req.State != bootstrap.Inactive &&
 		req.State != bootstrap.Active {
-		return initutil.ErrBootstrapState
+		return internal.ErrBootstrapState
 	}
 
 	return nil

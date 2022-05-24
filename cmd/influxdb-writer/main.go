@@ -15,9 +15,9 @@ import (
 	"github.com/mainflux/mainflux/consumers"
 	"github.com/mainflux/mainflux/consumers/writers/api"
 	"github.com/mainflux/mainflux/consumers/writers/influxdb"
-	initutil "github.com/mainflux/mainflux/internal/init"
-	"github.com/mainflux/mainflux/internal/init/mfserver"
-	"github.com/mainflux/mainflux/internal/init/mfserver/httpserver"
+	"github.com/mainflux/mainflux/internal"
+	"github.com/mainflux/mainflux/internal/server"
+	"github.com/mainflux/mainflux/internal/server/httpserver"
 	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/pkg/messaging/nats"
 	"golang.org/x/sync/errgroup"
@@ -97,7 +97,7 @@ func main() {
 	})
 
 	g.Go(func() error {
-		return mfserver.ServerStopSignalHandler(ctx, cancel, logger, svcName, hs)
+		return server.ServerStopSignalHandler(ctx, cancel, logger, svcName, hs)
 	})
 
 	if err := g.Wait(); err != nil {
@@ -130,7 +130,7 @@ func loadConfigs() (config, influxdata.HTTPConfig) {
 func newService(client influxdata.Client, dbName string, logger logger.Logger) consumers.Consumer {
 	repo := influxdb.New(client, dbName)
 	repo = api.LoggingMiddleware(repo, logger)
-	counter, latency := initutil.MakeMetrics("influxdb", "message_writer")
+	counter, latency := internal.MakeMetrics("influxdb", "message_writer")
 	repo = api.MetricsMiddleware(repo, counter, latency)
 
 	return repo

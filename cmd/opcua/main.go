@@ -12,10 +12,10 @@ import (
 
 	r "github.com/go-redis/redis/v8"
 	"github.com/mainflux/mainflux"
-	initutil "github.com/mainflux/mainflux/internal/init"
-	mfdatabase "github.com/mainflux/mainflux/internal/init/db"
-	"github.com/mainflux/mainflux/internal/init/mfserver"
-	"github.com/mainflux/mainflux/internal/init/mfserver/httpserver"
+	"github.com/mainflux/mainflux/internal"
+	mfdatabase "github.com/mainflux/mainflux/internal/db"
+	"github.com/mainflux/mainflux/internal/server"
+	"github.com/mainflux/mainflux/internal/server/httpserver"
 	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/opcua"
 	"github.com/mainflux/mainflux/opcua/api"
@@ -123,7 +123,7 @@ func main() {
 	})
 
 	g.Go(func() error {
-		return mfserver.ServerStopSignalHandler(httpCtx, httpCancel, logger, svcName, hs)
+		return server.ServerStopSignalHandler(httpCtx, httpCancel, logger, svcName, hs)
 	})
 
 	if err := g.Wait(); err != nil {
@@ -193,7 +193,7 @@ func newRouteMapRepositoy(client *r.Client, prefix string, logger logger.Logger)
 func newService(sub opcua.Subscriber, browser opcua.Browser, thingRM, chanRM, connRM opcua.RouteMapRepository, opcuaConfig opcua.Config, logger logger.Logger) opcua.Service {
 	svc := opcua.New(sub, browser, thingRM, chanRM, connRM, opcuaConfig, logger)
 	svc = api.LoggingMiddleware(svc, logger)
-	counter, latency := initutil.MakeMetrics(svcName, "api")
+	counter, latency := internal.MakeMetrics(svcName, "api")
 	svc = api.MetricsMiddleware(svc, counter, latency)
 
 	return svc

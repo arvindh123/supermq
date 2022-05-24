@@ -15,11 +15,11 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/mainflux/mainflux"
 	authapi "github.com/mainflux/mainflux/auth/api/grpc"
-	initutil "github.com/mainflux/mainflux/internal/init"
-	mfdatabase "github.com/mainflux/mainflux/internal/init/db"
-	"github.com/mainflux/mainflux/internal/init/mfserver"
-	"github.com/mainflux/mainflux/internal/init/mfserver/grpcserver"
-	"github.com/mainflux/mainflux/internal/init/mfserver/httpserver"
+	"github.com/mainflux/mainflux/internal"
+	mfdatabase "github.com/mainflux/mainflux/internal/db"
+	"github.com/mainflux/mainflux/internal/server"
+	"github.com/mainflux/mainflux/internal/server/grpcserver"
+	"github.com/mainflux/mainflux/internal/server/httpserver"
 	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/pkg/uuid"
 	"github.com/mainflux/mainflux/things"
@@ -133,7 +133,7 @@ func main() {
 		log.Fatalf(err.Error())
 	}
 
-	thingsTracer, thingsCloser := initutil.Jaeger("things", cfg.jaegerURL, logger)
+	thingsTracer, thingsCloser := internal.Jaeger("things", cfg.jaegerURL, logger)
 	defer thingsCloser.Close()
 
 	cacheClient := mfdatabase.ConnectToRedis(cfg.cacheURL, cfg.cachePass, cfg.cacheDB, logger)
@@ -143,7 +143,7 @@ func main() {
 	db := connectToDB(cfg.dbConfig, logger)
 	defer db.Close()
 
-	authTracer, authCloser := initutil.Jaeger("auth", cfg.jaegerURL, logger)
+	authTracer, authCloser := internal.Jaeger("auth", cfg.jaegerURL, logger)
 	defer authCloser.Close()
 
 	auth, close := createAuthClient(cfg, authTracer, logger)
@@ -151,10 +151,10 @@ func main() {
 		defer close()
 	}
 
-	dbTracer, dbCloser := initutil.Jaeger("things_db", cfg.jaegerURL, logger)
+	dbTracer, dbCloser := internal.Jaeger("things_db", cfg.jaegerURL, logger)
 	defer dbCloser.Close()
 
-	cacheTracer, cacheCloser := initutil.Jaeger("things_cache", cfg.jaegerURL, logger)
+	cacheTracer, cacheCloser := internal.Jaeger("things_cache", cfg.jaegerURL, logger)
 	defer cacheCloser.Close()
 
 	svc := newService(auth, dbTracer, cacheTracer, db, cacheClient, esClient, logger)
@@ -178,7 +178,7 @@ func main() {
 	})
 
 	g.Go(func() error {
-		return mfserver.ServerStopSignalHandler(ctx, cancel, logger, svcName, hs1, hs2, gs)
+		return server.ServerStopSignalHandler(ctx, cancel, logger, svcName, hs1, hs2, gs)
 	})
 
 	if err := g.Wait(); err != nil {
@@ -247,7 +247,7 @@ func createAuthClient(cfg config, tracer opentracing.Tracer, logger logger.Logge
 		return localusers.NewAuthService(cfg.standaloneEmail, cfg.standaloneToken), nil
 	}
 
-	conn := initutil.ConnectToAuth(cfg.clientTLS, cfg.caCerts, cfg.authURL, svcName, logger)
+	conn := internal.ConnectToAuth(cfg.clientTLS, cfg.caCerts, cfg.authURL, svcName, logger)
 	return authapi.NewClient(tracer, conn, cfg.authTimeout), conn.Close
 }
 
@@ -270,7 +270,7 @@ func newService(auth mainflux.AuthServiceClient, dbTracer opentracing.Tracer, ca
 	svc := things.New(auth, thingsRepo, channelsRepo, chanCache, thingCache, idProvider)
 	svc = rediscache.NewEventStoreMiddleware(svc, esClient)
 	svc = api.LoggingMiddleware(svc, logger)
-	counter, latency := initutil.MakeMetrics(svcName, "api")
+	counter, latency := internal.MakeMetrics(svcName, "api")
 	svc = api.MetricsMiddleware(svc, counter, latency)
 
 	return svc

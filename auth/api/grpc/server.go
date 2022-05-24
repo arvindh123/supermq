@@ -11,7 +11,7 @@ import (
 	"github.com/golang/protobuf/ptypes/empty"
 	mainflux "github.com/mainflux/mainflux"
 	"github.com/mainflux/mainflux/auth"
-	initutil "github.com/mainflux/mainflux/internal/init"
+	"github.com/mainflux/mainflux/internal"
 	"github.com/mainflux/mainflux/pkg/errors"
 	opentracing "github.com/opentracing/opentracing-go"
 	"google.golang.org/grpc/codes"
@@ -238,17 +238,17 @@ func encodeError(err error) error {
 	case errors.Contains(err, nil):
 		return nil
 	case errors.Contains(err, errors.ErrMalformedEntity),
-		err == initutil.ErrInvalidAuthKey,
-		err == initutil.ErrMissingID,
-		err == initutil.ErrMissingMemberType,
-		err == initutil.ErrMissingPolicySub,
-		err == initutil.ErrMissingPolicyObj,
-		err == initutil.ErrMissingPolicyAct:
+		err == internal.ErrInvalidAuthKey,
+		err == internal.ErrMissingID,
+		err == internal.ErrMissingMemberType,
+		err == internal.ErrMissingPolicySub,
+		err == internal.ErrMissingPolicyObj,
+		err == internal.ErrMissingPolicyAct:
 		return status.Error(codes.InvalidArgument, err.Error())
 	case errors.Contains(err, errors.ErrAuthentication),
 		errors.Contains(err, auth.ErrKeyExpired),
-		err == initutil.ErrMissingEmail,
-		err == initutil.ErrBearerToken:
+		err == internal.ErrMissingEmail,
+		err == internal.ErrBearerToken:
 		return status.Error(codes.Unauthenticated, err.Error())
 	case errors.Contains(err, errors.ErrAuthorization):
 		return status.Error(codes.PermissionDenied, err.Error())

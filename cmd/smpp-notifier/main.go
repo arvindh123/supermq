@@ -18,9 +18,9 @@ import (
 	"github.com/mainflux/mainflux/consumers/notifiers"
 	"github.com/mainflux/mainflux/consumers/notifiers/api"
 	"github.com/mainflux/mainflux/consumers/notifiers/postgres"
-	initutil "github.com/mainflux/mainflux/internal/init"
-	"github.com/mainflux/mainflux/internal/init/mfserver"
-	"github.com/mainflux/mainflux/internal/init/mfserver/httpserver"
+	"github.com/mainflux/mainflux/internal"
+	"github.com/mainflux/mainflux/internal/server"
+	"github.com/mainflux/mainflux/internal/server/httpserver"
 	"golang.org/x/sync/errgroup"
 
 	mfsmpp "github.com/mainflux/mainflux/consumers/notifiers/smpp"
@@ -138,7 +138,7 @@ func main() {
 	}
 	defer pubSub.Close()
 
-	authTracer, closer := initutil.Jaeger("auth", cfg.jaegerURL, logger)
+	authTracer, closer := internal.Jaeger("auth", cfg.jaegerURL, logger)
 	defer closer.Close()
 
 	auth, close := connectToAuth(cfg, authTracer, logger)
@@ -146,10 +146,10 @@ func main() {
 		defer close()
 	}
 
-	tracer, closer := initutil.Jaeger("smpp-notifier", cfg.jaegerURL, logger)
+	tracer, closer := internal.Jaeger("smpp-notifier", cfg.jaegerURL, logger)
 	defer closer.Close()
 
-	dbTracer, dbCloser := initutil.Jaeger("smpp-notifier_db", cfg.jaegerURL, logger)
+	dbTracer, dbCloser := internal.Jaeger("smpp-notifier_db", cfg.jaegerURL, logger)
 	defer dbCloser.Close()
 
 	svc := newService(db, dbTracer, auth, cfg, logger)
@@ -164,7 +164,7 @@ func main() {
 	})
 
 	g.Go(func() error {
-		return mfserver.ServerStopSignalHandler(ctx, cancel, logger, svcName, hs)
+		return server.ServerStopSignalHandler(ctx, cancel, logger, svcName, hs)
 	})
 
 	if err := g.Wait(); err != nil {
@@ -284,7 +284,7 @@ func newService(db *sqlx.DB, tracer opentracing.Tracer, auth mainflux.AuthServic
 	notifier := mfsmpp.New(c.smppConf)
 	svc := notifiers.New(auth, repo, idp, notifier, c.from)
 	svc = api.LoggingMiddleware(svc, logger)
-	counter, latency := initutil.MakeMetrics("notifier", "smpp")
+	counter, latency := internal.MakeMetrics("notifier", "smpp")
 	svc = api.MetricsMiddleware(svc, counter, latency)
 
 	return svc

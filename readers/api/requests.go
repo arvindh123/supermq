@@ -4,7 +4,7 @@
 package api
 
 import (
-	initutil "github.com/mainflux/mainflux/internal/init"
+	"github.com/mainflux/mainflux/internal"
 	"github.com/mainflux/mainflux/readers"
 )
 
@@ -23,19 +23,19 @@ type listMessagesReq struct {
 
 func (req listMessagesReq) validate() error {
 	if req.token == "" && req.key == "" {
-		return initutil.ErrBearerToken
+		return internal.ErrBearerToken
 	}
 
 	if req.chanID == "" {
-		return initutil.ErrMissingID
+		return internal.ErrMissingID
 	}
 
 	if req.pageMeta.Limit < 1 || req.pageMeta.Limit > maxLimitSize {
-		return initutil.ErrLimitSize
+		return internal.ErrLimitSize
 	}
 
 	if req.pageMeta.Offset < 0 {
-		return initutil.ErrOffsetSize
+		return internal.ErrOffsetSize
 	}
 
 	if req.pageMeta.Comparator != "" &&
@@ -44,7 +44,7 @@ func (req listMessagesReq) validate() error {
 		req.pageMeta.Comparator != readers.LowerThanEqualKey &&
 		req.pageMeta.Comparator != readers.GreaterThanKey &&
 		req.pageMeta.Comparator != readers.GreaterThanEqualKey {
-		return initutil.ErrInvalidComparator
+		return internal.ErrInvalidComparator
 	}
 
 	return nil

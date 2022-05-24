@@ -14,10 +14,10 @@ import (
 	"github.com/mainflux/mainflux/consumers"
 	"github.com/mainflux/mainflux/consumers/writers/api"
 	"github.com/mainflux/mainflux/consumers/writers/mongodb"
-	initutil "github.com/mainflux/mainflux/internal/init"
-	mfdatabase "github.com/mainflux/mainflux/internal/init/db"
-	"github.com/mainflux/mainflux/internal/init/mfserver"
-	"github.com/mainflux/mainflux/internal/init/mfserver/httpserver"
+	"github.com/mainflux/mainflux/internal"
+	mfdatabase "github.com/mainflux/mainflux/internal/db"
+	"github.com/mainflux/mainflux/internal/server"
+	"github.com/mainflux/mainflux/internal/server/httpserver"
 	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/pkg/messaging/nats"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -87,7 +87,7 @@ func main() {
 	})
 
 	g.Go(func() error {
-		return mfserver.ServerStopSignalHandler(ctx, cancel, logger, svcName, hs)
+		return server.ServerStopSignalHandler(ctx, cancel, logger, svcName, hs)
 	})
 
 	if err := g.Wait(); err != nil {
@@ -111,7 +111,7 @@ func loadConfigs() config {
 func newService(db *mongo.Database, logger logger.Logger) consumers.Consumer {
 	repo := mongodb.New(db)
 	repo = api.LoggingMiddleware(repo, logger)
-	counter, latency := initutil.MakeMetrics("mongodb", "message_writer")
+	counter, latency := internal.MakeMetrics("mongodb", "message_writer")
 	repo = api.MetricsMiddleware(repo, counter, latency)
 
 	return repo

@@ -14,10 +14,10 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/mainflux/mainflux"
 	authapi "github.com/mainflux/mainflux/auth/api/grpc"
-	initutil "github.com/mainflux/mainflux/internal/init"
-	mfdatabase "github.com/mainflux/mainflux/internal/init/db"
-	"github.com/mainflux/mainflux/internal/init/mfserver"
-	"github.com/mainflux/mainflux/internal/init/mfserver/httpserver"
+	"github.com/mainflux/mainflux/internal"
+	mfdatabase "github.com/mainflux/mainflux/internal/db"
+	"github.com/mainflux/mainflux/internal/server"
+	"github.com/mainflux/mainflux/internal/server/httpserver"
 	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/pkg/messaging"
 	"github.com/mainflux/mainflux/pkg/messaging/nats"
@@ -111,7 +111,7 @@ func main() {
 	}
 
 	cacheClient := mfdatabase.ConnectToRedis(cfg.cacheURL, cfg.cachePass, cfg.cacheDB, logger)
-	cacheTracer, cacheCloser := initutil.Jaeger("twins_cache", cfg.jaegerURL, logger)
+	cacheTracer, cacheCloser := internal.Jaeger("twins_cache", cfg.jaegerURL, logger)
 	defer cacheCloser.Close()
 
 	db, err := twmongodb.Connect(cfg.dbCfg, logger)
@@ -119,10 +119,10 @@ func main() {
 		logger.Error(err.Error())
 		os.Exit(1)
 	}
-	dbTracer, dbCloser := initutil.Jaeger("twins_db", cfg.jaegerURL, logger)
+	dbTracer, dbCloser := internal.Jaeger("twins_db", cfg.jaegerURL, logger)
 	defer dbCloser.Close()
 
-	authTracer, authCloser := initutil.Jaeger("auth", cfg.jaegerURL, logger)
+	authTracer, authCloser := internal.Jaeger("auth", cfg.jaegerURL, logger)
 	defer authCloser.Close()
 	auth, _ := createAuthClient(cfg, authTracer, logger)
 
@@ -135,7 +135,7 @@ func main() {
 
 	svc := newService(svcName, pubSub, cfg.channelID, auth, dbTracer, db, cacheTracer, cacheClient, logger)
 
-	tracer, closer := initutil.Jaeger("twins", cfg.jaegerURL, logger)
+	tracer, closer := internal.Jaeger("twins", cfg.jaegerURL, logger)
 	defer closer.Close()
 
 	hs := httpserver.New(ctx, cancel, svcName, "", cfg.httpPort, twapi.MakeHandler(tracer, svc, logger), cfg.serverCert, cfg.serverKey, logger)
@@ -144,7 +144,7 @@ func main() {
 	})
 
 	g.Go(func() error {
-		return mfserver.ServerStopSignalHandler(ctx, cancel, logger, svcName, hs)
+		return server.ServerStopSignalHandler(ctx, cancel, logger, svcName, hs)
 	})
 
 	if err := g.Wait(); err != nil {
@@ -195,7 +195,7 @@ func createAuthClient(cfg config, tracer opentracing.Tracer, logger logger.Logge
 		return localusers.NewAuthService(cfg.standaloneEmail, cfg.standaloneToken), nil
 	}
 
-	conn := initutil.ConnectToAuth(cfg.clientTLS, cfg.caCerts, cfg.authURL, svcName, logger)
+	conn := internal.ConnectToAuth(cfg.clientTLS, cfg.caCerts, cfg.authURL, svcName, logger)
 	return authapi.NewClient(tracer, conn, cfg.authTimeout), conn.Close
 }
 
@@ -212,7 +212,7 @@ func newService(id string, ps messaging.PubSub, chanID string, users mainflux.Au
 
 	svc := twins.New(ps, users, twinRepo, twinCache, stateRepo, idProvider, chanID, logger)
 	svc = api.LoggingMiddleware(svc, logger)
-	counter, latency := initutil.MakeMetrics(svcName, "api")
+	counter, latency := internal.MakeMetrics(svcName, "api")
 	svc = api.MetricsMiddleware(svc, counter, latency)
 
 	err := ps.Subscribe(id, nats.SubjectAllChannels, handle(logger, chanID, svc))
