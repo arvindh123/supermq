@@ -12,7 +12,7 @@ import (
 
 	r "github.com/go-redis/redis/v8"
 	"github.com/mainflux/mainflux"
-	apiutil "github.com/mainflux/mainflux/internal/init"
+	initutil "github.com/mainflux/mainflux/internal/init"
 	mfdatabase "github.com/mainflux/mainflux/internal/init/db"
 	"github.com/mainflux/mainflux/internal/init/mfserver"
 	"github.com/mainflux/mainflux/internal/init/mfserver/httpserver"
@@ -193,7 +193,7 @@ func newRouteMapRepositoy(client *r.Client, prefix string, logger logger.Logger)
 func newService(sub opcua.Subscriber, browser opcua.Browser, thingRM, chanRM, connRM opcua.RouteMapRepository, opcuaConfig opcua.Config, logger logger.Logger) opcua.Service {
 	svc := opcua.New(sub, browser, thingRM, chanRM, connRM, opcuaConfig, logger)
 	svc = api.LoggingMiddleware(svc, logger)
-	counter, latency := apiutil.MakeMetrics(svcName, "api")
+	counter, latency := initutil.MakeMetrics(svcName, "api")
 	svc = api.MetricsMiddleware(svc, counter, latency)
 
 	return svc

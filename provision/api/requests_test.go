@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	apiutil "github.com/mainflux/mainflux/internal/init"
+	initutil "github.com/mainflux/mainflux/internal/init"
 	"github.com/mainflux/mainflux/pkg/errors"
 	"github.com/stretchr/testify/assert"
 )
@@ -22,7 +22,7 @@ func TestValidate(t *testing.T) {
 			err:         nil,
 		},
 		"external id for device empty": {
-			err: apiutil.ErrMissingID,
+			err: initutil.ErrMissingID,
 		},
 	}
 

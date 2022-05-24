@@ -14,7 +14,7 @@ import (
 	"github.com/go-zoo/bone"
 	"github.com/mainflux/mainflux"
 	notifiers "github.com/mainflux/mainflux/consumers/notifiers"
-	apiutil "github.com/mainflux/mainflux/internal/init"
+	initutil "github.com/mainflux/mainflux/internal/init"
 	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/pkg/errors"
 	opentracing "github.com/opentracing/opentracing-go"
@@ -34,7 +34,7 @@ const (
 // MakeHandler returns a HTTP handler for API endpoints.
 func MakeHandler(svc notifiers.Service, tracer opentracing.Tracer, logger logger.Logger) http.Handler {
 	opts := []kithttp.ServerOption{
-		kithttp.ServerErrorEncoder(apiutil.LoggingErrorEncoder(logger, encodeError)),
+		kithttp.ServerErrorEncoder(initutil.LoggingErrorEncoder(logger, encodeError)),
 	}
 
 	mux := bone.New()
@@ -78,7 +78,7 @@ func decodeCreate(_ context.Context, r *http.Request) (interface{}, error) {
 		return nil, errors.ErrUnsupportedContentType
 	}
 
-	req := createSubReq{token: apiutil.ExtractBearerToken(r)}
+	req := createSubReq{token: initutil.ExtractBearerToken(r)}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return nil, errors.Wrap(errors.ErrMalformedEntity, err)
 	}
@@ -89,14 +89,14 @@ func decodeCreate(_ context.Context, r *http.Request) (interface{}, error) {
 func decodeSubscription(_ context.Context, r *http.Request) (interface{}, error) {
 	req := subReq{
 		id:    bone.GetValue(r, "id"),
-		token: apiutil.ExtractBearerToken(r),
+		token: initutil.ExtractBearerToken(r),
 	}
 
 	return req, nil
 }
 
 func decodeList(_ context.Context, r *http.Request) (interface{}, error) {
-	req := listSubsReq{token: apiutil.ExtractBearerToken(r)}
+	req := listSubsReq{token: initutil.ExtractBearerToken(r)}
 	vals := bone.GetQuery(r, topicKey)
 	if len(vals) > 0 {
 		req.topic = vals[0]
@@ -107,13 +107,13 @@ func decodeList(_ context.Context, r *http.Request) (interface{}, error) {
 		req.contact = vals[0]
 	}
 
-	offset, err := apiutil.ReadUintQuery(r, offsetKey, defOffset)
+	offset, err := initutil.ReadUintQuery(r, offsetKey, defOffset)
 	if err != nil {
 		return listSubsReq{}, err
 	}
 	req.offset = uint(offset)
 
-	limit, err := apiutil.ReadUintQuery(r, limitKey, defLimit)
+	limit, err := initutil.ReadUintQuery(r, limitKey, defLimit)
 	if err != nil {
 		return listSubsReq{}, err
 	}
@@ -141,15 +141,15 @@ func encodeResponse(_ context.Context, w http.ResponseWriter, response interface
 func encodeError(_ context.Context, err error, w http.ResponseWriter) {
 	switch {
 	case errors.Contains(err, errors.ErrMalformedEntity),
-		err == apiutil.ErrInvalidContact,
-		err == apiutil.ErrInvalidTopic,
-		err == apiutil.ErrMissingID,
+		err == initutil.ErrInvalidContact,
+		err == initutil.ErrInvalidTopic,
+		err == initutil.ErrMissingID,
 		errors.Contains(err, errors.ErrInvalidQueryParams):
 		w.WriteHeader(http.StatusBadRequest)
 	case errors.Contains(err, errors.ErrNotFound):
 		w.WriteHeader(http.StatusNotFound)
 	case errors.Contains(err, errors.ErrAuthentication),
-		err == apiutil.ErrBearerToken:
+		err == initutil.ErrBearerToken:
 		w.WriteHeader(http.StatusUnauthorized)
 	case errors.Contains(err, errors.ErrConflict):
 		w.WriteHeader(http.StatusConflict)
@@ -167,7 +167,7 @@ func encodeError(_ context.Context, err error, w http.ResponseWriter) {
 
 	if errorVal, ok := err.(errors.Error); ok {
 		w.Header().Set("Content-Type", contentType)
-		if err := json.NewEncoder(w).Encode(apiutil.ErrorRes{Err: errorVal.Msg()}); err != nil {
+		if err := json.NewEncoder(w).Encode(initutil.ErrorRes{Err: errorVal.Msg()}); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 		}
 	}

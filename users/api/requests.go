@@ -4,7 +4,7 @@
 package api
 
 import (
-	apiutil "github.com/mainflux/mainflux/internal/init"
+	initutil "github.com/mainflux/mainflux/internal/init"
 	"github.com/mainflux/mainflux/users"
 )
 
@@ -37,7 +37,7 @@ type viewUserReq struct {
 
 func (req viewUserReq) validate() error {
 	if req.token == "" {
-		return apiutil.ErrBearerToken
+		return initutil.ErrBearerToken
 	}
 	return nil
 }
@@ -52,15 +52,15 @@ type listUsersReq struct {
 
 func (req listUsersReq) validate() error {
 	if req.token == "" {
-		return apiutil.ErrBearerToken
+		return initutil.ErrBearerToken
 	}
 
 	if req.limit > maxLimitSize || req.limit < 1 {
-		return apiutil.ErrLimitSize
+		return initutil.ErrLimitSize
 	}
 
 	if len(req.email) > maxEmailSize {
-		return apiutil.ErrEmailSize
+		return initutil.ErrEmailSize
 	}
 
 	return nil
@@ -73,7 +73,7 @@ type updateUserReq struct {
 
 func (req updateUserReq) validate() error {
 	if req.token == "" {
-		return apiutil.ErrBearerToken
+		return initutil.ErrBearerToken
 	}
 	return nil
 }
@@ -85,11 +85,11 @@ type passwResetReq struct {
 
 func (req passwResetReq) validate() error {
 	if req.Email == "" {
-		return apiutil.ErrMissingEmail
+		return initutil.ErrMissingEmail
 	}
 
 	if req.Host == "" {
-		return apiutil.ErrMissingHost
+		return initutil.ErrMissingHost
 	}
 
 	return nil
@@ -103,19 +103,19 @@ type resetTokenReq struct {
 
 func (req resetTokenReq) validate() error {
 	if req.Password == "" {
-		return apiutil.ErrMissingPass
+		return initutil.ErrMissingPass
 	}
 
 	if req.ConfPass == "" {
-		return apiutil.ErrMissingConfPass
+		return initutil.ErrMissingConfPass
 	}
 
 	if req.Token == "" {
-		return apiutil.ErrBearerToken
+		return initutil.ErrBearerToken
 	}
 
 	if req.Password != req.ConfPass {
-		return apiutil.ErrInvalidResetPass
+		return initutil.ErrInvalidResetPass
 	}
 
 	return nil
@@ -129,10 +129,10 @@ type passwChangeReq struct {
 
 func (req passwChangeReq) validate() error {
 	if req.token == "" {
-		return apiutil.ErrBearerToken
+		return initutil.ErrBearerToken
 	}
 	if req.OldPassword == "" {
-		return apiutil.ErrMissingPass
+		return initutil.ErrMissingPass
 	}
 	return nil
 }
@@ -147,11 +147,11 @@ type listMemberGroupReq struct {
 
 func (req listMemberGroupReq) validate() error {
 	if req.token == "" {
-		return apiutil.ErrBearerToken
+		return initutil.ErrBearerToken
 	}
 
 	if req.groupID == "" {
-		return apiutil.ErrMissingID
+		return initutil.ErrMissingID
 	}
 
 	return nil

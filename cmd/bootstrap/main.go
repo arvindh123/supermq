@@ -15,7 +15,7 @@ import (
 	authapi "github.com/mainflux/mainflux/auth/api/grpc"
 	rediscons "github.com/mainflux/mainflux/bootstrap/redis/consumer"
 	redisprod "github.com/mainflux/mainflux/bootstrap/redis/producer"
-	apiutil "github.com/mainflux/mainflux/internal/init"
+	initutil "github.com/mainflux/mainflux/internal/init"
 	mfdatabase "github.com/mainflux/mainflux/internal/init/db"
 	"github.com/mainflux/mainflux/internal/init/mfserver"
 	"github.com/mainflux/mainflux/internal/init/mfserver/httpserver"
@@ -138,10 +138,10 @@ func main() {
 	esClient := mfdatabase.ConnectToRedis(cfg.esURL, cfg.esPass, cfg.esDB, logger)
 	defer esClient.Close()
 
-	authTracer, authCloser := apiutil.Jaeger("auth", cfg.jaegerURL, logger)
+	authTracer, authCloser := initutil.Jaeger("auth", cfg.jaegerURL, logger)
 	defer authCloser.Close()
 
-	authConn := apiutil.ConnectToAuth(cfg.clientTLS, cfg.caCerts, cfg.authURL, svcName, logger)
+	authConn := initutil.ConnectToAuth(cfg.clientTLS, cfg.caCerts, cfg.authURL, svcName, logger)
 	defer authConn.Close()
 
 	auth := authapi.NewClient(authTracer, authConn, cfg.authTimeout)
@@ -241,7 +241,7 @@ func newService(auth mainflux.AuthServiceClient, db *sqlx.DB, logger logger.Logg
 	svc := bootstrap.New(auth, thingsRepo, sdk, cfg.encKey)
 	svc = redisprod.NewEventStoreMiddleware(svc, esClient)
 	svc = api.NewLoggingMiddleware(svc, logger)
-	counter, latency := apiutil.MakeMetrics(svcName, "api")
+	counter, latency := initutil.MakeMetrics(svcName, "api")
 	svc = api.MetricsMiddleware(svc, counter, latency)
 
 	return svc

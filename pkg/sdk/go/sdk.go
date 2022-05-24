@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/mainflux/mainflux"
-	apiutil "github.com/mainflux/mainflux/internal/init"
+	initutil "github.com/mainflux/mainflux/internal/init"
 )
 
 const (
@@ -328,7 +328,7 @@ func NewSDK(conf Config) SDK {
 
 func (sdk mfSDK) sendRequest(req *http.Request, token, contentType string) (*http.Response, error) {
 	if token != "" {
-		req.Header.Set("Authorization", apiutil.BearerPrefix+token)
+		req.Header.Set("Authorization", initutil.BearerPrefix+token)
 	}
 
 	if contentType != "" {
@@ -340,7 +340,7 @@ func (sdk mfSDK) sendRequest(req *http.Request, token, contentType string) (*htt
 
 func (sdk mfSDK) sendThingRequest(req *http.Request, key, contentType string) (*http.Response, error) {
 	if key != "" {
-		req.Header.Set("Authorization", apiutil.ThingPrefix+key)
+		req.Header.Set("Authorization", initutil.ThingPrefix+key)
 	}
 
 	if contentType != "" {

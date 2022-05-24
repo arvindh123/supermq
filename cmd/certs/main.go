@@ -20,7 +20,7 @@ import (
 	"github.com/mainflux/mainflux/certs/api"
 	vault "github.com/mainflux/mainflux/certs/pki"
 	"github.com/mainflux/mainflux/certs/postgres"
-	apiutil "github.com/mainflux/mainflux/internal/init"
+	initutil "github.com/mainflux/mainflux/internal/init"
 	"github.com/mainflux/mainflux/internal/init/mfserver"
 	"github.com/mainflux/mainflux/internal/init/mfserver/httpserver"
 	"github.com/mainflux/mainflux/logger"
@@ -162,10 +162,10 @@ func main() {
 	db := connectToDB(cfg.dbConfig, logger)
 	defer db.Close()
 
-	authTracer, authCloser := apiutil.Jaeger("auth", cfg.jaegerURL, logger)
+	authTracer, authCloser := initutil.Jaeger("auth", cfg.jaegerURL, logger)
 	defer authCloser.Close()
 
-	authConn := apiutil.ConnectToAuth(cfg.clientTLS, cfg.caCerts, cfg.authURL, svcName, logger)
+	authConn := initutil.ConnectToAuth(cfg.clientTLS, cfg.caCerts, cfg.authURL, svcName, logger)
 	defer authConn.Close()
 
 	auth := authapi.NewClient(authTracer, authConn, cfg.authTimeout)
@@ -282,7 +282,7 @@ func newService(auth mainflux.AuthServiceClient, db *sqlx.DB, logger logger.Logg
 
 	svc := certs.New(auth, certsRepo, sdk, certsConfig, pkiAgent)
 	svc = api.NewLoggingMiddleware(svc, logger)
-	counter, latency := apiutil.MakeMetrics(svcName, "api")
+	counter, latency := initutil.MakeMetrics(svcName, "api")
 	svc = api.MetricsMiddleware(svc, counter, latency)
 
 	return svc

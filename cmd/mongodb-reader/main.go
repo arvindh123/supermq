@@ -13,7 +13,7 @@ import (
 
 	"github.com/mainflux/mainflux"
 	authapi "github.com/mainflux/mainflux/auth/api/grpc"
-	apiutil "github.com/mainflux/mainflux/internal/init"
+	initutil "github.com/mainflux/mainflux/internal/init"
 	mfdatabase "github.com/mainflux/mainflux/internal/init/db"
 	"github.com/mainflux/mainflux/internal/init/mfserver"
 	"github.com/mainflux/mainflux/internal/init/mfserver/httpserver"
@@ -87,18 +87,18 @@ func main() {
 		log.Fatalf(err.Error())
 	}
 
-	conn := apiutil.ConnectToThings(cfg.clientTLS, cfg.caCerts, cfg.thingsAuthURL, svcName, logger)
+	conn := initutil.ConnectToThings(cfg.clientTLS, cfg.caCerts, cfg.thingsAuthURL, svcName, logger)
 	defer conn.Close()
 
-	thingsTracer, thingsCloser := apiutil.Jaeger("things", cfg.jaegerURL, logger)
+	thingsTracer, thingsCloser := initutil.Jaeger("things", cfg.jaegerURL, logger)
 	defer thingsCloser.Close()
 
 	tc := thingsapi.NewClient(conn, thingsTracer, cfg.thingsAuthTimeout)
 
-	authTracer, authCloser := apiutil.Jaeger("auth", cfg.jaegerURL, logger)
+	authTracer, authCloser := initutil.Jaeger("auth", cfg.jaegerURL, logger)
 	defer authCloser.Close()
 
-	authConn := apiutil.ConnectToAuth(cfg.clientTLS, cfg.caCerts, cfg.usersAuthURL, svcName, logger)
+	authConn := initutil.ConnectToAuth(cfg.clientTLS, cfg.caCerts, cfg.usersAuthURL, svcName, logger)
 	defer authConn.Close()
 
 	auth := authapi.NewClient(authTracer, authConn, cfg.usersAuthTimeout)
@@ -159,7 +159,7 @@ func loadConfigs() config {
 func newService(db *mongo.Database, logger logger.Logger) readers.MessageRepository {
 	repo := mongodb.New(db)
 	repo = api.LoggingMiddleware(repo, logger)
-	counter, latency := apiutil.MakeMetrics("mongodb", "message_reader")
+	counter, latency := initutil.MakeMetrics("mongodb", "message_reader")
 	repo = api.MetricsMiddleware(repo, counter, latency)
 
 	return repo

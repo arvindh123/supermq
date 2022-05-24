@@ -13,7 +13,7 @@ import (
 	mqttPaho "github.com/eclipse/paho.mqtt.golang"
 	r "github.com/go-redis/redis/v8"
 	"github.com/mainflux/mainflux"
-	apiutil "github.com/mainflux/mainflux/internal/init"
+	initutil "github.com/mainflux/mainflux/internal/init"
 	mfdatabase "github.com/mainflux/mainflux/internal/init/db"
 	"github.com/mainflux/mainflux/internal/init/mfserver"
 	"github.com/mainflux/mainflux/internal/init/mfserver/httpserver"
@@ -208,7 +208,7 @@ func newService(pub nats.Publisher, rmConn *r.Client, thingsRMPrefix, channelsRM
 
 	svc := lora.New(pub, thingsRM, chansRM, connsRM)
 	svc = api.LoggingMiddleware(svc, logger)
-	counter, latency := apiutil.MakeMetrics(svcName, "api")
+	counter, latency := initutil.MakeMetrics(svcName, "api")
 	svc = api.MetricsMiddleware(svc, counter, latency)
 
 	return svc

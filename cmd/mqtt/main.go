@@ -12,7 +12,7 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/mainflux/mainflux"
-	apiutil "github.com/mainflux/mainflux/internal/init"
+	initutil "github.com/mainflux/mainflux/internal/init"
 	mfdatabase "github.com/mainflux/mainflux/internal/init/db"
 	mflog "github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/mqtt"
@@ -138,7 +138,7 @@ func main() {
 		}
 	}
 
-	conn := apiutil.ConnectToThings(cfg.clientTLS, cfg.caCerts, cfg.thingsAuthURL, svcName, logger)
+	conn := initutil.ConnectToThings(cfg.clientTLS, cfg.caCerts, cfg.thingsAuthURL, svcName, logger)
 	defer conn.Close()
 
 	ec := mfdatabase.ConnectToRedis(cfg.esURL, cfg.esPass, cfg.esDB, logger)
@@ -175,7 +175,7 @@ func main() {
 	ac := mfdatabase.ConnectToRedis(cfg.authURL, cfg.authPass, cfg.authDB, logger)
 	defer ac.Close()
 
-	thingsTracer, thingsCloser := apiutil.Jaeger("things", cfg.jaegerURL, logger)
+	thingsTracer, thingsCloser := initutil.Jaeger("things", cfg.jaegerURL, logger)
 	defer thingsCloser.Close()
 	tc := thingsapi.NewClient(conn, thingsTracer, cfg.thingsAuthTimeout)
 

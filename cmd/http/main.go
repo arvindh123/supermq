@@ -14,7 +14,7 @@ import (
 	"github.com/mainflux/mainflux"
 	adapter "github.com/mainflux/mainflux/http"
 	"github.com/mainflux/mainflux/http/api"
-	apiutil "github.com/mainflux/mainflux/internal/init"
+	initutil "github.com/mainflux/mainflux/internal/init"
 	"github.com/mainflux/mainflux/internal/init/mfserver"
 	"github.com/mainflux/mainflux/internal/init/mfserver/httpserver"
 	"github.com/mainflux/mainflux/logger"
@@ -67,13 +67,13 @@ func main() {
 		log.Fatalf(err.Error())
 	}
 
-	conn := apiutil.ConnectToThings(cfg.clientTLS, cfg.caCerts, cfg.thingsAuthURL, svcName, logger)
+	conn := initutil.ConnectToThings(cfg.clientTLS, cfg.caCerts, cfg.thingsAuthURL, svcName, logger)
 	defer conn.Close()
 
-	tracer, closer := apiutil.Jaeger("http_adapter", cfg.jaegerURL, logger)
+	tracer, closer := initutil.Jaeger("http_adapter", cfg.jaegerURL, logger)
 	defer closer.Close()
 
-	thingsTracer, thingsCloser := apiutil.Jaeger("things", cfg.jaegerURL, logger)
+	thingsTracer, thingsCloser := initutil.Jaeger("things", cfg.jaegerURL, logger)
 	defer thingsCloser.Close()
 
 	pub, err := nats.NewPublisher(cfg.natsURL)
@@ -128,7 +128,7 @@ func loadConfig() config {
 func newService(pub nats.Publisher, tc mainflux.ThingsServiceClient, logger logger.Logger) adapter.Service {
 	svc := adapter.New(pub, tc)
 	svc = api.LoggingMiddleware(svc, logger)
-	counter, latency := apiutil.MakeMetrics(svcName, "api")
+	counter, latency := initutil.MakeMetrics(svcName, "api")
 	svc = api.MetricsMiddleware(svc, counter, latency)
 
 	return svc

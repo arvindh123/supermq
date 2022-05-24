@@ -21,7 +21,7 @@ import (
 	"github.com/mainflux/mainflux/consumers/notifiers/smtp"
 	"github.com/mainflux/mainflux/consumers/notifiers/tracing"
 	"github.com/mainflux/mainflux/internal/email"
-	apiutil "github.com/mainflux/mainflux/internal/init"
+	initutil "github.com/mainflux/mainflux/internal/init"
 	"github.com/mainflux/mainflux/internal/init/mfserver"
 	"github.com/mainflux/mainflux/internal/init/mfserver/httpserver"
 	"github.com/mainflux/mainflux/logger"
@@ -134,18 +134,18 @@ func main() {
 	}
 	defer pubSub.Close()
 
-	authTracer, closer := apiutil.Jaeger("auth", cfg.jaegerURL, logger)
+	authTracer, closer := initutil.Jaeger("auth", cfg.jaegerURL, logger)
 	defer closer.Close()
 
-	authConn := apiutil.ConnectToAuth(cfg.authTLS, cfg.authCACerts, cfg.authURL, svcName, logger)
+	authConn := initutil.ConnectToAuth(cfg.authTLS, cfg.authCACerts, cfg.authURL, svcName, logger)
 	defer authConn.Close()
 
 	auth := authapi.NewClient(authTracer, authConn, cfg.authTimeout)
 
-	tracer, closer := apiutil.Jaeger("smtp-notifier", cfg.jaegerURL, logger)
+	tracer, closer := initutil.Jaeger("smtp-notifier", cfg.jaegerURL, logger)
 	defer closer.Close()
 
-	dbTracer, dbCloser := apiutil.Jaeger("smtp-notifier_db", cfg.jaegerURL, logger)
+	dbTracer, dbCloser := initutil.Jaeger("smtp-notifier_db", cfg.jaegerURL, logger)
 	defer dbCloser.Close()
 
 	svc := newService(db, dbTracer, auth, cfg, logger)
@@ -244,7 +244,7 @@ func newService(db *sqlx.DB, tracer opentracing.Tracer, auth mainflux.AuthServic
 	notifier := smtp.New(agent)
 	svc := notifiers.New(auth, repo, idp, notifier, c.from)
 	svc = api.LoggingMiddleware(svc, logger)
-	counter, latency := apiutil.MakeMetrics("notifier", "smtp")
+	counter, latency := initutil.MakeMetrics("notifier", "smtp")
 	svc = api.MetricsMiddleware(svc, counter, latency)
 
 	return svc

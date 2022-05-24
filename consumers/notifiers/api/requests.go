@@ -3,7 +3,7 @@
 
 package api
 
-import apiutil "github.com/mainflux/mainflux/internal/init"
+import initutil "github.com/mainflux/mainflux/internal/init"
 
 type createSubReq struct {
 	token   string
@@ -13,13 +13,13 @@ type createSubReq struct {
 
 func (req createSubReq) validate() error {
 	if req.token == "" {
-		return apiutil.ErrBearerToken
+		return initutil.ErrBearerToken
 	}
 	if req.Topic == "" {
-		return apiutil.ErrInvalidTopic
+		return initutil.ErrInvalidTopic
 	}
 	if req.Contact == "" {
-		return apiutil.ErrInvalidContact
+		return initutil.ErrInvalidContact
 	}
 	return nil
 }
@@ -31,10 +31,10 @@ type subReq struct {
 
 func (req subReq) validate() error {
 	if req.token == "" {
-		return apiutil.ErrBearerToken
+		return initutil.ErrBearerToken
 	}
 	if req.id == "" {
-		return apiutil.ErrMissingID
+		return initutil.ErrMissingID
 	}
 	return nil
 }
@@ -49,7 +49,7 @@ type listSubsReq struct {
 
 func (req listSubsReq) validate() error {
 	if req.token == "" {
-		return apiutil.ErrBearerToken
+		return initutil.ErrBearerToken
 	}
 	return nil
 }

@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/mainflux/mainflux/internal/email"
-	apiutil "github.com/mainflux/mainflux/internal/init"
+	initutil "github.com/mainflux/mainflux/internal/init"
 	"github.com/mainflux/mainflux/internal/init/mfserver"
 	"github.com/mainflux/mainflux/internal/init/mfserver/httpserver"
 	"github.com/mainflux/mainflux/pkg/errors"
@@ -142,17 +142,17 @@ func main() {
 	db := connectToDB(cfg.dbConfig, logger)
 	defer db.Close()
 
-	authTracer, closer := apiutil.Jaeger("auth", cfg.jaegerURL, logger)
+	authTracer, closer := initutil.Jaeger("auth", cfg.jaegerURL, logger)
 	defer closer.Close()
 
-	authConn := apiutil.ConnectToAuth(cfg.authTLS, cfg.authCACerts, cfg.authURL, svcName, logger)
+	authConn := initutil.ConnectToAuth(cfg.authTLS, cfg.authCACerts, cfg.authURL, svcName, logger)
 	defer authConn.Close()
 	auth := authapi.NewClient(authTracer, authConn, cfg.authTimeout)
 
-	tracer, closer := apiutil.Jaeger("users", cfg.jaegerURL, logger)
+	tracer, closer := initutil.Jaeger("users", cfg.jaegerURL, logger)
 	defer closer.Close()
 
-	dbTracer, dbCloser := apiutil.Jaeger("users_db", cfg.jaegerURL, logger)
+	dbTracer, dbCloser := initutil.Jaeger("users_db", cfg.jaegerURL, logger)
 	defer dbCloser.Close()
 
 	svc := newService(db, dbTracer, auth, cfg, logger)
@@ -258,7 +258,7 @@ func newService(db *sqlx.DB, tracer opentracing.Tracer, auth mainflux.AuthServic
 
 	svc := users.New(userRepo, hasher, auth, emailer, idProvider, c.passRegex)
 	svc = api.LoggingMiddleware(svc, logger)
-	counter, latency := apiutil.MakeMetrics(svcName, "api")
+	counter, latency := initutil.MakeMetrics(svcName, "api")
 	svc = api.MetricsMiddleware(svc, counter, latency)
 
 	if err := createAdmin(svc, userRepo, c, auth); err != nil {

@@ -11,7 +11,7 @@ import (
 	kithttp "github.com/go-kit/kit/transport/http"
 	"github.com/go-zoo/bone"
 	"github.com/mainflux/mainflux"
-	apiutil "github.com/mainflux/mainflux/internal/init"
+	initutil "github.com/mainflux/mainflux/internal/init"
 	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/pkg/errors"
 	"github.com/mainflux/mainflux/readers"
@@ -72,75 +72,75 @@ func MakeHandler(svc readers.MessageRepository, tc mainflux.ThingsServiceClient,
 }
 
 func decodeList(ctx context.Context, r *http.Request) (interface{}, error) {
-	offset, err := apiutil.ReadUintQuery(r, offsetKey, defOffset)
+	offset, err := initutil.ReadUintQuery(r, offsetKey, defOffset)
 	if err != nil {
 		return nil, err
 	}
 
-	limit, err := apiutil.ReadUintQuery(r, limitKey, defLimit)
+	limit, err := initutil.ReadUintQuery(r, limitKey, defLimit)
 	if err != nil {
 		return nil, err
 	}
 
-	format, err := apiutil.ReadStringQuery(r, formatKey, defFormat)
+	format, err := initutil.ReadStringQuery(r, formatKey, defFormat)
 	if err != nil {
 		return nil, err
 	}
 
-	subtopic, err := apiutil.ReadStringQuery(r, subtopicKey, "")
+	subtopic, err := initutil.ReadStringQuery(r, subtopicKey, "")
 	if err != nil {
 		return nil, err
 	}
 
-	publisher, err := apiutil.ReadStringQuery(r, publisherKey, "")
+	publisher, err := initutil.ReadStringQuery(r, publisherKey, "")
 	if err != nil {
 		return nil, err
 	}
 
-	protocol, err := apiutil.ReadStringQuery(r, protocolKey, "")
+	protocol, err := initutil.ReadStringQuery(r, protocolKey, "")
 	if err != nil {
 		return nil, err
 	}
 
-	name, err := apiutil.ReadStringQuery(r, nameKey, "")
+	name, err := initutil.ReadStringQuery(r, nameKey, "")
 	if err != nil {
 		return nil, err
 	}
 
-	v, err := apiutil.ReadFloatQuery(r, valueKey, 0)
+	v, err := initutil.ReadFloatQuery(r, valueKey, 0)
 	if err != nil {
 		return nil, err
 	}
 
-	comparator, err := apiutil.ReadStringQuery(r, comparatorKey, "")
+	comparator, err := initutil.ReadStringQuery(r, comparatorKey, "")
 	if err != nil {
 		return nil, err
 	}
 
-	vs, err := apiutil.ReadStringQuery(r, stringValueKey, "")
+	vs, err := initutil.ReadStringQuery(r, stringValueKey, "")
 	if err != nil {
 		return nil, err
 	}
 
-	vd, err := apiutil.ReadStringQuery(r, dataValueKey, "")
+	vd, err := initutil.ReadStringQuery(r, dataValueKey, "")
 	if err != nil {
 		return nil, err
 	}
 
-	from, err := apiutil.ReadFloatQuery(r, fromKey, 0)
+	from, err := initutil.ReadFloatQuery(r, fromKey, 0)
 	if err != nil {
 		return nil, err
 	}
 
-	to, err := apiutil.ReadFloatQuery(r, toKey, 0)
+	to, err := initutil.ReadFloatQuery(r, toKey, 0)
 	if err != nil {
 		return nil, err
 	}
 
 	req := listMessagesReq{
 		chanID: bone.GetValue(r, "chanID"),
-		token:  apiutil.ExtractBearerToken(r),
-		key:    apiutil.ExtractThingKey(r),
+		token:  initutil.ExtractBearerToken(r),
+		key:    initutil.ExtractThingKey(r),
 		pageMeta: readers.PageMetadata{
 			Offset:      offset,
 			Limit:       limit,
@@ -158,7 +158,7 @@ func decodeList(ctx context.Context, r *http.Request) (interface{}, error) {
 		},
 	}
 
-	vb, err := apiutil.ReadBoolQuery(r, boolValueKey, false)
+	vb, err := initutil.ReadBoolQuery(r, boolValueKey, false)
 	if err != nil && err != errors.ErrNotFoundParam {
 		return nil, err
 	}
@@ -192,13 +192,13 @@ func encodeError(_ context.Context, err error, w http.ResponseWriter) {
 	case errors.Contains(err, nil):
 	case errors.Contains(err, errors.ErrInvalidQueryParams),
 		errors.Contains(err, errors.ErrMalformedEntity),
-		err == apiutil.ErrMissingID,
-		err == apiutil.ErrLimitSize,
-		err == apiutil.ErrOffsetSize,
-		err == apiutil.ErrInvalidComparator:
+		err == initutil.ErrMissingID,
+		err == initutil.ErrLimitSize,
+		err == initutil.ErrOffsetSize,
+		err == initutil.ErrInvalidComparator:
 		w.WriteHeader(http.StatusBadRequest)
 	case errors.Contains(err, errors.ErrAuthentication),
-		err == apiutil.ErrBearerToken:
+		err == initutil.ErrBearerToken:
 		w.WriteHeader(http.StatusUnauthorized)
 	case errors.Contains(err, readers.ErrReadMessages):
 		w.WriteHeader(http.StatusInternalServerError)
@@ -209,7 +209,7 @@ func encodeError(_ context.Context, err error, w http.ResponseWriter) {
 
 	if errorVal, ok := err.(errors.Error); ok {
 		w.Header().Set("Content-Type", contentType)
-		if err := json.NewEncoder(w).Encode(apiutil.ErrorRes{Err: errorVal.Msg()}); err != nil {
+		if err := json.NewEncoder(w).Encode(initutil.ErrorRes{Err: errorVal.Msg()}); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 		}
 	}

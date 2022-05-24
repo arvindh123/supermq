@@ -15,7 +15,7 @@ import (
 	"github.com/mainflux/mainflux/consumers"
 	"github.com/mainflux/mainflux/consumers/writers/api"
 	"github.com/mainflux/mainflux/consumers/writers/influxdb"
-	apiutil "github.com/mainflux/mainflux/internal/init"
+	initutil "github.com/mainflux/mainflux/internal/init"
 	"github.com/mainflux/mainflux/internal/init/mfserver"
 	"github.com/mainflux/mainflux/internal/init/mfserver/httpserver"
 	"github.com/mainflux/mainflux/logger"
@@ -130,7 +130,7 @@ func loadConfigs() (config, influxdata.HTTPConfig) {
 func newService(client influxdata.Client, dbName string, logger logger.Logger) consumers.Consumer {
 	repo := influxdb.New(client, dbName)
 	repo = api.LoggingMiddleware(repo, logger)
-	counter, latency := apiutil.MakeMetrics("influxdb", "message_writer")
+	counter, latency := initutil.MakeMetrics("influxdb", "message_writer")
 	repo = api.MetricsMiddleware(repo, counter, latency)
 
 	return repo

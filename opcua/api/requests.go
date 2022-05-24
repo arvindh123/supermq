@@ -3,7 +3,7 @@
 
 package api
 
-import apiutil "github.com/mainflux/mainflux/internal/init"
+import initutil "github.com/mainflux/mainflux/internal/init"
 
 type browseReq struct {
 	ServerURI  string
@@ -13,7 +13,7 @@ type browseReq struct {
 
 func (req *browseReq) validate() error {
 	if req.ServerURI == "" {
-		return apiutil.ErrMissingID
+		return initutil.ErrMissingID
 	}
 
 	return nil

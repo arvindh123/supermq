@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/mainflux/mainflux/auth"
-	apiutil "github.com/mainflux/mainflux/internal/init"
+	initutil "github.com/mainflux/mainflux/internal/init"
 )
 
 type issueKeyReq struct {
@@ -19,13 +19,13 @@ type issueKeyReq struct {
 // It is not possible to issue Reset key using HTTP API.
 func (req issueKeyReq) validate() error {
 	if req.token == "" {
-		return apiutil.ErrBearerToken
+		return initutil.ErrBearerToken
 	}
 
 	if req.Type != auth.LoginKey &&
 		req.Type != auth.RecoveryKey &&
 		req.Type != auth.APIKey {
-		return apiutil.ErrInvalidAPIKey
+		return initutil.ErrInvalidAPIKey
 	}
 
 	return nil
@@ -38,11 +38,11 @@ type keyReq struct {
 
 func (req keyReq) validate() error {
 	if req.token == "" {
-		return apiutil.ErrBearerToken
+		return initutil.ErrBearerToken
 	}
 
 	if req.id == "" {
-		return apiutil.ErrMissingID
+		return initutil.ErrMissingID
 	}
 	return nil
 }
