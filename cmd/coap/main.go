@@ -16,11 +16,11 @@ import (
 	"github.com/mainflux/mainflux/coap/api"
 	initutil "github.com/mainflux/mainflux/internal/init"
 	"github.com/mainflux/mainflux/internal/init/mfserver"
+	"github.com/mainflux/mainflux/internal/init/mfserver/coapserver"
 	"github.com/mainflux/mainflux/internal/init/mfserver/httpserver"
 	logger "github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/pkg/messaging/nats"
 	thingsapi "github.com/mainflux/mainflux/things/api/auth/grpc"
-	gocoap "github.com/plgd-dev/go-coap/v2"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -90,17 +90,16 @@ func main() {
 	counter, latency := initutil.MakeMetrics(svcName, "api")
 	svc = api.MetricsMiddleware(svc, counter, latency)
 
-	g.Go(func() error {
-		return startCOAPServer(ctx, cfg, svc, nil, logger)
-	})
-
 	hs := httpserver.New(ctx, cancel, svcName, "", cfg.port, api.MakeHTTPHandler(), "", "", logger)
+	cs := coapserver.New(ctx, cancel, svcName, "", cfg.port, api.MakeCoAPHandler(svc, logger), logger)
 	g.Go(func() error {
 		return hs.Start()
 	})
-
 	g.Go(func() error {
-		return mfserver.ServerStopSignalHandler(ctx, cancel, logger, svcName, hs)
+		return cs.Start()
+	})
+	g.Go(func() error {
+		return mfserver.ServerStopSignalHandler(ctx, cancel, logger, svcName, hs, cs)
 	})
 
 	if err := g.Wait(); err != nil {
@@ -128,21 +127,5 @@ func loadConfig() config {
 		jaegerURL:         mainflux.Env(envJaegerURL, defJaegerURL),
 		thingsAuthURL:     mainflux.Env(envThingsAuthURL, defThingsAuthURL),
 		thingsAuthTimeout: authTimeout,
-	}
-}
-
-func startCOAPServer(ctx context.Context, cfg config, svc coap.Service, auth mainflux.ThingsServiceClient, l logger.Logger) error {
-	p := fmt.Sprintf(":%s", cfg.port)
-	errCh := make(chan error)
-	l.Info(fmt.Sprintf("CoAP adapter service started, exposed port %s", cfg.port))
-	go func() {
-		errCh <- gocoap.ListenAndServe("udp", p, api.MakeCoAPHandler(svc, l))
-	}()
-	select {
-	case <-ctx.Done():
-		l.Info(fmt.Sprintf("CoAP adapter service shutdown of http at %s", p))
-		return nil
-	case err := <-errCh:
-		return err
 	}
 }
