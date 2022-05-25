@@ -17,7 +17,7 @@ import (
 	internalauth "github.com/mainflux/mainflux/internal/auth"
 	mfdatabase "github.com/mainflux/mainflux/internal/db"
 	"github.com/mainflux/mainflux/internal/server"
-	mfhttpserver "github.com/mainflux/mainflux/internal/server/http"
+	httpserver "github.com/mainflux/mainflux/internal/server/http"
 	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/readers"
 	"github.com/mainflux/mainflux/readers/api"
@@ -108,7 +108,7 @@ func main() {
 
 	repo := newService(db, logger)
 
-	hs := mfhttpserver.New(ctx, cancel, svcName, "", cfg.port, api.MakeHandler(repo, tc, auth, svcName, logger), cfg.serverCert, cfg.serverKey, logger)
+	hs := httpserver.New(ctx, cancel, svcName, "", cfg.port, api.MakeHandler(repo, tc, auth, svcName, logger), cfg.serverCert, cfg.serverKey, logger)
 	g.Go(func() error {
 		return hs.Start()
 	})

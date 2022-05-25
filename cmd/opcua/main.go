@@ -15,7 +15,7 @@ import (
 	"github.com/mainflux/mainflux/internal"
 	mfdatabase "github.com/mainflux/mainflux/internal/db"
 	"github.com/mainflux/mainflux/internal/server"
-	mfhttpserver "github.com/mainflux/mainflux/internal/server/http"
+	httpserver "github.com/mainflux/mainflux/internal/server/http"
 	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/opcua"
 	"github.com/mainflux/mainflux/opcua/api"
@@ -117,7 +117,7 @@ func main() {
 	go subscribeToStoredSubs(sub, cfg.opcuaConfig, logger)
 	go subscribeToThingsES(svc, esConn, cfg.esConsumerName, logger)
 
-	hs := mfhttpserver.New(httpCtx, httpCancel, svcName, "", cfg.httpPort, api.MakeHandler(svc, logger), cfg.opcuaConfig.CertFile, cfg.opcuaConfig.KeyFile, logger)
+	hs := httpserver.New(httpCtx, httpCancel, svcName, "", cfg.httpPort, api.MakeHandler(svc, logger), cfg.opcuaConfig.CertFile, cfg.opcuaConfig.KeyFile, logger)
 	g.Go(func() error {
 		return hs.Start()
 	})

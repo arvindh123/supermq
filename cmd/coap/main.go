@@ -17,8 +17,8 @@ import (
 	"github.com/mainflux/mainflux/internal"
 	internalauth "github.com/mainflux/mainflux/internal/auth"
 	"github.com/mainflux/mainflux/internal/server"
-	mfcoapserver "github.com/mainflux/mainflux/internal/server/coap"
-	mfhttpserver "github.com/mainflux/mainflux/internal/server/http"
+	coapserver "github.com/mainflux/mainflux/internal/server/coap"
+	httpserver "github.com/mainflux/mainflux/internal/server/http"
 	logger "github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/pkg/messaging/nats"
 	thingsapi "github.com/mainflux/mainflux/things/api/auth/grpc"
@@ -91,8 +91,8 @@ func main() {
 	counter, latency := internal.MakeMetrics(svcName, "api")
 	svc = api.MetricsMiddleware(svc, counter, latency)
 
-	hs := mfhttpserver.New(ctx, cancel, svcName, "", cfg.port, api.MakeHTTPHandler(), "", "", logger)
-	cs := mfcoapserver.New(ctx, cancel, svcName, "", cfg.port, api.MakeCoAPHandler(svc, logger), logger)
+	hs := httpserver.New(ctx, cancel, svcName, "", cfg.port, api.MakeHTTPHandler(), "", "", logger)
+	cs := coapserver.New(ctx, cancel, svcName, "", cfg.port, api.MakeCoAPHandler(svc, logger), logger)
 	g.Go(func() error {
 		return hs.Start()
 	})

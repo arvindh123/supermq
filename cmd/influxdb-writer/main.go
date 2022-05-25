@@ -17,7 +17,7 @@ import (
 	"github.com/mainflux/mainflux/consumers/writers/influxdb"
 	"github.com/mainflux/mainflux/internal"
 	"github.com/mainflux/mainflux/internal/server"
-	mfhttpserver "github.com/mainflux/mainflux/internal/server/http"
+	httpserver "github.com/mainflux/mainflux/internal/server/http"
 	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/pkg/messaging/nats"
 	"golang.org/x/sync/errgroup"
@@ -91,7 +91,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	hs := mfhttpserver.New(ctx, cancel, svcName, "", cfg.port, api.MakeHandler(svcName), "", "", logger)
+	hs := httpserver.New(ctx, cancel, svcName, "", cfg.port, api.MakeHandler(svcName), "", "", logger)
 	g.Go(func() error {
 		return hs.Start()
 	})

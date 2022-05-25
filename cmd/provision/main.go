@@ -12,7 +12,7 @@ import (
 
 	"github.com/mainflux/mainflux"
 	"github.com/mainflux/mainflux/internal/server"
-	mfhttpserver "github.com/mainflux/mainflux/internal/server/http"
+	httpserver "github.com/mainflux/mainflux/internal/server/http"
 	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/pkg/errors"
 	mfSDK "github.com/mainflux/mainflux/pkg/sdk/go"
@@ -115,7 +115,7 @@ func main() {
 	svc := provision.New(cfg, SDK, logger)
 	svc = api.NewLoggingMiddleware(svc, logger)
 
-	hs := mfhttpserver.New(ctx, cancel, svcName, "", cfg.Server.HTTPPort, api.MakeHandler(svc, logger), cfg.Server.ServerCert, cfg.Server.ServerKey, logger)
+	hs := httpserver.New(ctx, cancel, svcName, "", cfg.Server.HTTPPort, api.MakeHandler(svc, logger), cfg.Server.ServerCert, cfg.Server.ServerKey, logger)
 	g.Go(func() error {
 		return hs.Start()
 	})

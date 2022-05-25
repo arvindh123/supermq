@@ -16,7 +16,7 @@ import (
 	"github.com/mainflux/mainflux/internal"
 	mfdatabase "github.com/mainflux/mainflux/internal/db"
 	"github.com/mainflux/mainflux/internal/server"
-	mfhttpserver "github.com/mainflux/mainflux/internal/server/http"
+	httpserver "github.com/mainflux/mainflux/internal/server/http"
 	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/lora"
 	"github.com/mainflux/mainflux/lora/api"
@@ -116,7 +116,7 @@ func main() {
 	go subscribeToLoRaBroker(svc, mqttConn, cfg.loraMsgTimeout, cfg.loraMsgTopic, logger)
 	go subscribeToThingsES(svc, esConn, cfg.esConsumerName, logger)
 
-	hs := mfhttpserver.New(ctx, cancel, svcName, "", cfg.httpPort, api.MakeHandler(), "", "", logger)
+	hs := httpserver.New(ctx, cancel, svcName, "", cfg.httpPort, api.MakeHandler(), "", "", logger)
 	g.Go(func() error {
 		return hs.Start()
 	})

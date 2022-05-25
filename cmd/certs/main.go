@@ -23,7 +23,7 @@ import (
 	"github.com/mainflux/mainflux/internal"
 	internalauth "github.com/mainflux/mainflux/internal/auth"
 	"github.com/mainflux/mainflux/internal/server"
-	mfhttpserver "github.com/mainflux/mainflux/internal/server/http"
+	httpserver "github.com/mainflux/mainflux/internal/server/http"
 	"github.com/mainflux/mainflux/logger"
 	"golang.org/x/sync/errgroup"
 
@@ -173,7 +173,7 @@ func main() {
 
 	svc := newService(auth, db, logger, nil, tlsCert, caCert, cfg, pkiClient)
 
-	hs := mfhttpserver.New(ctx, cancel, svcName, "", cfg.httpPort, api.MakeHandler(svc, logger), cfg.serverCert, cfg.serverKey, logger)
+	hs := httpserver.New(ctx, cancel, svcName, "", cfg.httpPort, api.MakeHandler(svc, logger), cfg.serverCert, cfg.serverKey, logger)
 	g.Go(func() error {
 		return hs.Start()
 	})
