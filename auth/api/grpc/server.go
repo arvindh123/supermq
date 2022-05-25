@@ -253,6 +253,6 @@ func encodeError(err error) error {
 	case errors.Contains(err, errors.ErrAuthorization):
 		return status.Error(codes.PermissionDenied, err.Error())
 	default:
-		return status.Error(codes.Internal, "apiutil server error")
+		return status.Error(codes.Internal, "internal server error")
 	}
 }
