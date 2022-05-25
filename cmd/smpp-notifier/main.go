@@ -19,6 +19,7 @@ import (
 	"github.com/mainflux/mainflux/consumers/notifiers/api"
 	"github.com/mainflux/mainflux/consumers/notifiers/postgres"
 	"github.com/mainflux/mainflux/internal"
+	internalauth "github.com/mainflux/mainflux/internal/auth"
 	"github.com/mainflux/mainflux/internal/server"
 	mfhttpserver "github.com/mainflux/mainflux/internal/server/http"
 	"golang.org/x/sync/errgroup"
@@ -138,7 +139,7 @@ func main() {
 	}
 	defer pubSub.Close()
 
-	authTracer, closer := internal.Jaeger("auth", cfg.jaegerURL, logger)
+	authTracer, closer := internalauth.Jaeger("auth", cfg.jaegerURL, logger)
 	defer closer.Close()
 
 	auth, close := connectToAuth(cfg, authTracer, logger)
@@ -146,10 +147,10 @@ func main() {
 		defer close()
 	}
 
-	tracer, closer := internal.Jaeger("smpp-notifier", cfg.jaegerURL, logger)
+	tracer, closer := internalauth.Jaeger("smpp-notifier", cfg.jaegerURL, logger)
 	defer closer.Close()
 
-	dbTracer, dbCloser := internal.Jaeger("smpp-notifier_db", cfg.jaegerURL, logger)
+	dbTracer, dbCloser := internalauth.Jaeger("smpp-notifier_db", cfg.jaegerURL, logger)
 	defer dbCloser.Close()
 
 	svc := newService(db, dbTracer, auth, cfg, logger)
@@ -164,7 +165,7 @@ func main() {
 	})
 
 	g.Go(func() error {
-		return server.ServerStopSignalHandler(ctx, cancel, logger, svcName, hs)
+		return server.StopSignalHandler(ctx, cancel, logger, svcName, hs)
 	})
 
 	if err := g.Wait(); err != nil {

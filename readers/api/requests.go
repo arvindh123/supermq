@@ -4,7 +4,7 @@
 package api
 
 import (
-	"github.com/mainflux/mainflux/internal"
+	"github.com/mainflux/mainflux/internal/apiutil"
 	"github.com/mainflux/mainflux/readers"
 )
 
@@ -23,19 +23,19 @@ type listMessagesReq struct {
 
 func (req listMessagesReq) validate() error {
 	if req.token == "" && req.key == "" {
-		return internal.ErrBearerToken
+		return apiutil.ErrBearerToken
 	}
 
 	if req.chanID == "" {
-		return internal.ErrMissingID
+		return apiutil.ErrMissingID
 	}
 
 	if req.pageMeta.Limit < 1 || req.pageMeta.Limit > maxLimitSize {
-		return internal.ErrLimitSize
+		return apiutil.ErrLimitSize
 	}
 
 	if req.pageMeta.Offset < 0 {
-		return internal.ErrOffsetSize
+		return apiutil.ErrOffsetSize
 	}
 
 	if req.pageMeta.Comparator != "" &&
@@ -44,7 +44,7 @@ func (req listMessagesReq) validate() error {
 		req.pageMeta.Comparator != readers.LowerThanEqualKey &&
 		req.pageMeta.Comparator != readers.GreaterThanKey &&
 		req.pageMeta.Comparator != readers.GreaterThanEqualKey {
-		return internal.ErrInvalidComparator
+		return apiutil.ErrInvalidComparator
 	}
 
 	return nil

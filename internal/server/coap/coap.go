@@ -15,15 +15,15 @@ const (
 	stopWaitTime = 5 * time.Second
 )
 
-type COAPServer struct {
+type Server struct {
 	server.BaseServer
 	handler mux.HandlerFunc
 }
 
-var _ server.Server = (*COAPServer)(nil)
+var _ server.Server = (*Server)(nil)
 
 func New(ctx context.Context, cancel context.CancelFunc, name string, address string, port string, handler mux.HandlerFunc, logger logger.Logger) server.Server {
-	return &COAPServer{
+	return &Server{
 		BaseServer: server.BaseServer{
 			Ctx:     ctx,
 			Cancel:  cancel,
@@ -36,7 +36,7 @@ func New(ctx context.Context, cancel context.CancelFunc, name string, address st
 	}
 }
 
-func (s *COAPServer) Start() error {
+func (s *Server) Start() error {
 	errCh := make(chan error)
 	s.Logger.Info(fmt.Sprintf("%s service started using http, exposed port %s", s.Name, s.Port))
 	go func() {
@@ -52,7 +52,7 @@ func (s *COAPServer) Start() error {
 
 }
 
-func (s *COAPServer) Stop() error {
+func (s *Server) Stop() error {
 	defer s.Cancel()
 	c := make(chan bool)
 	defer close(c)

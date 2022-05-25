@@ -8,7 +8,7 @@ import (
 	kithttp "github.com/go-kit/kit/transport/http"
 	"github.com/go-zoo/bone"
 	"github.com/mainflux/mainflux"
-	"github.com/mainflux/mainflux/internal"
+	"github.com/mainflux/mainflux/internal/apiutil"
 	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/pkg/errors"
 	"github.com/mainflux/mainflux/provision"
@@ -23,7 +23,7 @@ const (
 func MakeHandler(svc provision.Service, logger logger.Logger) http.Handler {
 
 	opts := []kithttp.ServerOption{
-		kithttp.ServerErrorEncoder(internal.LoggingErrorEncoder(logger, encodeError)),
+		kithttp.ServerErrorEncoder(apiutil.LoggingErrorEncoder(logger, encodeError)),
 	}
 
 	r := bone.New()
@@ -71,7 +71,7 @@ func decodeProvisionRequest(_ context.Context, r *http.Request) (interface{}, er
 		return nil, errors.ErrUnsupportedContentType
 	}
 
-	req := provisionReq{token: internal.ExtractBearerToken(r)}
+	req := provisionReq{token: apiutil.ExtractBearerToken(r)}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return nil, err
 	}
@@ -84,7 +84,7 @@ func decodeMappingRequest(_ context.Context, r *http.Request) (interface{}, erro
 		return nil, errors.ErrUnsupportedContentType
 	}
 
-	req := mappingReq{token: internal.ExtractBearerToken(r)}
+	req := mappingReq{token: apiutil.ExtractBearerToken(r)}
 
 	return req, nil
 }
@@ -92,13 +92,13 @@ func decodeMappingRequest(_ context.Context, r *http.Request) (interface{}, erro
 func encodeError(_ context.Context, err error, w http.ResponseWriter) {
 	switch {
 	case errors.Contains(err, errors.ErrAuthentication),
-		err == internal.ErrBearerToken:
+		err == apiutil.ErrBearerToken:
 		w.WriteHeader(http.StatusUnauthorized)
 	case errors.Contains(err, errors.ErrUnsupportedContentType):
 		w.WriteHeader(http.StatusUnsupportedMediaType)
 	case errors.Contains(err, errors.ErrMalformedEntity),
-		err == internal.ErrMissingID,
-		err == internal.ErrBearerKey:
+		err == apiutil.ErrMissingID,
+		err == apiutil.ErrBearerKey:
 		w.WriteHeader(http.StatusBadRequest)
 	case errors.Contains(err, errors.ErrConflict):
 		w.WriteHeader(http.StatusConflict)
@@ -109,7 +109,7 @@ func encodeError(_ context.Context, err error, w http.ResponseWriter) {
 
 	if errorVal, ok := err.(errors.Error); ok {
 		w.Header().Set("Content-Type", contentType)
-		if err := json.NewEncoder(w).Encode(internal.ErrorRes{Err: errorVal.Msg()}); err != nil {
+		if err := json.NewEncoder(w).Encode(apiutil.ErrorRes{Err: errorVal.Msg()}); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 		}
 	}

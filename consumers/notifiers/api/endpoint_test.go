@@ -17,7 +17,7 @@ import (
 	notifiers "github.com/mainflux/mainflux/consumers/notifiers"
 	httpapi "github.com/mainflux/mainflux/consumers/notifiers/api"
 	"github.com/mainflux/mainflux/consumers/notifiers/mocks"
-	"github.com/mainflux/mainflux/internal"
+	"github.com/mainflux/mainflux/internal/apiutil"
 	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/pkg/errors"
 	"github.com/mainflux/mainflux/pkg/uuid"
@@ -37,10 +37,10 @@ const (
 )
 
 var (
-	notFoundRes   = toJSON(internal.ErrorRes{Err: errors.ErrNotFound.Error()})
-	unauthRes     = toJSON(internal.ErrorRes{Err: errors.ErrAuthentication.Error()})
-	invalidRes    = toJSON(internal.ErrorRes{Err: errors.ErrInvalidQueryParams.Error()})
-	missingTokRes = toJSON(internal.ErrorRes{Err: internal.ErrBearerToken.Error()})
+	notFoundRes   = toJSON(apiutil.ErrorRes{Err: errors.ErrNotFound.Error()})
+	unauthRes     = toJSON(apiutil.ErrorRes{Err: errors.ErrAuthentication.Error()})
+	invalidRes    = toJSON(apiutil.ErrorRes{Err: errors.ErrInvalidQueryParams.Error()})
+	missingTokRes = toJSON(apiutil.ErrorRes{Err: apiutil.ErrBearerToken.Error()})
 )
 
 type testRequest struct {
@@ -58,7 +58,7 @@ func (tr testRequest) make() (*http.Response, error) {
 		return nil, err
 	}
 	if tr.token != "" {
-		req.Header.Set("Authorization", internal.BearerPrefix+tr.token)
+		req.Header.Set("Authorization", apiutil.BearerPrefix+tr.token)
 	}
 	if tr.contentType != "" {
 		req.Header.Set("Content-Type", tr.contentType)

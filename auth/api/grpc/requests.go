@@ -5,7 +5,7 @@ package grpc
 
 import (
 	"github.com/mainflux/mainflux/auth"
-	"github.com/mainflux/mainflux/internal"
+	"github.com/mainflux/mainflux/internal/apiutil"
 )
 
 type identityReq struct {
@@ -15,12 +15,12 @@ type identityReq struct {
 
 func (req identityReq) validate() error {
 	if req.token == "" {
-		return internal.ErrBearerToken
+		return apiutil.ErrBearerToken
 	}
 	if req.kind != auth.LoginKey &&
 		req.kind != auth.APIKey &&
 		req.kind != auth.RecoveryKey {
-		return internal.ErrInvalidAuthKey
+		return apiutil.ErrInvalidAuthKey
 	}
 
 	return nil
@@ -34,12 +34,12 @@ type issueReq struct {
 
 func (req issueReq) validate() error {
 	if req.email == "" {
-		return internal.ErrMissingEmail
+		return apiutil.ErrMissingEmail
 	}
 	if req.keyType != auth.LoginKey &&
 		req.keyType != auth.APIKey &&
 		req.keyType != auth.RecoveryKey {
-		return internal.ErrInvalidAuthKey
+		return apiutil.ErrInvalidAuthKey
 	}
 
 	return nil
@@ -54,10 +54,10 @@ type assignReq struct {
 
 func (req assignReq) validate() error {
 	if req.token == "" {
-		return internal.ErrBearerToken
+		return apiutil.ErrBearerToken
 	}
 	if req.groupID == "" || req.memberID == "" {
-		return internal.ErrMissingID
+		return apiutil.ErrMissingID
 	}
 	return nil
 }
@@ -72,13 +72,13 @@ type membersReq struct {
 
 func (req membersReq) validate() error {
 	if req.token == "" {
-		return internal.ErrBearerToken
+		return apiutil.ErrBearerToken
 	}
 	if req.groupID == "" {
-		return internal.ErrMissingID
+		return apiutil.ErrMissingID
 	}
 	if req.memberType == "" {
-		return internal.ErrMissingMemberType
+		return apiutil.ErrMissingMemberType
 	}
 	return nil
 }
@@ -95,15 +95,15 @@ type authReq struct {
 
 func (req authReq) validate() error {
 	if req.Sub == "" {
-		return internal.ErrMissingPolicySub
+		return apiutil.ErrMissingPolicySub
 	}
 
 	if req.Obj == "" {
-		return internal.ErrMissingPolicyObj
+		return apiutil.ErrMissingPolicyObj
 	}
 
 	if req.Act == "" {
-		return internal.ErrMissingPolicyAct
+		return apiutil.ErrMissingPolicyAct
 	}
 
 	return nil
@@ -117,15 +117,15 @@ type policyReq struct {
 
 func (req policyReq) validate() error {
 	if req.Sub == "" {
-		return internal.ErrMissingPolicySub
+		return apiutil.ErrMissingPolicySub
 	}
 
 	if req.Obj == "" {
-		return internal.ErrMissingPolicyObj
+		return apiutil.ErrMissingPolicyObj
 	}
 
 	if req.Act == "" {
-		return internal.ErrMissingPolicyAct
+		return apiutil.ErrMissingPolicyAct
 	}
 
 	return nil

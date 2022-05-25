@@ -42,7 +42,7 @@ func stopAllServer(servers ...Server) error {
 	return err
 }
 
-func ServerStopSignalHandler(ctx context.Context, cancel context.CancelFunc, logger logger.Logger, svcName string, servers ...Server) error {
+func StopSignalHandler(ctx context.Context, cancel context.CancelFunc, logger logger.Logger, svcName string, servers ...Server) error {
 	var err error
 	c := make(chan os.Signal)
 	signal.Notify(c, syscall.SIGINT, syscall.SIGABRT)

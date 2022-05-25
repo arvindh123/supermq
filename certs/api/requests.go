@@ -3,7 +3,7 @@
 
 package api
 
-import "github.com/mainflux/mainflux/internal"
+import "github.com/mainflux/mainflux/internal/apiutil"
 
 const maxLimitSize = 100
 
@@ -17,15 +17,15 @@ type addCertsReq struct {
 
 func (req addCertsReq) validate() error {
 	if req.token == "" {
-		return internal.ErrBearerToken
+		return apiutil.ErrBearerToken
 	}
 
 	if req.ThingID == "" {
-		return internal.ErrMissingID
+		return apiutil.ErrMissingID
 	}
 
 	if req.TTL == "" || req.KeyType == "" || req.KeyBits == 0 {
-		return internal.ErrMissingCertData
+		return apiutil.ErrMissingCertData
 	}
 
 	return nil
@@ -40,10 +40,10 @@ type listReq struct {
 
 func (req *listReq) validate() error {
 	if req.token == "" {
-		return internal.ErrBearerToken
+		return apiutil.ErrBearerToken
 	}
 	if req.limit > maxLimitSize {
-		return internal.ErrLimitSize
+		return apiutil.ErrLimitSize
 	}
 	return nil
 }
@@ -55,10 +55,10 @@ type viewReq struct {
 
 func (req *viewReq) validate() error {
 	if req.token == "" {
-		return internal.ErrBearerToken
+		return apiutil.ErrBearerToken
 	}
 	if req.serialID == "" {
-		return internal.ErrMissingID
+		return apiutil.ErrMissingID
 	}
 
 	return nil
@@ -71,11 +71,11 @@ type revokeReq struct {
 
 func (req *revokeReq) validate() error {
 	if req.token == "" {
-		return internal.ErrBearerToken
+		return apiutil.ErrBearerToken
 	}
 
 	if req.certID == "" {
-		return internal.ErrMissingID
+		return apiutil.ErrMissingID
 	}
 
 	return nil

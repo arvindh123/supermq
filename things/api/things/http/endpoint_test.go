@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mainflux/mainflux/internal"
+	"github.com/mainflux/mainflux/internal/apiutil"
 	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/pkg/errors"
 	"github.com/mainflux/mainflux/pkg/uuid"
@@ -52,10 +52,10 @@ var (
 		Metadata: map[string]interface{}{"test": "data"},
 	}
 	invalidName    = strings.Repeat("m", maxNameSize+1)
-	notFoundRes    = toJSON(internal.ErrorRes{Err: errors.ErrNotFound.Error()})
-	unauthzRes     = toJSON(internal.ErrorRes{Err: errors.ErrAuthorization.Error()})
-	unauthRes      = toJSON(internal.ErrorRes{Err: errors.ErrAuthentication.Error()})
-	missingTokRes  = toJSON(internal.ErrorRes{Err: internal.ErrBearerToken.Error()})
+	notFoundRes    = toJSON(apiutil.ErrorRes{Err: errors.ErrNotFound.Error()})
+	unauthzRes     = toJSON(apiutil.ErrorRes{Err: errors.ErrAuthorization.Error()})
+	unauthRes      = toJSON(apiutil.ErrorRes{Err: errors.ErrAuthentication.Error()})
+	missingTokRes  = toJSON(apiutil.ErrorRes{Err: apiutil.ErrBearerToken.Error()})
 	searchThingReq = things.PageMetadata{
 		Limit:  5,
 		Offset: 0,
@@ -77,7 +77,7 @@ func (tr testRequest) make() (*http.Response, error) {
 		return nil, err
 	}
 	if tr.token != "" {
-		req.Header.Set("Authorization", internal.BearerPrefix+tr.token)
+		req.Header.Set("Authorization", apiutil.BearerPrefix+tr.token)
 	}
 	if tr.contentType != "" {
 		req.Header.Set("Content-Type", tr.contentType)

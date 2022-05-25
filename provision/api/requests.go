@@ -1,6 +1,6 @@
 package api
 
-import "github.com/mainflux/mainflux/internal"
+import "github.com/mainflux/mainflux/internal/apiutil"
 
 type provisionReq struct {
 	token       string
@@ -11,11 +11,11 @@ type provisionReq struct {
 
 func (req provisionReq) validate() error {
 	if req.ExternalID == "" {
-		return internal.ErrMissingID
+		return apiutil.ErrMissingID
 	}
 
 	if req.ExternalKey == "" {
-		return internal.ErrBearerKey
+		return apiutil.ErrBearerKey
 	}
 
 	return nil
@@ -27,7 +27,7 @@ type mappingReq struct {
 
 func (req mappingReq) validate() error {
 	if req.token == "" {
-		return internal.ErrBearerToken
+		return apiutil.ErrBearerToken
 	}
 	return nil
 }

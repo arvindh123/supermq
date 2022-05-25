@@ -18,6 +18,7 @@ import (
 	"github.com/mainflux/mainflux/auth/postgres"
 	"github.com/mainflux/mainflux/auth/tracing"
 	"github.com/mainflux/mainflux/internal"
+	internalauth "github.com/mainflux/mainflux/internal/auth"
 	"github.com/mainflux/mainflux/internal/server"
 	mfgrpcserver "github.com/mainflux/mainflux/internal/server/grpc"
 	mfhttpserver "github.com/mainflux/mainflux/internal/server/http"
@@ -115,13 +116,13 @@ func main() {
 	db := connectToDB(cfg.dbConfig, logger)
 	defer db.Close()
 
-	tracer, closer := internal.Jaeger("auth", cfg.jaegerURL, logger)
+	tracer, closer := internalauth.Jaeger("auth", cfg.jaegerURL, logger)
 	defer closer.Close()
 
-	dbTracer, dbCloser := internal.Jaeger("auth_db", cfg.jaegerURL, logger)
+	dbTracer, dbCloser := internalauth.Jaeger("auth_db", cfg.jaegerURL, logger)
 	defer dbCloser.Close()
 
-	readerConn, writerConn := internal.Keto(cfg.ketoReadHost, cfg.ketoReadPort, cfg.ketoWriteHost, cfg.ketoWritePort, logger)
+	readerConn, writerConn := internalauth.Keto(cfg.ketoReadHost, cfg.ketoReadPort, cfg.ketoWriteHost, cfg.ketoWritePort, logger)
 
 	svc := newService(db, dbTracer, cfg.secret, logger, readerConn, writerConn, cfg.loginDuration)
 
@@ -139,7 +140,7 @@ func main() {
 	})
 
 	g.Go(func() error {
-		return server.ServerStopSignalHandler(ctx, cancel, logger, svcName, hs, gs)
+		return server.StopSignalHandler(ctx, cancel, logger, svcName, hs, gs)
 	})
 	if err := g.Wait(); err != nil {
 		logger.Error(fmt.Sprintf("Authentication service terminated: %s", err))

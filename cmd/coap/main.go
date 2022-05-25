@@ -15,6 +15,7 @@ import (
 	"github.com/mainflux/mainflux/coap"
 	"github.com/mainflux/mainflux/coap/api"
 	"github.com/mainflux/mainflux/internal"
+	internalauth "github.com/mainflux/mainflux/internal/auth"
 	"github.com/mainflux/mainflux/internal/server"
 	mfcoapserver "github.com/mainflux/mainflux/internal/server/coap"
 	mfhttpserver "github.com/mainflux/mainflux/internal/server/http"
@@ -68,10 +69,10 @@ func main() {
 		log.Fatalf(err.Error())
 	}
 
-	conn := internal.ConnectToThings(cfg.clientTLS, cfg.caCerts, cfg.thingsAuthURL, svcName, logger)
+	conn := internalauth.ConnectToThings(cfg.clientTLS, cfg.caCerts, cfg.thingsAuthURL, svcName, logger)
 	defer conn.Close()
 
-	thingsTracer, thingsCloser := internal.Jaeger("things", cfg.jaegerURL, logger)
+	thingsTracer, thingsCloser := internalauth.Jaeger("things", cfg.jaegerURL, logger)
 	defer thingsCloser.Close()
 
 	tc := thingsapi.NewClient(conn, thingsTracer, cfg.thingsAuthTimeout)
@@ -99,7 +100,7 @@ func main() {
 		return cs.Start()
 	})
 	g.Go(func() error {
-		return server.ServerStopSignalHandler(ctx, cancel, logger, svcName, hs, cs)
+		return server.StopSignalHandler(ctx, cancel, logger, svcName, hs, cs)
 	})
 
 	if err := g.Wait(); err != nil {

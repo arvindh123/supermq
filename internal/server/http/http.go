@@ -16,17 +16,17 @@ const (
 	httpsProtocol = "https"
 )
 
-type HTTPServer struct {
+type Server struct {
 	mfserver.BaseServer
 	server *http.Server
 }
 
-var _ mfserver.Server = (*HTTPServer)(nil)
+var _ mfserver.Server = (*Server)(nil)
 
 func New(ctx context.Context, cancel context.CancelFunc, name string, address string, port string, handler http.Handler, certPath string, keyPath string, logger logger.Logger) mfserver.Server {
 	listenFullAddress := fmt.Sprintf(":%s", port)
 	server := &http.Server{Addr: listenFullAddress, Handler: handler}
-	return &HTTPServer{
+	return &Server{
 		BaseServer: mfserver.BaseServer{
 			Ctx:      ctx,
 			Cancel:   cancel,
@@ -41,7 +41,7 @@ func New(ctx context.Context, cancel context.CancelFunc, name string, address st
 	}
 }
 
-func (s *HTTPServer) Start() error {
+func (s *Server) Start() error {
 	errCh := make(chan error)
 	s.Protocol = httpProtocol
 	switch {
@@ -65,7 +65,7 @@ func (s *HTTPServer) Start() error {
 	}
 }
 
-func (s *HTTPServer) Stop() error {
+func (s *Server) Stop() error {
 	defer s.Cancel()
 	ctxShutdown, cancelShutdown := context.WithTimeout(context.Background(), stopWaitTime)
 	defer cancelShutdown()

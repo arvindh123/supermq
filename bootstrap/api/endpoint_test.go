@@ -23,7 +23,7 @@ import (
 	"github.com/mainflux/mainflux/bootstrap"
 	bsapi "github.com/mainflux/mainflux/bootstrap/api"
 	"github.com/mainflux/mainflux/bootstrap/mocks"
-	"github.com/mainflux/mainflux/internal"
+	"github.com/mainflux/mainflux/internal/apiutil"
 	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/pkg/errors"
 	mfsdk "github.com/mainflux/mainflux/pkg/sdk/go"
@@ -83,14 +83,14 @@ var (
 		CACert:     "newca",
 	}
 
-	bsErrorRes    = toJSON(internal.ErrorRes{Err: bootstrap.ErrBootstrap.Error()})
-	authnRes      = toJSON(internal.ErrorRes{Err: errors.ErrAuthentication.Error()})
-	authzRes      = toJSON(internal.ErrorRes{Err: errors.ErrAuthorization.Error()})
-	malformedRes  = toJSON(internal.ErrorRes{Err: errors.ErrMalformedEntity.Error()})
-	extKeyRes     = toJSON(internal.ErrorRes{Err: bootstrap.ErrExternalKey.Error()})
-	extSecKeyRes  = toJSON(internal.ErrorRes{Err: bootstrap.ErrExternalKeySecure.Error()})
-	missingIDRes  = toJSON(internal.ErrorRes{Err: internal.ErrMissingID.Error()})
-	missingKeyRes = toJSON(internal.ErrorRes{Err: internal.ErrBearerKey.Error()})
+	bsErrorRes    = toJSON(apiutil.ErrorRes{Err: bootstrap.ErrBootstrap.Error()})
+	authnRes      = toJSON(apiutil.ErrorRes{Err: errors.ErrAuthentication.Error()})
+	authzRes      = toJSON(apiutil.ErrorRes{Err: errors.ErrAuthorization.Error()})
+	malformedRes  = toJSON(apiutil.ErrorRes{Err: errors.ErrMalformedEntity.Error()})
+	extKeyRes     = toJSON(apiutil.ErrorRes{Err: bootstrap.ErrExternalKey.Error()})
+	extSecKeyRes  = toJSON(apiutil.ErrorRes{Err: bootstrap.ErrExternalKeySecure.Error()})
+	missingIDRes  = toJSON(apiutil.ErrorRes{Err: apiutil.ErrMissingID.Error()})
+	missingKeyRes = toJSON(apiutil.ErrorRes{Err: apiutil.ErrBearerKey.Error()})
 )
 
 type testRequest struct {
@@ -124,10 +124,10 @@ func (tr testRequest) make() (*http.Response, error) {
 	}
 
 	if tr.token != "" {
-		req.Header.Set("Authorization", internal.BearerPrefix+tr.token)
+		req.Header.Set("Authorization", apiutil.BearerPrefix+tr.token)
 	}
 	if tr.key != "" {
-		req.Header.Set("Authorization", internal.ThingPrefix+tr.key)
+		req.Header.Set("Authorization", apiutil.ThingPrefix+tr.key)
 	}
 
 	if tr.contentType != "" {

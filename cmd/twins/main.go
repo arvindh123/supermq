@@ -15,6 +15,7 @@ import (
 	"github.com/mainflux/mainflux"
 	authapi "github.com/mainflux/mainflux/auth/api/grpc"
 	"github.com/mainflux/mainflux/internal"
+	internalauth "github.com/mainflux/mainflux/internal/auth"
 	mfdatabase "github.com/mainflux/mainflux/internal/db"
 	"github.com/mainflux/mainflux/internal/server"
 	mfhttpserver "github.com/mainflux/mainflux/internal/server/http"
@@ -111,7 +112,7 @@ func main() {
 	}
 
 	cacheClient := mfdatabase.ConnectToRedis(cfg.cacheURL, cfg.cachePass, cfg.cacheDB, logger)
-	cacheTracer, cacheCloser := internal.Jaeger("twins_cache", cfg.jaegerURL, logger)
+	cacheTracer, cacheCloser := internalauth.Jaeger("twins_cache", cfg.jaegerURL, logger)
 	defer cacheCloser.Close()
 
 	db, err := twmongodb.Connect(cfg.dbCfg, logger)
@@ -119,10 +120,10 @@ func main() {
 		logger.Error(err.Error())
 		os.Exit(1)
 	}
-	dbTracer, dbCloser := internal.Jaeger("twins_db", cfg.jaegerURL, logger)
+	dbTracer, dbCloser := internalauth.Jaeger("twins_db", cfg.jaegerURL, logger)
 	defer dbCloser.Close()
 
-	authTracer, authCloser := internal.Jaeger("auth", cfg.jaegerURL, logger)
+	authTracer, authCloser := internalauth.Jaeger("auth", cfg.jaegerURL, logger)
 	defer authCloser.Close()
 	auth, _ := createAuthClient(cfg, authTracer, logger)
 
@@ -135,7 +136,7 @@ func main() {
 
 	svc := newService(svcName, pubSub, cfg.channelID, auth, dbTracer, db, cacheTracer, cacheClient, logger)
 
-	tracer, closer := internal.Jaeger("twins", cfg.jaegerURL, logger)
+	tracer, closer := internalauth.Jaeger("twins", cfg.jaegerURL, logger)
 	defer closer.Close()
 
 	hs := mfhttpserver.New(ctx, cancel, svcName, "", cfg.httpPort, twapi.MakeHandler(tracer, svc, logger), cfg.serverCert, cfg.serverKey, logger)
@@ -144,7 +145,7 @@ func main() {
 	})
 
 	g.Go(func() error {
-		return server.ServerStopSignalHandler(ctx, cancel, logger, svcName, hs)
+		return server.StopSignalHandler(ctx, cancel, logger, svcName, hs)
 	})
 
 	if err := g.Wait(); err != nil {
@@ -195,7 +196,7 @@ func createAuthClient(cfg config, tracer opentracing.Tracer, logger logger.Logge
 		return localusers.NewAuthService(cfg.standaloneEmail, cfg.standaloneToken), nil
 	}
 
-	conn := internal.ConnectToAuth(cfg.clientTLS, cfg.caCerts, cfg.authURL, svcName, logger)
+	conn := internalauth.ConnectToAuth(cfg.clientTLS, cfg.caCerts, cfg.authURL, svcName, logger)
 	return authapi.NewClient(tracer, conn, cfg.authTimeout), conn.Close
 }
 

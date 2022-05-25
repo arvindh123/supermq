@@ -1,6 +1,6 @@
 package policies
 
-import "github.com/mainflux/mainflux/internal"
+import "github.com/mainflux/mainflux/internal/apiutil"
 
 // Action represents an enum for the policies used in the Mainflux.
 type Action int
@@ -33,30 +33,30 @@ type policiesReq struct {
 
 func (req policiesReq) validate() error {
 	if req.token == "" {
-		return internal.ErrBearerToken
+		return apiutil.ErrBearerToken
 	}
 
 	if len(req.SubjectIDs) == 0 {
-		return internal.ErrEmptyList
+		return apiutil.ErrEmptyList
 	}
 
 	if len(req.Policies) == 0 {
-		return internal.ErrEmptyList
+		return apiutil.ErrEmptyList
 	}
 
 	if req.Object == "" {
-		return internal.ErrMissingPolicyObj
+		return apiutil.ErrMissingPolicyObj
 	}
 
 	for _, policy := range req.Policies {
 		if _, ok := actions[policy]; !ok {
-			return internal.ErrMalformedPolicy
+			return apiutil.ErrMalformedPolicy
 		}
 	}
 
 	for _, subID := range req.SubjectIDs {
 		if subID == "" {
-			return internal.ErrMissingPolicySub
+			return apiutil.ErrMissingPolicySub
 		}
 	}
 

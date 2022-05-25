@@ -2,7 +2,7 @@ package groups
 
 import (
 	"github.com/mainflux/mainflux/auth"
-	"github.com/mainflux/mainflux/internal"
+	"github.com/mainflux/mainflux/internal/apiutil"
 )
 
 type createGroupReq struct {
@@ -15,10 +15,10 @@ type createGroupReq struct {
 
 func (req createGroupReq) validate() error {
 	if req.token == "" {
-		return internal.ErrBearerToken
+		return apiutil.ErrBearerToken
 	}
 	if len(req.Name) > maxNameSize || req.Name == "" {
-		return internal.ErrNameSize
+		return apiutil.ErrNameSize
 	}
 
 	return nil
@@ -34,11 +34,11 @@ type updateGroupReq struct {
 
 func (req updateGroupReq) validate() error {
 	if req.token == "" {
-		return internal.ErrBearerToken
+		return apiutil.ErrBearerToken
 	}
 
 	if req.id == "" {
-		return internal.ErrMissingID
+		return apiutil.ErrMissingID
 	}
 
 	return nil
@@ -56,11 +56,11 @@ type listGroupsReq struct {
 
 func (req listGroupsReq) validate() error {
 	if req.token == "" {
-		return internal.ErrBearerToken
+		return apiutil.ErrBearerToken
 	}
 
 	if req.level > auth.MaxLevel || req.level < auth.MinLevel {
-		return internal.ErrMaxLevelExceeded
+		return apiutil.ErrMaxLevelExceeded
 	}
 
 	return nil
@@ -78,11 +78,11 @@ type listMembersReq struct {
 
 func (req listMembersReq) validate() error {
 	if req.token == "" {
-		return internal.ErrBearerToken
+		return apiutil.ErrBearerToken
 	}
 
 	if req.id == "" {
-		return internal.ErrMissingID
+		return apiutil.ErrMissingID
 	}
 
 	return nil
@@ -98,11 +98,11 @@ type listMembershipsReq struct {
 
 func (req listMembershipsReq) validate() error {
 	if req.token == "" {
-		return internal.ErrBearerToken
+		return apiutil.ErrBearerToken
 	}
 
 	if req.id == "" {
-		return internal.ErrMissingID
+		return apiutil.ErrMissingID
 	}
 
 	return nil
@@ -117,19 +117,19 @@ type assignReq struct {
 
 func (req assignReq) validate() error {
 	if req.token == "" {
-		return internal.ErrBearerToken
+		return apiutil.ErrBearerToken
 	}
 
 	if req.Type == "" {
-		return internal.ErrMissingMemberType
+		return apiutil.ErrMissingMemberType
 	}
 
 	if req.groupID == "" {
-		return internal.ErrMissingID
+		return apiutil.ErrMissingID
 	}
 
 	if len(req.Members) == 0 {
-		return internal.ErrEmptyList
+		return apiutil.ErrEmptyList
 	}
 
 	return nil
@@ -143,11 +143,11 @@ type shareGroupAccessReq struct {
 
 func (req shareGroupAccessReq) validate() error {
 	if req.token == "" {
-		return internal.ErrBearerToken
+		return apiutil.ErrBearerToken
 	}
 
 	if req.ThingGroupID == "" || req.userGroupID == "" {
-		return internal.ErrMissingID
+		return apiutil.ErrMissingID
 	}
 
 	return nil
@@ -159,15 +159,15 @@ type unassignReq struct {
 
 func (req unassignReq) validate() error {
 	if req.token == "" {
-		return internal.ErrBearerToken
+		return apiutil.ErrBearerToken
 	}
 
 	if req.groupID == "" {
-		return internal.ErrMissingID
+		return apiutil.ErrMissingID
 	}
 
 	if len(req.Members) == 0 {
-		return internal.ErrEmptyList
+		return apiutil.ErrEmptyList
 	}
 
 	return nil
@@ -180,11 +180,11 @@ type groupReq struct {
 
 func (req groupReq) validate() error {
 	if req.token == "" {
-		return internal.ErrBearerToken
+		return apiutil.ErrBearerToken
 	}
 
 	if req.id == "" {
-		return internal.ErrMissingID
+		return apiutil.ErrMissingID
 	}
 
 	return nil

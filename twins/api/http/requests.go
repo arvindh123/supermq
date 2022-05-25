@@ -4,7 +4,7 @@
 package http
 
 import (
-	"github.com/mainflux/mainflux/internal"
+	"github.com/mainflux/mainflux/internal/apiutil"
 	"github.com/mainflux/mainflux/twins"
 )
 
@@ -26,11 +26,11 @@ type addTwinReq struct {
 
 func (req addTwinReq) validate() error {
 	if req.token == "" {
-		return internal.ErrBearerToken
+		return apiutil.ErrBearerToken
 	}
 
 	if len(req.Name) > maxNameSize {
-		return internal.ErrNameSize
+		return apiutil.ErrNameSize
 	}
 
 	return nil
@@ -46,15 +46,15 @@ type updateTwinReq struct {
 
 func (req updateTwinReq) validate() error {
 	if req.token == "" {
-		return internal.ErrBearerToken
+		return apiutil.ErrBearerToken
 	}
 
 	if req.id == "" {
-		return internal.ErrMissingID
+		return apiutil.ErrMissingID
 	}
 
 	if len(req.Name) > maxNameSize {
-		return internal.ErrNameSize
+		return apiutil.ErrNameSize
 	}
 
 	return nil
@@ -67,11 +67,11 @@ type viewTwinReq struct {
 
 func (req viewTwinReq) validate() error {
 	if req.token == "" {
-		return internal.ErrBearerToken
+		return apiutil.ErrBearerToken
 	}
 
 	if req.id == "" {
-		return internal.ErrMissingID
+		return apiutil.ErrMissingID
 	}
 
 	return nil
@@ -87,15 +87,15 @@ type listReq struct {
 
 func (req *listReq) validate() error {
 	if req.token == "" {
-		return internal.ErrBearerToken
+		return apiutil.ErrBearerToken
 	}
 
 	if req.limit < 1 || req.limit > maxLimitSize {
-		return internal.ErrLimitSize
+		return apiutil.ErrLimitSize
 	}
 
 	if len(req.name) > maxNameSize {
-		return internal.ErrNameSize
+		return apiutil.ErrNameSize
 	}
 
 	return nil
@@ -110,15 +110,15 @@ type listStatesReq struct {
 
 func (req *listStatesReq) validate() error {
 	if req.token == "" {
-		return internal.ErrBearerToken
+		return apiutil.ErrBearerToken
 	}
 
 	if req.id == "" {
-		return internal.ErrMissingID
+		return apiutil.ErrMissingID
 	}
 
 	if req.limit == 0 || req.limit > maxLimitSize {
-		return internal.ErrLimitSize
+		return apiutil.ErrLimitSize
 	}
 
 	return nil

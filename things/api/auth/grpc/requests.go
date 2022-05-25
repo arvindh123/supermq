@@ -3,7 +3,7 @@
 
 package grpc
 
-import "github.com/mainflux/mainflux/internal"
+import "github.com/mainflux/mainflux/internal/apiutil"
 
 type accessByKeyReq struct {
 	thingKey string
@@ -12,11 +12,11 @@ type accessByKeyReq struct {
 
 func (req accessByKeyReq) validate() error {
 	if req.chanID == "" {
-		return internal.ErrMissingID
+		return apiutil.ErrMissingID
 	}
 
 	if req.thingKey == "" {
-		return internal.ErrBearerKey
+		return apiutil.ErrBearerKey
 	}
 
 	return nil
@@ -29,7 +29,7 @@ type accessByIDReq struct {
 
 func (req accessByIDReq) validate() error {
 	if req.thingID == "" || req.chanID == "" {
-		return internal.ErrMissingID
+		return apiutil.ErrMissingID
 	}
 
 	return nil
@@ -42,7 +42,7 @@ type channelOwnerReq struct {
 
 func (req channelOwnerReq) validate() error {
 	if req.owner == "" || req.chanID == "" {
-		return internal.ErrMissingID
+		return apiutil.ErrMissingID
 	}
 
 	return nil
@@ -54,7 +54,7 @@ type identifyReq struct {
 
 func (req identifyReq) validate() error {
 	if req.key == "" {
-		return internal.ErrBearerKey
+		return apiutil.ErrBearerKey
 	}
 
 	return nil

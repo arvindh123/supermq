@@ -5,7 +5,7 @@ package http
 
 import (
 	"github.com/gofrs/uuid"
-	"github.com/mainflux/mainflux/internal"
+	"github.com/mainflux/mainflux/internal/apiutil"
 	"github.com/mainflux/mainflux/things"
 )
 
@@ -32,7 +32,7 @@ type createThingReq struct {
 func validateUUID(extID string) (err error) {
 	id, err := uuid.FromString(extID)
 	if id.String() != extID || err != nil {
-		return internal.ErrInvalidIDFormat
+		return apiutil.ErrInvalidIDFormat
 	}
 
 	return nil
@@ -40,11 +40,11 @@ func validateUUID(extID string) (err error) {
 
 func (req createThingReq) validate() error {
 	if req.token == "" {
-		return internal.ErrBearerToken
+		return apiutil.ErrBearerToken
 	}
 
 	if len(req.Name) > maxNameSize {
-		return internal.ErrNameSize
+		return apiutil.ErrNameSize
 	}
 
 	// Do the validation only if request contains ID
@@ -62,11 +62,11 @@ type createThingsReq struct {
 
 func (req createThingsReq) validate() error {
 	if req.token == "" {
-		return internal.ErrBearerToken
+		return apiutil.ErrBearerToken
 	}
 
 	if len(req.Things) <= 0 {
-		return internal.ErrEmptyList
+		return apiutil.ErrEmptyList
 	}
 
 	for _, thing := range req.Things {
@@ -77,7 +77,7 @@ func (req createThingsReq) validate() error {
 		}
 
 		if len(thing.Name) > maxNameSize {
-			return internal.ErrNameSize
+			return apiutil.ErrNameSize
 		}
 	}
 
@@ -93,20 +93,20 @@ type shareThingReq struct {
 
 func (req shareThingReq) validate() error {
 	if req.token == "" {
-		return internal.ErrBearerToken
+		return apiutil.ErrBearerToken
 	}
 
 	if req.thingID == "" || len(req.UserIDs) == 0 {
-		return internal.ErrMissingID
+		return apiutil.ErrMissingID
 	}
 
 	if len(req.Policies) == 0 {
-		return internal.ErrEmptyList
+		return apiutil.ErrEmptyList
 	}
 
 	for _, p := range req.Policies {
 		if p != readPolicy && p != writePolicy && p != deletePolicy {
-			return internal.ErrMalformedPolicy
+			return apiutil.ErrMalformedPolicy
 		}
 	}
 	return nil
@@ -121,15 +121,15 @@ type updateThingReq struct {
 
 func (req updateThingReq) validate() error {
 	if req.token == "" {
-		return internal.ErrBearerToken
+		return apiutil.ErrBearerToken
 	}
 
 	if req.id == "" {
-		return internal.ErrMissingID
+		return apiutil.ErrMissingID
 	}
 
 	if len(req.Name) > maxNameSize {
-		return internal.ErrNameSize
+		return apiutil.ErrNameSize
 	}
 
 	return nil
@@ -143,15 +143,15 @@ type updateKeyReq struct {
 
 func (req updateKeyReq) validate() error {
 	if req.token == "" {
-		return internal.ErrBearerToken
+		return apiutil.ErrBearerToken
 	}
 
 	if req.id == "" {
-		return internal.ErrMissingID
+		return apiutil.ErrMissingID
 	}
 
 	if req.Key == "" {
-		return internal.ErrBearerKey
+		return apiutil.ErrBearerKey
 	}
 
 	return nil
@@ -166,11 +166,11 @@ type createChannelReq struct {
 
 func (req createChannelReq) validate() error {
 	if req.token == "" {
-		return internal.ErrBearerToken
+		return apiutil.ErrBearerToken
 	}
 
 	if len(req.Name) > maxNameSize {
-		return internal.ErrNameSize
+		return apiutil.ErrNameSize
 	}
 
 	// Do the validation only if request contains ID
@@ -188,11 +188,11 @@ type createChannelsReq struct {
 
 func (req createChannelsReq) validate() error {
 	if req.token == "" {
-		return internal.ErrBearerToken
+		return apiutil.ErrBearerToken
 	}
 
 	if len(req.Channels) <= 0 {
-		return internal.ErrEmptyList
+		return apiutil.ErrEmptyList
 	}
 
 	for _, channel := range req.Channels {
@@ -203,7 +203,7 @@ func (req createChannelsReq) validate() error {
 		}
 
 		if len(channel.Name) > maxNameSize {
-			return internal.ErrNameSize
+			return apiutil.ErrNameSize
 		}
 	}
 
@@ -219,15 +219,15 @@ type updateChannelReq struct {
 
 func (req updateChannelReq) validate() error {
 	if req.token == "" {
-		return internal.ErrBearerToken
+		return apiutil.ErrBearerToken
 	}
 
 	if req.id == "" {
-		return internal.ErrMissingID
+		return apiutil.ErrMissingID
 	}
 
 	if len(req.Name) > maxNameSize {
-		return internal.ErrNameSize
+		return apiutil.ErrNameSize
 	}
 
 	return nil
@@ -240,11 +240,11 @@ type viewResourceReq struct {
 
 func (req viewResourceReq) validate() error {
 	if req.token == "" {
-		return internal.ErrBearerToken
+		return apiutil.ErrBearerToken
 	}
 
 	if req.id == "" {
-		return internal.ErrMissingID
+		return apiutil.ErrMissingID
 	}
 
 	return nil
@@ -257,25 +257,25 @@ type listResourcesReq struct {
 
 func (req *listResourcesReq) validate() error {
 	if req.token == "" {
-		return internal.ErrBearerToken
+		return apiutil.ErrBearerToken
 	}
 
 	if req.pageMetadata.Limit > maxLimitSize || req.pageMetadata.Limit < 1 {
-		return internal.ErrLimitSize
+		return apiutil.ErrLimitSize
 	}
 
 	if len(req.pageMetadata.Name) > maxNameSize {
-		return internal.ErrNameSize
+		return apiutil.ErrNameSize
 	}
 
 	if req.pageMetadata.Order != "" &&
 		req.pageMetadata.Order != nameOrder && req.pageMetadata.Order != idOrder {
-		return internal.ErrInvalidOrder
+		return apiutil.ErrInvalidOrder
 	}
 
 	if req.pageMetadata.Dir != "" &&
 		req.pageMetadata.Dir != ascDir && req.pageMetadata.Dir != descDir {
-		return internal.ErrInvalidDirection
+		return apiutil.ErrInvalidDirection
 	}
 
 	return nil
@@ -289,25 +289,25 @@ type listByConnectionReq struct {
 
 func (req listByConnectionReq) validate() error {
 	if req.token == "" {
-		return internal.ErrBearerToken
+		return apiutil.ErrBearerToken
 	}
 
 	if req.id == "" {
-		return internal.ErrMissingID
+		return apiutil.ErrMissingID
 	}
 
 	if req.pageMetadata.Limit > maxLimitSize || req.pageMetadata.Limit < 1 {
-		return internal.ErrLimitSize
+		return apiutil.ErrLimitSize
 	}
 
 	if req.pageMetadata.Order != "" &&
 		req.pageMetadata.Order != nameOrder && req.pageMetadata.Order != idOrder {
-		return internal.ErrInvalidOrder
+		return apiutil.ErrInvalidOrder
 	}
 
 	if req.pageMetadata.Dir != "" &&
 		req.pageMetadata.Dir != ascDir && req.pageMetadata.Dir != descDir {
-		return internal.ErrInvalidDirection
+		return apiutil.ErrInvalidDirection
 	}
 
 	return nil
@@ -321,11 +321,11 @@ type connectThingReq struct {
 
 func (req connectThingReq) validate() error {
 	if req.token == "" {
-		return internal.ErrBearerToken
+		return apiutil.ErrBearerToken
 	}
 
 	if req.chanID == "" || req.thingID == "" {
-		return internal.ErrMissingID
+		return apiutil.ErrMissingID
 	}
 
 	return nil
@@ -339,21 +339,21 @@ type connectReq struct {
 
 func (req connectReq) validate() error {
 	if req.token == "" {
-		return internal.ErrBearerToken
+		return apiutil.ErrBearerToken
 	}
 
 	if len(req.ChannelIDs) == 0 || len(req.ThingIDs) == 0 {
-		return internal.ErrEmptyList
+		return apiutil.ErrEmptyList
 	}
 
 	for _, chID := range req.ChannelIDs {
 		if chID == "" {
-			return internal.ErrMissingID
+			return apiutil.ErrMissingID
 		}
 	}
 	for _, thingID := range req.ThingIDs {
 		if thingID == "" {
-			return internal.ErrMissingID
+			return apiutil.ErrMissingID
 		}
 	}
 
@@ -368,29 +368,29 @@ type listThingsGroupReq struct {
 
 func (req listThingsGroupReq) validate() error {
 	if req.token == "" {
-		return internal.ErrBearerToken
+		return apiutil.ErrBearerToken
 	}
 
 	if req.groupID == "" {
-		return internal.ErrMissingID
+		return apiutil.ErrMissingID
 	}
 
 	if req.pageMetadata.Limit > maxLimitSize || req.pageMetadata.Limit < 1 {
-		return internal.ErrLimitSize
+		return apiutil.ErrLimitSize
 	}
 
 	if len(req.pageMetadata.Name) > maxNameSize {
-		return internal.ErrNameSize
+		return apiutil.ErrNameSize
 	}
 
 	if req.pageMetadata.Order != "" &&
 		req.pageMetadata.Order != nameOrder && req.pageMetadata.Order != idOrder {
-		return internal.ErrInvalidOrder
+		return apiutil.ErrInvalidOrder
 	}
 
 	if req.pageMetadata.Dir != "" &&
 		req.pageMetadata.Dir != ascDir && req.pageMetadata.Dir != descDir {
-		return internal.ErrInvalidDirection
+		return apiutil.ErrInvalidDirection
 	}
 
 	return nil

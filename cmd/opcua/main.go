@@ -123,7 +123,7 @@ func main() {
 	})
 
 	g.Go(func() error {
-		return server.ServerStopSignalHandler(httpCtx, httpCancel, logger, svcName, hs)
+		return server.StopSignalHandler(httpCtx, httpCancel, logger, svcName, hs)
 	})
 
 	if err := g.Wait(); err != nil {

@@ -18,7 +18,7 @@ const (
 	httpsProtocol = "https"
 )
 
-type GRPCServer struct {
+type Server struct {
 	server.BaseServer
 	server          *grpc.Server
 	registerService serviceRegister
@@ -26,10 +26,10 @@ type GRPCServer struct {
 
 type serviceRegister func(srv *grpc.Server)
 
-var _ server.Server = (*GRPCServer)(nil)
+var _ server.Server = (*Server)(nil)
 
 func New(ctx context.Context, cancel context.CancelFunc, name string, address string, port string, registerService serviceRegister, certPath string, keyPath string, logger logger.Logger) server.Server {
-	return &GRPCServer{
+	return &Server{
 		BaseServer: server.BaseServer{
 			Ctx:      ctx,
 			Cancel:   cancel,
@@ -44,7 +44,7 @@ func New(ctx context.Context, cancel context.CancelFunc, name string, address st
 	}
 }
 
-func (s *GRPCServer) Start() error {
+func (s *Server) Start() error {
 	p := fmt.Sprintf("%s:%s", s.Address, s.Port)
 	errCh := make(chan error)
 
@@ -82,7 +82,7 @@ func (s *GRPCServer) Start() error {
 	}
 }
 
-func (s *GRPCServer) Stop() error {
+func (s *Server) Stop() error {
 	defer s.Cancel()
 	c := make(chan bool)
 	go func() {

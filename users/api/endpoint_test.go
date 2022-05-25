@@ -16,7 +16,7 @@ import (
 	"testing"
 
 	"github.com/mainflux/mainflux"
-	"github.com/mainflux/mainflux/internal"
+	"github.com/mainflux/mainflux/internal/apiutil"
 	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/pkg/errors"
 	"github.com/mainflux/mainflux/pkg/uuid"
@@ -41,16 +41,16 @@ const (
 
 var (
 	user               = users.User{Email: validEmail, Password: validPass}
-	notFoundRes        = toJSON(internal.ErrorRes{Err: errors.ErrNotFound.Error()})
-	unauthRes          = toJSON(internal.ErrorRes{Err: errors.ErrAuthentication.Error()})
-	malformedRes       = toJSON(internal.ErrorRes{Err: errors.ErrMalformedEntity.Error()})
-	weakPassword       = toJSON(internal.ErrorRes{Err: users.ErrPasswordFormat.Error()})
-	unsupportedRes     = toJSON(internal.ErrorRes{Err: errors.ErrUnsupportedContentType.Error()})
-	missingTokRes      = toJSON(internal.ErrorRes{Err: internal.ErrBearerToken.Error()})
-	missingEmailRes    = toJSON(internal.ErrorRes{Err: internal.ErrMissingEmail.Error()})
-	missingPassRes     = toJSON(internal.ErrorRes{Err: internal.ErrMissingPass.Error()})
-	invalidRestPassRes = toJSON(internal.ErrorRes{Err: internal.ErrInvalidResetPass.Error()})
-	failDecodeRes      = toJSON(internal.ErrorRes{Err: errors.ErrMalformedEntity.Error()})
+	notFoundRes        = toJSON(apiutil.ErrorRes{Err: errors.ErrNotFound.Error()})
+	unauthRes          = toJSON(apiutil.ErrorRes{Err: errors.ErrAuthentication.Error()})
+	malformedRes       = toJSON(apiutil.ErrorRes{Err: errors.ErrMalformedEntity.Error()})
+	weakPassword       = toJSON(apiutil.ErrorRes{Err: users.ErrPasswordFormat.Error()})
+	unsupportedRes     = toJSON(apiutil.ErrorRes{Err: errors.ErrUnsupportedContentType.Error()})
+	missingTokRes      = toJSON(apiutil.ErrorRes{Err: apiutil.ErrBearerToken.Error()})
+	missingEmailRes    = toJSON(apiutil.ErrorRes{Err: apiutil.ErrMissingEmail.Error()})
+	missingPassRes     = toJSON(apiutil.ErrorRes{Err: apiutil.ErrMissingPass.Error()})
+	invalidRestPassRes = toJSON(apiutil.ErrorRes{Err: apiutil.ErrInvalidResetPass.Error()})
+	failDecodeRes      = toJSON(apiutil.ErrorRes{Err: errors.ErrMalformedEntity.Error()})
 	passRegex          = regexp.MustCompile("^.{8,}$")
 )
 
@@ -69,7 +69,7 @@ func (tr testRequest) make() (*http.Response, error) {
 		return nil, err
 	}
 	if tr.token != "" {
-		req.Header.Set("Authorization", internal.BearerPrefix+tr.token)
+		req.Header.Set("Authorization", apiutil.BearerPrefix+tr.token)
 	}
 	if tr.contentType != "" {
 		req.Header.Set("Content-Type", tr.contentType)

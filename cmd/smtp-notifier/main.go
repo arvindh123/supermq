@@ -21,6 +21,7 @@ import (
 	"github.com/mainflux/mainflux/consumers/notifiers/smtp"
 	"github.com/mainflux/mainflux/consumers/notifiers/tracing"
 	"github.com/mainflux/mainflux/internal"
+	internalauth "github.com/mainflux/mainflux/internal/auth"
 	"github.com/mainflux/mainflux/internal/email"
 	"github.com/mainflux/mainflux/internal/server"
 	mfhttpserver "github.com/mainflux/mainflux/internal/server/http"
@@ -134,18 +135,18 @@ func main() {
 	}
 	defer pubSub.Close()
 
-	authTracer, closer := internal.Jaeger("auth", cfg.jaegerURL, logger)
+	authTracer, closer := internalauth.Jaeger("auth", cfg.jaegerURL, logger)
 	defer closer.Close()
 
-	authConn := internal.ConnectToAuth(cfg.authTLS, cfg.authCACerts, cfg.authURL, svcName, logger)
+	authConn := internalauth.ConnectToAuth(cfg.authTLS, cfg.authCACerts, cfg.authURL, svcName, logger)
 	defer authConn.Close()
 
 	auth := authapi.NewClient(authTracer, authConn, cfg.authTimeout)
 
-	tracer, closer := internal.Jaeger("smtp-notifier", cfg.jaegerURL, logger)
+	tracer, closer := internalauth.Jaeger("smtp-notifier", cfg.jaegerURL, logger)
 	defer closer.Close()
 
-	dbTracer, dbCloser := internal.Jaeger("smtp-notifier_db", cfg.jaegerURL, logger)
+	dbTracer, dbCloser := internalauth.Jaeger("smtp-notifier_db", cfg.jaegerURL, logger)
 	defer dbCloser.Close()
 
 	svc := newService(db, dbTracer, auth, cfg, logger)
@@ -160,7 +161,7 @@ func main() {
 	})
 
 	g.Go(func() error {
-		return server.ServerStopSignalHandler(ctx, cancel, logger, svcName, hs)
+		return server.StopSignalHandler(ctx, cancel, logger, svcName, hs)
 	})
 
 	if err := g.Wait(); err != nil {
