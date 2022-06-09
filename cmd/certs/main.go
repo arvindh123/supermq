@@ -77,7 +77,6 @@ const (
 	envDBSSLCert      = "MF_CERTS_DB_SSL_CERT"
 	envDBSSLKey       = "MF_CERTS_DB_SSL_KEY"
 	envDBSSLRootCert  = "MF_CERTS_DB_SSL_ROOT_CERT"
-	envEncryptKey     = "MF_CERTS_ENCRYPT_KEY"
 	envClientTLS      = "MF_CERTS_CLIENT_TLS"
 	envCACerts        = "MF_CERTS_CA_CERTS"
 	envServerCert     = "MF_CERTS_SERVER_CERT"
@@ -99,21 +98,16 @@ const (
 )
 
 var (
-	errFailedCertLoading         = errors.New("failed to load certificate")
-	errFailedCertDecode          = errors.New("failed to decode certificate")
-	errMissingCACertificate      = errors.New("missing CA")
-	errPrivateKeyEmpty           = errors.New("private key empty")
-	errPrivateKeyUnsupportedType = errors.New("private key unsupported type")
-	errCertsRemove               = errors.New("failed to remove certificate")
-	errCACertificateNotExist     = errors.New("CA certificate does not exist")
-	errCAKeyNotExist             = errors.New("CA certificate key does not exist")
+	errFailedCertLoading     = errors.New("failed to load certificate")
+	errFailedCertDecode      = errors.New("failed to decode certificate")
+	errCACertificateNotExist = errors.New("CA certificate does not exist")
+	errCAKeyNotExist         = errors.New("CA certificate key does not exist")
 )
 
 type config struct {
 	logLevel    string
 	dbConfig    postgres.Config
 	clientTLS   bool
-	encKey      []byte
 	caCerts     string
 	httpPort    string
 	serverCert  string
