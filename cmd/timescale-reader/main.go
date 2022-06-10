@@ -27,8 +27,7 @@ import (
 )
 
 const (
-	svcName      = "timescaledb-reader"
-	stopWaitTime = 5 * time.Second
+	svcName = "timescaledb-reader"
 
 	defLogLevel          = "error"
 	defPort              = "8911"

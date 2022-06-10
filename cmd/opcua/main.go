@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"time"
 
 	r "github.com/go-redis/redis/v8"
 	"github.com/mainflux/mainflux"
@@ -27,7 +26,6 @@ import (
 )
 
 const (
-	stopWaitTime = 5 * time.Second
 	svcName      = "opc-ua-adapter"
 
 	defLogLevel       = "error"

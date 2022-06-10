@@ -34,7 +34,6 @@ import (
 
 const (
 	svcName      = "certs"
-	stopWaitTime = 5 * time.Second
 
 	defLogLevel      = "error"
 	defDBHost        = "localhost"

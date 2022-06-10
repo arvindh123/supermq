@@ -36,7 +36,6 @@ import (
 
 const (
 	svcName          = "smpp-notifier"
-	stopWaitTime     = 5 * time.Second
 	defLogLevel      = "error"
 	defDBHost        = "localhost"
 	defDBPort        = "5432"

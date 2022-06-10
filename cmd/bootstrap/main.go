@@ -34,9 +34,6 @@ import (
 
 const (
 	svcName       = "bootstrap"
-	stopWaitTime  = 5 * time.Second
-	httpProtocol  = "http"
-	httpsProtocol = "https"
 
 	defLogLevel       = "error"
 	defDBHost         = "localhost"

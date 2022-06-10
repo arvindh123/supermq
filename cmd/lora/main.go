@@ -28,8 +28,7 @@ import (
 )
 
 const (
-	svcName      = "lora-adapter"
-	stopWaitTime = 5 * time.Second
+	svcName = "lora-adapter"
 
 	defLogLevel       = "error"
 	defHTTPPort       = "8180"

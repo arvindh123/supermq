@@ -34,7 +34,6 @@ import (
 
 const (
 	svcName          = "smtp-notifier"
-	stopWaitTime     = 5 * time.Second
 	defLogLevel      = "error"
 	defDBHost        = "localhost"
 	defDBPort        = "5432"

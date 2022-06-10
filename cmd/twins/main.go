@@ -38,7 +38,6 @@ import (
 const (
 	svcName            = "twins"
 	queue              = "twins"
-	stopWaitTime       = 5 * time.Second
 	defLogLevel        = "error"
 	defHTTPPort        = "8180"
 	defJaegerURL       = ""

@@ -27,7 +27,6 @@ import (
 
 const (
 	svcName      = "coap_adapter"
-	stopWaitTime = 5 * time.Second
 
 	defPort              = "5683"
 	defNatsURL           = "nats://localhost:4222"

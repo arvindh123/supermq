@@ -13,9 +13,7 @@ import (
 )
 
 const (
-	stopWaitTime  = 5 * time.Second
-	httpProtocol  = "http"
-	httpsProtocol = "https"
+	stopWaitTime = 5 * time.Second
 )
 
 type Server struct {

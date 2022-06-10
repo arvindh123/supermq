@@ -35,8 +35,7 @@ import (
 )
 
 const (
-	stopWaitTime = 5 * time.Second
-	svcName      = "users"
+	svcName = "users"
 
 	defLogLevel      = "error"
 	defDBHost        = "localhost"

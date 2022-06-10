@@ -38,8 +38,7 @@ import (
 )
 
 const (
-	svcName      = "things"
-	stopWaitTime = 5 * time.Second
+	svcName = "things"
 
 	defListenAddress   = ""
 	defLogLevel        = "error"

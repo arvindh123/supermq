@@ -26,7 +26,6 @@ import (
 
 const (
 	svcName      = "http_adapter"
-	stopWaitTime = 5 * time.Second
 
 	defLogLevel          = "error"
 	defClientTLS         = "false"

@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"time"
 
 	influxdata "github.com/influxdata/influxdb/client/v2"
 	"github.com/mainflux/mainflux"
@@ -24,8 +23,7 @@ import (
 )
 
 const (
-	svcName      = "influxdb-writer"
-	stopWaitTime = 5 * time.Second
+	svcName = "influxdb-writer"
 
 	defNatsURL    = "nats://localhost:4222"
 	defLogLevel   = "error"

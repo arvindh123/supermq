@@ -8,7 +8,6 @@ import (
 	"os"
 	"reflect"
 	"strconv"
-	"time"
 
 	"github.com/mainflux/mainflux"
 	"github.com/mainflux/mainflux/internal/server"
@@ -23,8 +22,7 @@ import (
 )
 
 const (
-	svcName      = "provision"
-	stopWaitTime = 5 * time.Second
+	svcName = "provision"
 
 	defLogLevel        = "error"
 	defConfigFile      = "config.toml"

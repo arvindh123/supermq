@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"time"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/mainflux/mainflux"
@@ -24,8 +23,7 @@ import (
 )
 
 const (
-	svcName      = "timescaledb-writer"
-	stopWaitTime = 5 * time.Second
+	svcName = "timescaledb-writer"
 
 	defLogLevel      = "error"
 	defNatsURL       = "nats://localhost:4222"

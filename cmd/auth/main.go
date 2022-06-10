@@ -32,9 +32,6 @@ import (
 
 const (
 	svcName       = "auth"
-	stopWaitTime  = 5 * time.Second
-	httpProtocol  = "http"
-	httpsProtocol = "https"
 
 	defListenAddress = ""
 	defLogLevel      = "error"

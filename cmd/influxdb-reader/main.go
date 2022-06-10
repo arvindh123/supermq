@@ -25,7 +25,6 @@ import (
 
 const (
 	svcName      = "influxdb-reader"
-	stopWaitTime = 5 * time.Second
 
 	defLogLevel          = "error"
 	defPort              = "8180"

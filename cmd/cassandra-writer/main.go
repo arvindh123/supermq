@@ -10,7 +10,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/gocql/gocql"
 	"github.com/mainflux/mainflux"
@@ -26,9 +25,8 @@ import (
 )
 
 const (
-	svcName      = "cassandra-writer"
-	sep          = ","
-	stopWaitTime = 5 * time.Second
+	svcName = "cassandra-writer"
+	sep     = ","
 
 	defNatsURL    = "nats://localhost:4222"
 	defLogLevel   = "error"

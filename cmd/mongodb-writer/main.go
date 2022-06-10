@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"time"
 
 	"github.com/mainflux/mainflux"
 	"github.com/mainflux/mainflux/consumers"
@@ -25,8 +24,7 @@ import (
 )
 
 const (
-	svcName      = "mongodb-writer"
-	stopWaitTime = 5 * time.Second
+	svcName = "mongodb-writer"
 
 	defLogLevel   = "error"
 	defNatsURL    = "nats://localhost:4222"
