@@ -22,6 +22,7 @@ import (
 	"github.com/mainflux/mainflux/internal/server"
 	grpcserver "github.com/mainflux/mainflux/internal/server/grpc"
 	httpserver "github.com/mainflux/mainflux/internal/server/http"
+	"github.com/mainflux/mainflux/internal/starter"
 	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/pkg/uuid"
 	"github.com/opentracing/opentracing-go"
@@ -31,98 +32,76 @@ import (
 )
 
 const (
-	svcName       = "auth"
-
+	svcName          = "auth"
 	defListenAddress = ""
-	defLogLevel      = "error"
-	defDBHost        = "localhost"
-	defDBPort        = "5432"
-	defDBUser        = "mainflux"
-	defDBPass        = "mainflux"
-	defDB            = "auth"
-	defDBSSLMode     = "disable"
-	defDBSSLCert     = ""
-	defDBSSLKey      = ""
-	defDBSSLRootCert = ""
-	defHTTPPort      = "8180"
-	defGRPCPort      = "8181"
-	defSecret        = "auth"
-	defServerCert    = ""
-	defServerKey     = ""
-	defJaegerURL     = ""
-	defKetoReadHost  = "mainflux-keto"
-	defKetoWriteHost = "mainflux-keto"
-	defKetoReadPort  = "4466"
-	defKetoWritePort = "4467"
-	defLoginDuration = "10h"
-
-	envLogLevel      = "MF_AUTH_LOG_LEVEL"
-	envDBHost        = "MF_AUTH_DB_HOST"
-	envDBPort        = "MF_AUTH_DB_PORT"
-	envDBUser        = "MF_AUTH_DB_USER"
-	envDBPass        = "MF_AUTH_DB_PASS"
-	envDB            = "MF_AUTH_DB"
-	envDBSSLMode     = "MF_AUTH_DB_SSL_MODE"
-	envDBSSLCert     = "MF_AUTH_DB_SSL_CERT"
-	envDBSSLKey      = "MF_AUTH_DB_SSL_KEY"
-	envDBSSLRootCert = "MF_AUTH_DB_SSL_ROOT_CERT"
-	envHTTPPort      = "MF_AUTH_HTTP_PORT"
-	envGRPCPort      = "MF_AUTH_GRPC_PORT"
-	envSecret        = "MF_AUTH_SECRET"
-	envServerCert    = "MF_AUTH_SERVER_CERT"
-	envServerKey     = "MF_AUTH_SERVER_KEY"
-	envJaegerURL     = "MF_JAEGER_URL"
-	envKetoReadHost  = "MF_KETO_READ_REMOTE_HOST"
-	envKetoWriteHost = "MF_KETO_WRITE_REMOTE_HOST"
-	envKetoReadPort  = "MF_KETO_READ_REMOTE_PORT"
-	envKetoWritePort = "MF_KETO_WRITE_REMOTE_PORT"
-	envLoginDuration = "MF_AUTH_LOGIN_TOKEN_DURATION"
 )
 
 type config struct {
-	logLevel      string
-	dbConfig      postgres.Config
-	httpPort      string
-	grpcPort      string
-	secret        string
-	serverCert    string
-	serverKey     string
-	jaegerURL     string
-	ketoReadHost  string
-	ketoWriteHost string
-	ketoWritePort string
-	ketoReadPort  string
-	loginDuration time.Duration
+	LogLevel      string        `env:"MF_AUTH_LOG_LEVEL"             default:"debug"`
+	HttpPort      string        `env:"MF_AUTH_HTTP_PORT"             default:"6180"`
+	GrpcPort      string        `env:"MF_AUTH_GRPC_PORT"             default:"6181"`
+	Secret        string        `env:"MF_AUTH_SECRET"                default:"auth"`
+	ServerCert    string        `env:"MF_AUTH_SERVER_CERT"           default:""`
+	ServerKey     string        `env:"MF_AUTH_SERVER_KEY"            default:""`
+	JaegerURL     string        `env:"MF_JAEGER_URL"                 default:""`
+	KetoReadHost  string        `env:"MF_KETO_READ_REMOTE_HOST"      default:"mainflux-keto"`
+	KetoWriteHost string        `env:"MF_KETO_WRITE_REMOTE_HOST"     default:"mainflux-keto"`
+	KetoWritePort string        `env:"MF_KETO_READ_REMOTE_PORT"      default:"4466"`
+	KetoReadPort  string        `env:"MF_KETO_WRITE_REMOTE_PORT"     default:"4467"`
+	LoginDuration time.Duration `env:"MF_AUTH_LOGIN_TOKEN_DURATION"  default:"10h"`
+}
+
+type DbConfig struct {
+	Host        string `env:"MF_AUTH_DB_HOST"           default:"localhost"`
+	Port        string `env:"MF_AUTH_DB_PORT"           default:"5432"`
+	User        string `env:"MF_AUTH_DB_USER"           default:"mainflux"`
+	Pass        string `env:"MF_AUTH_DB_PASS"           default:"mainflux"`
+	Name        string `env:"MF_AUTH_DB"                default:"auth"`
+	SSLMode     string `env:"MF_AUTH_DB_SSL_MODE"       default:"disable"`
+	SSLCert     string `env:"MF_AUTH_DB_SSL_CERT"       default:""`
+	SSLKey      string `env:"MF_AUTH_DB_SSL_KEY"        default:""`
+	SSLRootCert string `env:"MF_AUTH_DB_SSL_ROOT_CERT"  default:""`
 }
 
 func main() {
-	cfg := loadConfig()
+	cfg := config{}
+	dbConfig := DbConfig{}
+
+	err := starter.LoadConfig(&cfg)
+	if err != nil {
+		log.Fatalf(fmt.Sprintf("Failed to load %s configuration : %s", svcName, err.Error()))
+	}
+	err = starter.LoadConfig(&dbConfig)
+	if err != nil {
+		log.Fatalf(fmt.Sprintf("Failed to load %s database configuration : %s", svcName, err.Error()))
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	g, ctx := errgroup.WithContext(ctx)
-	logger, err := logger.New(os.Stdout, cfg.logLevel)
+	logger, err := logger.New(os.Stdout, cfg.LogLevel)
 	if err != nil {
 		log.Fatalf(err.Error())
 	}
 
-	db := connectToDB(cfg.dbConfig, logger)
+	db := connectToDB(postgres.Config(dbConfig), logger)
 	defer db.Close()
 
-	tracer, closer := internalauth.Jaeger("auth", cfg.jaegerURL, logger)
+	tracer, closer := internalauth.Jaeger("auth", cfg.JaegerURL, logger)
 	defer closer.Close()
 
-	dbTracer, dbCloser := internalauth.Jaeger("auth_db", cfg.jaegerURL, logger)
+	dbTracer, dbCloser := internalauth.Jaeger("auth_db", cfg.JaegerURL, logger)
 	defer dbCloser.Close()
 
-	readerConn, writerConn := internalauth.Keto(cfg.ketoReadHost, cfg.ketoReadPort, cfg.ketoWriteHost, cfg.ketoWritePort, logger)
+	readerConn, writerConn := internalauth.Keto(cfg.KetoReadHost, cfg.KetoReadPort, cfg.KetoWriteHost, cfg.KetoWritePort, logger)
 
-	svc := newService(db, dbTracer, cfg.secret, logger, readerConn, writerConn, cfg.loginDuration)
+	svc := newService(db, dbTracer, cfg.Secret, logger, readerConn, writerConn, cfg.LoginDuration)
 
 	registerAuthServiceServer := func(srv *grpc.Server) {
 		mainflux.RegisterAuthServiceServer(srv, grpcapi.NewServer(tracer, svc))
 	}
 
-	hs := httpserver.New(ctx, cancel, svcName, defListenAddress, cfg.httpPort, httpapi.MakeHandler(svc, tracer, logger), cfg.serverCert, cfg.serverKey, logger)
-	gs := grpcserver.New(ctx, cancel, svcName, defListenAddress, cfg.httpPort, registerAuthServiceServer, cfg.serverCert, cfg.serverKey, logger)
+	hs := httpserver.New(ctx, cancel, svcName, defListenAddress, cfg.HttpPort, httpapi.MakeHandler(svc, tracer, logger), cfg.ServerCert, cfg.ServerKey, logger)
+	gs := grpcserver.New(ctx, cancel, svcName, defListenAddress, cfg.GrpcPort, registerAuthServiceServer, cfg.ServerCert, cfg.ServerKey, logger)
 	g.Go(func() error {
 		return hs.Start()
 	})
@@ -136,42 +115,6 @@ func main() {
 	if err := g.Wait(); err != nil {
 		logger.Error(fmt.Sprintf("Authentication service terminated: %s", err))
 	}
-}
-
-func loadConfig() config {
-	dbConfig := postgres.Config{
-		Host:        mainflux.Env(envDBHost, defDBHost),
-		Port:        mainflux.Env(envDBPort, defDBPort),
-		User:        mainflux.Env(envDBUser, defDBUser),
-		Pass:        mainflux.Env(envDBPass, defDBPass),
-		Name:        mainflux.Env(envDB, defDB),
-		SSLMode:     mainflux.Env(envDBSSLMode, defDBSSLMode),
-		SSLCert:     mainflux.Env(envDBSSLCert, defDBSSLCert),
-		SSLKey:      mainflux.Env(envDBSSLKey, defDBSSLKey),
-		SSLRootCert: mainflux.Env(envDBSSLRootCert, defDBSSLRootCert),
-	}
-
-	loginDuration, err := time.ParseDuration(mainflux.Env(envLoginDuration, defLoginDuration))
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	return config{
-		logLevel:      mainflux.Env(envLogLevel, defLogLevel),
-		dbConfig:      dbConfig,
-		httpPort:      mainflux.Env(envHTTPPort, defHTTPPort),
-		grpcPort:      mainflux.Env(envGRPCPort, defGRPCPort),
-		secret:        mainflux.Env(envSecret, defSecret),
-		serverCert:    mainflux.Env(envServerCert, defServerCert),
-		serverKey:     mainflux.Env(envServerKey, defServerKey),
-		jaegerURL:     mainflux.Env(envJaegerURL, defJaegerURL),
-		ketoReadHost:  mainflux.Env(envKetoReadHost, defKetoReadHost),
-		ketoWriteHost: mainflux.Env(envKetoWriteHost, defKetoWriteHost),
-		ketoReadPort:  mainflux.Env(envKetoReadPort, defKetoReadPort),
-		ketoWritePort: mainflux.Env(envKetoWritePort, defKetoWritePort),
-		loginDuration: loginDuration,
-	}
-
 }
 
 func connectToDB(dbConfig postgres.Config, logger logger.Logger) *sqlx.DB {
