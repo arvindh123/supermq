@@ -74,3 +74,21 @@ func (ms *metricsMiddleware) RevokeCert(ctx context.Context, token, thingID stri
 
 	return ms.svc.RevokeCert(ctx, token, thingID)
 }
+
+func (ms *metricsMiddleware) RenewCerts(ctx context.Context, bsUpdateRenewCert bool) (err error) {
+	defer func(begin time.Time) {
+		ms.counter.With("method", "renew_certs").Add(1)
+		ms.latency.With("method", "renew_certs").Observe(time.Since(begin).Seconds())
+	}(time.Now())
+
+	return ms.svc.RenewCerts(ctx, bsUpdateRenewCert)
+}
+
+func (ms *metricsMiddleware) AutoRenew(ctx context.Context, bsUpdateRenewCert bool, renewInterval time.Duration) (err error) {
+	defer func(begin time.Time) {
+		ms.counter.With("method", "auto_renew").Add(1)
+		ms.latency.With("method", "auto_renew").Observe(time.Since(begin).Seconds())
+	}(time.Now())
+
+	return ms.svc.AutoRenew(ctx, bsUpdateRenewCert, renewInterval)
+}

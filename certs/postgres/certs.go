@@ -102,6 +102,31 @@ func (cr certsRepository) Save(ctx context.Context, cert certs.Cert) (string, er
 	return cert.Serial, nil
 }
 
+func (cr certsRepository) Update(ctx context.Context, cert certs.Cert) error {
+	q := `UPDATE certs SET serial = :serial, expire = :expire	WHERE thing_id = :thing_id AND owner_id = :owner_id`
+	tx, err := cr.db.Beginx()
+	if err != nil {
+		return errors.Wrap(errors.ErrUpdateEntity, err)
+	}
+	dbcrt := toDBCert(cert)
+	if _, err := tx.NamedExec(q, dbcrt); err != nil {
+		e := err
+		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code.Name() == duplicateErr {
+			e = errors.New("error conflict")
+		}
+
+		cr.rollback("Failed to update a Cert", tx, err)
+
+		return errors.Wrap(errors.ErrUpdateEntity, e)
+	}
+	if err := tx.Commit(); err != nil {
+		cr.rollback("Failed to commit Config update", tx, err)
+		return errors.Wrap(errors.ErrUpdateEntity, err)
+	}
+
+	return nil
+}
+
 func (cr certsRepository) Remove(ctx context.Context, ownerID, serial string) error {
 	if _, err := cr.RetrieveBySerial(ctx, ownerID, serial); err != nil {
 		return errors.Wrap(errors.ErrRemoveEntity, err)
@@ -168,6 +193,47 @@ func (cr certsRepository) RetrieveBySerial(ctx context.Context, ownerID, serialI
 	c = toCert(dbcrt)
 
 	return c, nil
+}
+
+func (cr certsRepository) ListExpiredCerts(ctx context.Context, timeBefore time.Duration, limit, offset uint64) (certs.Page, error) {
+	whereClause := fmt.Sprintf("WHERE expire <= now()  - interval %s", timeBefore)
+	limitClause := ""
+	offsetClause := ""
+	if limit > 0 {
+		limitClause = fmt.Sprintf("LIMIT %d", limit)
+	}
+	if offset > 0 {
+		offsetClause = fmt.Sprintf("OFFSET %d", offset)
+	}
+	q := fmt.Sprintf(`SELECT thing_id, owner_id, expire, serial FROM public.certs  %s %s %s`, whereClause, limitClause, offsetClause)
+	rows, err := cr.db.Query(q)
+	defer rows.Close()
+	if err != nil {
+		return certs.Page{}, errors.Wrap(errors.ErrViewEntity, err)
+	}
+
+	certificates := []certs.Cert{}
+	for rows.Next() {
+		c := certs.Cert{}
+		if err := rows.Scan(&c.ThingID, &c.OwnerID, &c.Serial, &c.Expire); err != nil {
+			return certs.Page{}, errors.Wrap(errors.ErrScanEntity, err)
+
+		}
+		certificates = append(certificates, c)
+	}
+
+	q = fmt.Sprintf(`SELECT thing_id, owner_id, expire, serial FROM public.certs %s %s %s`, whereClause, limitClause, offsetClause)
+	var total uint64
+	if err := cr.db.QueryRow(q).Scan(&total); err != nil {
+		return certs.Page{}, errors.Wrap(errors.ErrScanCountEntity, err)
+	}
+
+	return certs.Page{
+		Total:  total,
+		Limit:  0,
+		Offset: 0,
+		Certs:  certificates,
+	}, nil
 }
 
 func (cr certsRepository) rollback(content string, tx *sqlx.Tx, err error) {

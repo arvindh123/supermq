@@ -3,7 +3,10 @@
 
 package certs
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // ConfigsPage contains page related metadata as well as list
 type Page struct {
@@ -21,6 +24,9 @@ type Repository interface {
 	// RetrieveAll retrieve issued certificates for given owner ID
 	RetrieveAll(ctx context.Context, ownerID string, offset, limit uint64) (Page, error)
 
+	// Update the certificate
+	Update(ctx context.Context, cert Cert) error
+
 	// Remove removes certificate from DB for a given thing ID
 	Remove(ctx context.Context, ownerID, thingID string) error
 
@@ -29,4 +35,7 @@ type Repository interface {
 
 	// RetrieveBySerial retrieves a certificate for a given serial ID
 	RetrieveBySerial(ctx context.Context, ownerID, serialID string) (Cert, error)
+
+	//List the certifcate need to be renew before the expiry
+	ListExpiredCerts(ctx context.Context, timeBefore time.Duration, limit, offset uint64) (Page, error)
 }

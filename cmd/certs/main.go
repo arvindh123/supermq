@@ -40,31 +40,33 @@ import (
 const (
 	stopWaitTime = 5 * time.Second
 
-	defLogLevel      = "error"
-	defDBHost        = "localhost"
-	defDBPort        = "5432"
-	defDBUser        = "mainflux"
-	defDBPass        = "mainflux"
-	defDB            = "certs"
-	defDBSSLMode     = "disable"
-	defDBSSLCert     = ""
-	defDBSSLKey      = ""
-	defDBSSLRootCert = ""
-	defClientTLS     = "false"
-	defCACerts       = ""
-	defPort          = "8204"
-	defServerCert    = ""
-	defServerKey     = ""
-	defCertsURL      = "http://localhost"
-	defThingsURL     = "http://things:8182"
-	defJaegerURL     = ""
-	defAuthURL       = "localhost:8181"
-	defAuthTimeout   = "1s"
-
-	defSignCAPath     = "ca.crt"
-	defSignCAKeyPath  = "ca.key"
-	defSignHoursValid = "2048h"
-	defSignRSABits    = ""
+	defLogLevel              = "error"
+	defDBHost                = "localhost"
+	defDBPort                = "5432"
+	defDBUser                = "mainflux"
+	defDBPass                = "mainflux"
+	defDB                    = "certs"
+	defDBSSLMode             = "disable"
+	defDBSSLCert             = ""
+	defDBSSLKey              = ""
+	defDBSSLRootCert         = ""
+	defClientTLS             = "false"
+	defCACerts               = ""
+	defPort                  = "8204"
+	defServerCert            = ""
+	defServerKey             = ""
+	defCertsURL              = "http://localhost"
+	defThingsURL             = "http://things:8182"
+	defJaegerURL             = ""
+	defAuthURL               = "localhost:8181"
+	defAuthTimeout           = "1s"
+	defSignCAPath            = "ca.crt"
+	defSignCAKeyPath         = "ca.key"
+	defSignHoursValid        = "2048h"
+	defSignRSABits           = ""
+	defCertAutoRenew         = true
+	defCertAutoRenewUpdateBS = true
+	defStopSvcOnRenewErr     = true
 
 	defVaultHost       = ""
 	defVaultRole       = "mainflux"
@@ -181,6 +183,10 @@ func main() {
 			logger.Info(fmt.Sprintf("Certs service shutdown by signal: %s", sig))
 		}
 		return nil
+	})
+
+	g.Go(func() error {
+		return svc.AutoRenew(ctx, true, 10*time.Minute)
 	})
 
 	if err := g.Wait(); err != nil {

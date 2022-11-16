@@ -6,6 +6,7 @@ package mocks
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/mainflux/mainflux/certs"
 	"github.com/mainflux/mainflux/pkg/errors"
@@ -134,4 +135,11 @@ func (c *certsRepoMock) RetrieveBySerial(ctx context.Context, ownerID, serialID 
 	}
 
 	return crt, nil
+}
+func (c *certsRepoMock) Update(ctx context.Context, cert certs.Cert) error {
+	return nil
+}
+
+func (c *certsRepoMock) ListExpiredCerts(ctx context.Context, timeBefore time.Duration, limit, offset uint64) (certs.Page, error) {
+	return certs.Page{}, nil
 }

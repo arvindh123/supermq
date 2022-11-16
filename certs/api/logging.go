@@ -90,3 +90,29 @@ func (lm *loggingMiddleware) RevokeCert(ctx context.Context, token, thingID stri
 
 	return lm.svc.RevokeCert(ctx, token, thingID)
 }
+
+func (lm *loggingMiddleware) RenewCerts(ctx context.Context, bsUpdateRenewCert bool) (err error) {
+	defer func(begin time.Time) {
+		message := fmt.Sprintf("Method renew_certs took %s to complete", time.Since(begin))
+		if err != nil {
+			lm.logger.Warn(fmt.Sprintf("%s with error: %s.", message, err))
+			return
+		}
+		lm.logger.Info(fmt.Sprintf("%s without errors.", message))
+	}(time.Now())
+
+	return lm.svc.RenewCerts(ctx, bsUpdateRenewCert)
+}
+
+func (lm *loggingMiddleware) AutoRenew(ctx context.Context, bsUpdateRenewCert bool, renewInterval time.Duration) (err error) {
+	defer func(begin time.Time) {
+		message := fmt.Sprintf("Method auto_renew for complete , running for %s", time.Since(begin))
+		if err != nil {
+			lm.logger.Warn(fmt.Sprintf("%s with error: %s.", message, err))
+			return
+		}
+		lm.logger.Info(fmt.Sprintf("%s without errors.", message))
+	}(time.Now())
+
+	return lm.svc.AutoRenew(ctx, bsUpdateRenewCert, renewInterval)
+}

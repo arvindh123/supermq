@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"strings"
 	"time"
 
 	"github.com/mainflux/mainflux"
@@ -21,6 +22,10 @@ var (
 
 	// ErrFailedCertRevocation failed to revoke certificate
 	ErrFailedCertRevocation = errors.New("failed to revoke certificate")
+
+	errFailedToUpdateCertRenew = errors.New("failed to update certificate while renewing")
+
+	errFailedToUpdateCertBSRenew = errors.New("failed to update certificate in bootstrap while renewing")
 
 	errFailedToRemoveCertFromDB = errors.New("failed to remove cert serial from db")
 )
@@ -44,32 +49,42 @@ type Service interface {
 
 	// RevokeCert revokes a certificate for a given serial ID
 	RevokeCert(ctx context.Context, token, serialID string) (Revoke, error)
+
+	// Renew the exipred certificate from certs repo
+	RenewCerts(ctx context.Context, bsUpdateRenewCert bool) error
+
+	// Automattically trigger RenewCert function for given renew interval time
+	AutoRenew(ctx context.Context, bsUpdateRenewCert bool, renewInterval time.Duration) error
 }
 
 // Config defines the service parameters
 type Config struct {
-	LogLevel       string
-	ClientTLS      bool
-	CaCerts        string
-	HTTPPort       string
-	ServerCert     string
-	ServerKey      string
-	CertsURL       string
-	JaegerURL      string
-	AuthURL        string
-	AuthTimeout    time.Duration
-	SignTLSCert    tls.Certificate
-	SignX509Cert   *x509.Certificate
-	SignRSABits    int
-	SignHoursValid string
-	PKIHost        string
-	PKIPath        string
-	PKIRole        string
-	PKIToken       string
+	LogLevel            string
+	ClientTLS           bool
+	CaCerts             string
+	HTTPPort            string
+	ServerCert          string
+	ServerKey           string
+	CertsURL            string
+	JaegerURL           string
+	AuthURL             string
+	AuthTimeout         time.Duration
+	SignTLSCert         tls.Certificate
+	SignX509Cert        *x509.Certificate
+	SignRSABits         int
+	SignHoursValid      string
+	PKIHost             string
+	PKIPath             string
+	PKIRole             string
+	PKIToken            string
+	NumOfRenewInOneScan uint64
+	RenewBeforeExpiry   time.Duration
+	ExpireCheckInterval time.Duration
 }
 
 type certsService struct {
 	auth      mainflux.AuthServiceClient
+	bsClient  BootstrapClient
 	certsRepo Repository
 	sdk       mfsdk.SDK
 	conf      Config
@@ -225,4 +240,62 @@ func (cs *certsService) ViewCert(ctx context.Context, token, serialID string) (C
 	}
 
 	return c, nil
+}
+
+func (cs *certsService) RenewCerts(ctx context.Context, bsUpdateRenewCert bool) error {
+	cr, err := cs.certsRepo.ListExpiredCerts(ctx, cs.conf.RenewBeforeExpiry, cs.conf.NumOfRenewInOneScan, 0)
+	if err != nil {
+		return err
+	}
+	for _, repoExpCert := range cr.Certs {
+		cert, err := cs.pki.IssueCert(repoExpCert.ThingID, cs.conf.SignHoursValid, "", cs.conf.SignRSABits)
+		if err != nil {
+			return errors.Wrap(ErrFailedCertCreation, err)
+		}
+		c := Cert{
+			ThingID:        repoExpCert.ThingID,
+			OwnerID:        repoExpCert.OwnerID,
+			ClientCert:     cert.ClientCert,
+			IssuingCA:      cert.IssuingCA,
+			CAChain:        cert.CAChain,
+			ClientKey:      cert.ClientKey,
+			PrivateKeyType: cert.PrivateKeyType,
+			Serial:         cert.Serial,
+			Expire:         cert.Expire,
+		}
+		if bsUpdateRenewCert {
+			if err := cs.bsClient.UpdateCerts(ctx, repoExpCert.ThingID, cert.ClientCert, cert.ClientKey, strings.Join(cert.CAChain, "\n")); err != nil {
+				return errors.Wrap(errFailedToUpdateCertBSRenew, err)
+			}
+		}
+		if err := cs.certsRepo.Update(ctx, c); err != nil {
+			return errors.Wrap(errFailedToUpdateCertRenew, err)
+		}
+	}
+	return nil
+}
+
+func (cs *certsService) AutoRenew(ctx context.Context, bsUpdateRenewCert bool, renewInterval time.Duration) error {
+	ticker := time.NewTicker(renewInterval)
+	rCtx, rCancel := context.WithCancel(context.Background())
+
+	renewErrChan := make(chan error, 1)
+	renewCertsFn := func(ctx context.Context, bsUpdateRenewCert bool, err chan error, renewCert func(ctx context.Context, bsUpdateRenewCert bool) error) {
+		err <- renewCert(ctx, bsUpdateRenewCert)
+	}
+
+	go renewCertsFn(rCtx, bsUpdateRenewCert, renewErrChan, cs.RenewCerts)
+
+	for {
+		select {
+		case <-ctx.Done():
+			rCancel()
+			return nil
+		case renewErr := <-renewErrChan:
+			rCancel()
+			return renewErr
+		case <-ticker.C:
+			go renewCertsFn(rCtx, bsUpdateRenewCert, renewErrChan, cs.RenewCerts)
+		}
+	}
 }
