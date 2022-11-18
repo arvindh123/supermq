@@ -116,9 +116,9 @@ const (
 	envSignRSABits    = "MF_CERTS_SIGN_RSA_BITS"
 
 	envVaultHost       = "MF_CERTS_VAULT_HOST"
-	envVaultPKIIntPath = "MF_CERTS_VAULT_PKI_INT_PATH"
-	envVaultRole       = "MF_CERTS_VAULT_CA_ROLE_NAME"
-	envVaultToken      = "MF_CERTS_VAULT_TOKEN"
+	envVaultPKIIntPath = "MF_VAULT_PKI_INT_PATH"
+	envVaultRole       = "MF_VAULT_CA_ROLE_NAME"
+	envVaultToken      = "MF_VAULT_TOKEN"
 
 	envBootstrapURL = "MF_CERTS_BOOTSTRAP_URL"
 	envMFUser       = "MF_CERTS_BSCLIENT_USER"
