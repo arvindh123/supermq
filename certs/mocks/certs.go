@@ -143,3 +143,11 @@ func (c *certsRepoMock) Update(ctx context.Context, cert certs.Cert) error {
 func (c *certsRepoMock) ListExpiredCerts(ctx context.Context, timeBefore time.Duration, limit, offset uint64) (certs.Page, error) {
 	return certs.Page{}, nil
 }
+
+func (c *certsRepoMock) AutoRemoveByThingID(ctx context.Context, thingID string) error {
+	return nil
+}
+
+func (c *certsRepoMock) AutoRetrieveByThingID(ctx context.Context, thingID string) (certs.Cert, error) {
+	return certs.Cert{}, nil
+}
