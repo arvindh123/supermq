@@ -59,9 +59,10 @@ type Service interface {
 	// Renew the exipred certificate from certs repo
 	RenewCerts(ctx context.Context, bsUpdateRenewCert bool) error
 
-	// Automattically trigger RenewCert function for given renew interval time
+	// Automatically trigger RenewCert function for given renew interval time
 	AutoRenew(ctx context.Context, bsUpdateRenewCert bool, renewInterval time.Duration) error
 
+	// Automatically trigger revokes certificate of the given thing ID without authentication , used for Auto Renewal of certificate.
 	AutoRevokeCerts(ctx context.Context, thingID string) (Revoke, error)
 }
 
