@@ -196,7 +196,7 @@ func (cr certsRepository) RetrieveBySerial(ctx context.Context, ownerID, serialI
 }
 
 func (cr certsRepository) ListExpiredCerts(ctx context.Context, timeBefore time.Duration, limit, offset uint64) (certs.Page, error) {
-	whereClause := fmt.Sprintf("WHERE expire <= now()  - interval %s", timeBefore)
+	whereClause := fmt.Sprintf("WHERE expire <= now()  - interval '%s'", timeBefore)
 	limitClause := ""
 	offsetClause := ""
 	if limit > 0 {
@@ -215,14 +215,14 @@ func (cr certsRepository) ListExpiredCerts(ctx context.Context, timeBefore time.
 	certificates := []certs.Cert{}
 	for rows.Next() {
 		c := certs.Cert{}
-		if err := rows.Scan(&c.ThingID, &c.OwnerID, &c.Serial, &c.Expire); err != nil {
+		if err := rows.Scan(&c.ThingID, &c.OwnerID, &c.Expire, &c.Serial); err != nil {
 			return certs.Page{}, errors.Wrap(errors.ErrScanEntity, err)
 
 		}
 		certificates = append(certificates, c)
 	}
 
-	q = fmt.Sprintf(`SELECT thing_id, owner_id, expire, serial FROM public.certs %s %s %s`, whereClause, limitClause, offsetClause)
+	q = fmt.Sprintf(`SELECT COUNT(*) FROM public.certs %s %s %s`, whereClause, limitClause, offsetClause)
 	var total uint64
 	if err := cr.db.QueryRow(q).Scan(&total); err != nil {
 		return certs.Page{}, errors.Wrap(errors.ErrScanCountEntity, err)
@@ -234,6 +234,36 @@ func (cr certsRepository) ListExpiredCerts(ctx context.Context, timeBefore time.
 		Offset: 0,
 		Certs:  certificates,
 	}, nil
+}
+
+func (cr certsRepository) AutoRetrieveByThingID(ctx context.Context, thingID string) (certs.Cert, error) {
+	q := `SELECT thing_id, owner_id, serial, expire FROM certs WHERE thing_id = $1`
+	var dbcrt dbCert
+	var c certs.Cert
+	if err := cr.db.QueryRowxContext(ctx, q, thingID).StructScan(&dbcrt); err != nil {
+		pqErr, ok := err.(*pq.Error)
+		if err == sql.ErrNoRows || ok && errInvalid == pqErr.Code.Name() {
+			return c, errors.Wrap(errors.ErrNotFound, err)
+		}
+
+		return c, errors.Wrap(errors.ErrViewEntity, err)
+	}
+	c = toCert(dbcrt)
+	return c, nil
+}
+
+func (cr certsRepository) AutoRemoveByThingID(ctx context.Context, thingID string) error {
+	if _, err := cr.AutoRetrieveByThingID(ctx, thingID); err != nil {
+		return errors.Wrap(errors.ErrRemoveEntity, err)
+	}
+	q := `DELETE FROM certs WHERE thing_id = :thingID`
+	var c certs.Cert
+	c.ThingID = thingID
+	dbcrt := toDBCert(c)
+	if _, err := cr.db.NamedExecContext(ctx, q, dbcrt); err != nil {
+		return errors.Wrap(errors.ErrRemoveEntity, err)
+	}
+	return nil
 }
 
 func (cr certsRepository) rollback(content string, tx *sqlx.Tx, err error) {

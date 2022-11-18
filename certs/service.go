@@ -21,13 +21,19 @@ var (
 	ErrFailedCertCreation = errors.New("failed to create client certificate")
 
 	// ErrFailedCertRevocation failed to revoke certificate
-	ErrFailedCertRevocation = errors.New("failed to revoke certificate")
+	ErrFailedCertRevocation = errors.New("failed to revoke certificate in PKI")
 
 	errFailedToUpdateCertRenew = errors.New("failed to update certificate while renewing")
 
 	errFailedToUpdateCertBSRenew = errors.New("failed to update certificate in bootstrap while renewing")
 
 	errFailedToRemoveCertFromDB = errors.New("failed to remove cert serial from db")
+
+	errFailedToRetriveByThingID = errors.New("failed to retrive by thing ID ")
+
+	errFailedToGetThingService = errors.New("failed to get from thing service")
+
+	errFailedToReadFromPKI = errors.New("failed to read cert cert from PKI")
 )
 
 var _ Service = (*certsService)(nil)
@@ -55,6 +61,8 @@ type Service interface {
 
 	// Automattically trigger RenewCert function for given renew interval time
 	AutoRenew(ctx context.Context, bsUpdateRenewCert bool, renewInterval time.Duration) error
+
+	AutoRevokeCerts(ctx context.Context, thingID string) (Revoke, error)
 }
 
 // Config defines the service parameters
@@ -298,4 +306,23 @@ func (cs *certsService) AutoRenew(ctx context.Context, bsUpdateRenewCert bool, r
 			go renewCertsFn(rCtx, bsUpdateRenewCert, renewErrChan, cs.RenewCerts)
 		}
 	}
+}
+
+func (cs *certsService) AutoRevokeCerts(ctx context.Context, thingID string) (Revoke, error) {
+	var revoke Revoke
+
+	c, err := cs.certsRepo.AutoRetrieveByThingID(ctx, thingID)
+	if err != nil {
+		return revoke, errors.Wrap(errFailedToRetriveByThingID, err)
+	}
+
+	revTime, err := cs.pki.Revoke(c.Serial)
+	if err != nil {
+		return revoke, errors.Wrap(ErrFailedCertRevocation, err)
+	}
+	revoke.RevocationTime = revTime
+	if err = cs.certsRepo.AutoRemoveByThingID(context.Background(), c.Serial); err != nil {
+		return revoke, errors.Wrap(errFailedToRemoveCertFromDB, err)
+	}
+	return revoke, nil
 }
