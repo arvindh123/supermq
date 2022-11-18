@@ -44,33 +44,37 @@ import (
 const (
 	stopWaitTime = 5 * time.Second
 
-	defLogLevel              = "error"
-	defDBHost                = "localhost"
-	defDBPort                = "5432"
-	defDBUser                = "mainflux"
-	defDBPass                = "mainflux"
-	defDB                    = "certs"
-	defDBSSLMode             = "disable"
-	defDBSSLCert             = ""
-	defDBSSLKey              = ""
-	defDBSSLRootCert         = ""
-	defClientTLS             = "false"
-	defCACerts               = ""
-	defPort                  = "8204"
-	defServerCert            = ""
-	defServerKey             = ""
-	defCertsURL              = "http://localhost"
-	defThingsURL             = "http://things:8182"
-	defJaegerURL             = ""
-	defAuthURL               = "localhost:8181"
-	defAuthTimeout           = "1s"
-	defSignCAPath            = "ca.crt"
-	defSignCAKeyPath         = "ca.key"
-	defSignHoursValid        = "2048h"
-	defSignRSABits           = "2048"
-	defCertAutoRenew         = true
-	defCertAutoRenewUpdateBS = true
-	defStopSvcOnRenewErr     = true
+	defLogLevel       = "error"
+	defDBHost         = "localhost"
+	defDBPort         = "5432"
+	defDBUser         = "mainflux"
+	defDBPass         = "mainflux"
+	defDB             = "certs"
+	defDBSSLMode      = "disable"
+	defDBSSLCert      = ""
+	defDBSSLKey       = ""
+	defDBSSLRootCert  = ""
+	defClientTLS      = "false"
+	defCACerts        = ""
+	defPort           = "8204"
+	defServerCert     = ""
+	defServerKey      = ""
+	defCertsURL       = "http://localhost"
+	defThingsURL      = "http://things:8182"
+	defJaegerURL      = ""
+	defAuthURL        = "localhost:8181"
+	defAuthTimeout    = "1s"
+	defSignCAPath     = "ca.crt"
+	defSignCAKeyPath  = "ca.key"
+	defSignHoursValid = "2048h"
+	defSignRSABits    = "2048"
+
+	defCertsAutoRenewRestartInterval = "10s"
+	defCertsAutoRenew                = "true"
+	defCertsAutoRenewUpdateBS        = "true"
+	defStopSvcOnCertsAutoRenewErr    = "false"
+
+	defUsersURL = "http://user:8180"
 
 	defBootstrapURL = "http://bootstrap:8202/things/configs/certs"
 	defMFUser       = "test@email.com"
@@ -114,6 +118,12 @@ const (
 	envSignCAKey      = "MF_CERTS_SIGN_CA_KEY_PATH"
 	envSignHoursValid = "MF_CERTS_SIGN_HOURS_VALID"
 	envSignRSABits    = "MF_CERTS_SIGN_RSA_BITS"
+	envUsersURL       = "MF_CERTS_USERS_URL"
+
+	envCertsAutoRenewRestartInterval = "MF_CERT_AUTO_RENEW_RESTART_INTERVAL"
+	envCertsAutoRenew                = "MF_CERTS_AUTO_RENEW"
+	envCertsAutoRenewUpdateBS        = "MF_CERTS_AUTO_RENEW_UDPATE_BS"
+	envStopSvcOnCertsAutoRenewErr    = "MF_CERTS_STOP_ON_AUTO_RENEW_ERROR"
 
 	envVaultHost       = "MF_CERTS_VAULT_HOST"
 	envVaultPKIIntPath = "MF_VAULT_PKI_INT_PATH"
@@ -124,13 +134,10 @@ const (
 	envMFUser       = "MF_CERTS_BSCLIENT_USER"
 	envMFPass       = "MF_CERTS_BSCLIENT_PASS"
 
-	envThingsESURL  = "MF_THINGS_ES_URL"
-	envThingsESPass = "MF_THINGS_ES_PASS"
-	envThingsESDB   = "MF_THINGS_ES_DB"
-
+	envThingsESURL    = "MF_THINGS_ES_URL"
+	envThingsESPass   = "MF_THINGS_ES_PASS"
+	envThingsESDB     = "MF_THINGS_ES_DB"
 	envESConsumerName = "MF_CERTS_EVENT_CONSUMER"
-
-	envUsersToken = "MF_CERTS_USERS_TOKEN"
 )
 
 var (
@@ -156,6 +163,12 @@ type config struct {
 	bootstrapURL string
 	mfUser       string
 	mfPass       string
+	usersUrl     string
+
+	certsAutoRenewRestartInterval time.Duration
+	certsAutoRenew                bool
+	certsAutoRenewUpdateBS        bool
+	stopSvcOnCertsAutoRenewErr    bool
 
 	esThingsURL    string
 	esThingsPass   string
@@ -229,7 +242,19 @@ func main() {
 	})
 
 	g.Go(func() error {
-		return svc.AutoRenew(ctx, true, 10*time.Minute)
+		for {
+			select {
+			case <-ctx.Done():
+				return nil
+			default:
+				err := svc.AutoRenew(ctx, true, 10*time.Minute)
+				if cfg.stopSvcOnCertsAutoRenewErr {
+					return err
+				}
+				logger.Warn(fmt.Sprintf("auto_renew restarting in %v", cfg.certsAutoRenewRestartInterval))
+				time.Sleep(cfg.certsAutoRenewRestartInterval)
+			}
+		}
 	})
 
 	if err := g.Wait(); err != nil {
@@ -263,6 +288,26 @@ func loadConfig() config {
 	if err != nil {
 		log.Fatalf("Invalid %s value: %s", envSignRSABits, err.Error())
 	}
+	certsAutoRenewRestartInterval, err := time.ParseDuration(mainflux.Env(envCertsAutoRenewRestartInterval, defCertsAutoRenewRestartInterval))
+	if err != nil {
+		log.Fatalf("Invalid %s value: %s", envCertsAutoRenewRestartInterval, err.Error())
+	}
+	certsAutoRenew, err := strconv.ParseBool(mainflux.Env(envCertsAutoRenew, defCertsAutoRenew))
+	if err != nil {
+		certsAutoRenew = true
+	}
+
+	certAutoRenewUpdateBS, err := strconv.ParseBool(mainflux.Env(envCertsAutoRenewUpdateBS, defCertsAutoRenewUpdateBS))
+	if err != nil {
+		certAutoRenewUpdateBS = true
+	}
+
+	stopSvcOnCertsAutoRenewErr, err := strconv.ParseBool(mainflux.Env(envStopSvcOnCertsAutoRenewErr, defStopSvcOnCertsAutoRenewErr))
+	if err != nil {
+		stopSvcOnCertsAutoRenewErr = true
+	}
+
+	usersUrl := mainflux.Env(envUsersURL, defUsersURL)
 
 	return config{
 		logLevel:    mainflux.Env(envLogLevel, defLogLevel),
@@ -278,6 +323,8 @@ func loadConfig() config {
 		authURL:     mainflux.Env(envAuthURL, defAuthURL),
 		authTimeout: authTimeout,
 
+		usersUrl: usersUrl,
+
 		esThingsURL:    mainflux.Env(envThingsESURL, defThingsESURL),
 		esThingsPass:   mainflux.Env(envThingsESPass, defThingsESPass),
 		esThingsDB:     mainflux.Env(envThingsESDB, defThingsESDB),
@@ -287,6 +334,15 @@ func loadConfig() config {
 		signCAPath:     mainflux.Env(envSignCAPath, defSignCAPath),
 		signHoursValid: mainflux.Env(envSignHoursValid, defSignHoursValid),
 		signRSABits:    signRSABits,
+
+		certsAutoRenewRestartInterval: certsAutoRenewRestartInterval,
+		certsAutoRenew:                certsAutoRenew,
+		certsAutoRenewUpdateBS:        certAutoRenewUpdateBS,
+		stopSvcOnCertsAutoRenewErr:    stopSvcOnCertsAutoRenewErr,
+
+		bootstrapURL: mainflux.Env(envBootstrapURL, defBootstrapURL),
+		mfUser:       mainflux.Env(envMFUser, defMFUser),
+		mfPass:       mainflux.Env(envMFPass, defMFPass),
 
 		pkiToken: mainflux.Env(envVaultToken, defVaultToken),
 		pkiPath:  mainflux.Env(envVaultPKIIntPath, defVaultPKIIntPath),
@@ -381,6 +437,7 @@ func newService(auth mainflux.AuthServiceClient, db *sqlx.DB, logger mflog.Logge
 	config := mfsdk.Config{
 		CertsURL:  cfg.certsURL,
 		ThingsURL: cfg.thingsURL,
+		UsersURL:  cfg.usersUrl,
 	}
 
 	sdk := mfsdk.NewSDK(config)

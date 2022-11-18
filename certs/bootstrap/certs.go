@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/mainflux/mainflux/certs"
@@ -19,6 +20,8 @@ import (
 	mfsdk "github.com/mainflux/mainflux/pkg/sdk/go"
 )
 
+const authHeaderPrefix = "Bearer"
+
 var (
 	// ErrUnauthorizedAccess indicates missing or invalid credentials provided
 	// when accessing a protected resource.
@@ -26,6 +29,10 @@ var (
 
 	// ErrUnexpectedBSResponse indicates unexpected response from Bootstrap service.
 	ErrUnexpectedBSResponse = errors.New("unexpected Bootstrap service response")
+
+	ErrUnableToAccess = errors.New("unable to access bootstrap service")
+
+	ErrFailedToLogin = errors.New("Failed to login")
 )
 
 type bootstrapClient struct {
@@ -85,7 +92,7 @@ func (c *bootstrapClient) UpdateCerts(ctx context.Context, thingID, clientCert, 
 	}
 	headers := map[string]string{
 		"Content-Type":  "application/json",
-		"Authorization": c.fetchToken(),
+		"Authorization": fmt.Sprintf("%s %s", authHeaderPrefix, c.fetchToken()),
 	}
 
 	res, err := request(ctx, http.MethodPatch, url, data, headers)
@@ -97,16 +104,16 @@ func (c *bootstrapClient) UpdateCerts(ctx context.Context, thingID, clientCert, 
 	switch res.StatusCode {
 	case http.StatusOK:
 		return nil
-	case http.StatusForbidden:
+	case http.StatusForbidden, http.StatusUnauthorized:
 		token, err := c.login()
 		if err != nil {
-			return errors.Wrap(ErrUnauthorizedAccess, err)
+			return errors.Wrap(ErrFailedToLogin, err)
 		}
-		headers["Authorization"] = token
+		headers["Authorization"] = fmt.Sprintf("%s %s", authHeaderPrefix, token)
 	case http.StatusNotFound:
-		return errors.ErrNotFound
+		return errors.Wrap(ErrUnableToAccess, errors.ErrNotFound)
 	default:
-		return ErrUnexpectedBSResponse
+		return errors.Wrap(ErrUnexpectedBSResponse, errDetailsBSResp(res))
 	}
 
 	res1, err := request(ctx, http.MethodPatch, url, data, headers)
@@ -119,11 +126,22 @@ func (c *bootstrapClient) UpdateCerts(ctx context.Context, thingID, clientCert, 
 	switch res1.StatusCode {
 	case http.StatusOK:
 		return nil
-	case http.StatusForbidden:
-		return ErrUnauthorizedAccess
+	case http.StatusForbidden, http.StatusUnauthorized:
+		return errors.Wrap(ErrUnauthorizedAccess, errDetailsBSResp(res1))
 	default:
-		return ErrUnexpectedBSResponse
+		return errors.Wrap(ErrUnexpectedBSResponse, errDetailsBSResp(res1))
 	}
+}
+
+func errDetailsBSResp(res *http.Response) error {
+	err := fmt.Errorf("Bootstrap response http status code %d", res.StatusCode)
+	b, bErr := io.ReadAll(res.Body)
+	if bErr != nil {
+		err = fmt.Errorf("%w, failed to read Bootstrap response body error : %w ", err, bErr)
+	}
+	err = fmt.Errorf("%w, response body: %s", err, b)
+	return err
+
 }
 
 func request(ctx context.Context, method, url string, data []byte, header map[string]string) (*http.Response, error) {
