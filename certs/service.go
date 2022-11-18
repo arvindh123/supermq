@@ -100,10 +100,11 @@ type certsService struct {
 }
 
 // New returns new Certs service.
-func New(auth mainflux.AuthServiceClient, certs Repository, sdk mfsdk.SDK, config Config, pki pki.Agent) Service {
+func New(auth mainflux.AuthServiceClient, certs Repository, sdk mfsdk.SDK, bsClient BootstrapClient, config Config, pki pki.Agent) Service {
 	return &certsService{
 		certsRepo: certs,
 		sdk:       sdk,
+		bsClient:  bsClient,
 		auth:      auth,
 		conf:      config,
 		pki:       pki,
