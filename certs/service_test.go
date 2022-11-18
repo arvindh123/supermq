@@ -53,6 +53,11 @@ const (
 	cfgAuthURL     = "localhost:8181"
 	cfgAuthTimeout = "1s"
 
+	cfgBootStrapURL = "http://localhost"
+	cfgMfUser       = "admin@example.com"
+	cfgMfPass       = "12345678"
+	cfgMfToken      = ""
+
 	caPath            = "../docker/ssl/certs/ca.crt"
 	caKeyPath         = "../docker/ssl/certs/ca.key"
 	cfgSignHoursValid = "24h"
@@ -70,6 +75,7 @@ func newService(tokens map[string]string) (certs.Service, error) {
 	}
 
 	sdk := mfsdk.NewSDK(config)
+	bsClient := certs.BootstrapClient(cfgBootStrapURL, cfgMfUser, cfgMfPass, cfgMfToken)
 	repo := mocks.NewCertsRepository()
 
 	tlsCert, caCert, err := loadCertificates(caPath, caKeyPath)
@@ -98,7 +104,7 @@ func newService(tokens map[string]string) (certs.Service, error) {
 
 	pki := mocks.NewPkiAgent(tlsCert, caCert, cfgSignRSABits, cfgSignHoursValid, authTimeout)
 
-	return certs.New(auth, repo, sdk, c, pki), nil
+	return certs.New(auth, repo, sdk, bsClient, c, pki), nil
 }
 
 func newThingsService(auth mainflux.AuthServiceClient) things.Service {
