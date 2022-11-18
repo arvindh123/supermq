@@ -72,6 +72,10 @@ const (
 	defCertAutoRenewUpdateBS = true
 	defStopSvcOnRenewErr     = true
 
+	defBootstrapURL = "http://bootstrap:8202/things/configs/certs"
+	defMFUser       = "test@email.com"
+	defMFPass       = "123"
+
 	defThingsESURL  = "localhost:6379"
 	defThingsESPass = ""
 	defThingsESDB   = "0"
