@@ -116,13 +116,13 @@ const (
 	envSignRSABits    = "MF_CERTS_SIGN_RSA_BITS"
 
 	envVaultHost       = "MF_CERTS_VAULT_HOST"
-	envVaultPKIIntPath = "MF_VAULT_PKI_INT_PATH"
-	envVaultRole       = "MF_VAULT_CA_ROLE_NAME"
-	envVaultToken      = "MF_VAULT_TOKEN"
+	envVaultPKIIntPath = "MF_CERTS_VAULT_PKI_INT_PATH"
+	envVaultRole       = "MF_CERTS_VAULT_CA_ROLE_NAME"
+	envVaultToken      = "MF_CERTS_VAULT_TOKEN"
 
-	envBootstrapURL = "MF_BOOTSTRAP_URL"
-	envMFUser       = "MF_USER"
-	envMFPass       = "MF_PASS"
+	envBootstrapURL = "MF_CERTS_BOOTSTRAP_URL"
+	envMFUser       = "MF_CERTS_BSCLIENT_USER"
+	envMFPass       = "MF_CERTS_BSCLIENT_PASS"
 
 	envThingsESURL  = "MF_THINGS_ES_URL"
 	envThingsESPass = "MF_THINGS_ES_PASS"
@@ -130,7 +130,7 @@ const (
 
 	envESConsumerName = "MF_CERTS_EVENT_CONSUMER"
 
-	envUsersToken = "MF_USERS_TOKEN"
+	envUsersToken = "MF_CERTS_USERS_TOKEN"
 )
 
 var (
