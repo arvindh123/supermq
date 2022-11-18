@@ -20,6 +20,7 @@ import (
 	"github.com/mainflux/mainflux"
 	bsmocks "github.com/mainflux/mainflux/bootstrap/mocks"
 	"github.com/mainflux/mainflux/certs"
+	certsBSClient "github.com/mainflux/mainflux/certs/bootstrap"
 	"github.com/mainflux/mainflux/certs/mocks"
 	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/pkg/errors"
@@ -75,7 +76,7 @@ func newService(tokens map[string]string) (certs.Service, error) {
 	}
 
 	sdk := mfsdk.NewSDK(config)
-	bsClient := certs.BootstrapClient(cfgBootStrapURL, cfgMfUser, cfgMfPass, cfgMfToken)
+	bsClient := certsBSClient.New(cfgBootStrapURL, cfgMfUser, cfgMfPass, sdk)
 	repo := mocks.NewCertsRepository()
 
 	tlsCert, caCert, err := loadCertificates(caPath, caKeyPath)
