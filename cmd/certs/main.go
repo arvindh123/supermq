@@ -17,10 +17,14 @@ import (
 
 	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
 	"github.com/go-redis/redis/v8"
+	r "github.com/go-redis/redis/v8"
 	"github.com/mainflux/mainflux"
 	authapi "github.com/mainflux/mainflux/auth/api/grpc"
+	rediscons "github.com/mainflux/mainflux/certs/redis/consumer"
+
 	"github.com/mainflux/mainflux/certs"
 	"github.com/mainflux/mainflux/certs/api"
+	certsBSClient "github.com/mainflux/mainflux/certs/bootstrap"
 	vault "github.com/mainflux/mainflux/certs/pki"
 	"github.com/mainflux/mainflux/certs/postgres"
 	"github.com/mainflux/mainflux/logger"
@@ -63,10 +67,19 @@ const (
 	defSignCAPath            = "ca.crt"
 	defSignCAKeyPath         = "ca.key"
 	defSignHoursValid        = "2048h"
-	defSignRSABits           = ""
+	defSignRSABits           = "2048"
 	defCertAutoRenew         = true
 	defCertAutoRenewUpdateBS = true
 	defStopSvcOnRenewErr     = true
+
+	defThingsESURL  = "localhost:6379"
+	defThingsESPass = ""
+	defThingsESDB   = "0"
+
+	defESURL          = "localhost:6379"
+	defESPass         = ""
+	defESDB           = "0"
+	defESConsumerName = "certs"
 
 	defVaultHost       = ""
 	defVaultRole       = "mainflux"
@@ -102,6 +115,18 @@ const (
 	envVaultPKIIntPath = "MF_VAULT_PKI_INT_PATH"
 	envVaultRole       = "MF_VAULT_CA_ROLE_NAME"
 	envVaultToken      = "MF_VAULT_TOKEN"
+
+	envBootstrapURL = "MF_BOOTSTRAP_URL"
+	envMFUser       = "MF_USER"
+	envMFPass       = "MF_PASS"
+
+	envThingsESURL  = "MF_THINGS_ES_URL"
+	envThingsESPass = "MF_THINGS_ES_PASS"
+	envThingsESDB   = "MF_THINGS_ES_DB"
+
+	envESConsumerName = "MF_CERTS_EVENT_CONSUMER"
+
+	envUsersToken = "MF_USERS_TOKEN"
 )
 
 var (
@@ -112,18 +137,27 @@ var (
 )
 
 type config struct {
-	logLevel    string
-	dbConfig    postgres.Config
-	clientTLS   bool
-	caCerts     string
-	httpPort    string
-	serverCert  string
-	serverKey   string
-	certsURL    string
-	thingsURL   string
-	jaegerURL   string
-	authURL     string
-	authTimeout time.Duration
+	logLevel     string
+	dbConfig     postgres.Config
+	clientTLS    bool
+	caCerts      string
+	httpPort     string
+	serverCert   string
+	serverKey    string
+	certsURL     string
+	thingsURL    string
+	jaegerURL    string
+	authURL      string
+	authTimeout  time.Duration
+	bootstrapURL string
+	mfUser       string
+	mfPass       string
+
+	esThingsURL    string
+	esThingsPass   string
+	esThingsDB     string
+	esConsumerName string
+
 	// Sign and issue certificates without 3rd party PKI
 	signCAPath     string
 	signCAKeyPath  string
@@ -163,6 +197,9 @@ func main() {
 	db := connectToDB(cfg.dbConfig, logger)
 	defer db.Close()
 
+	thingsESConn := connectToRedis(cfg.esThingsURL, cfg.esThingsPass, cfg.esThingsDB, logger)
+	defer thingsESConn.Close()
+
 	authTracer, authCloser := initJaeger("auth", cfg.jaegerURL, logger)
 	defer authCloser.Close()
 
@@ -172,6 +209,8 @@ func main() {
 	auth := authapi.NewClient(authTracer, authConn, cfg.authTimeout)
 
 	svc := newService(auth, db, logger, nil, tlsCert, caCert, cfg, pkiClient)
+
+	go subscribeToThingsES(svc, thingsESConn, cfg.esConsumerName, logger)
 
 	g.Go(func() error {
 		return startHTTPServer(ctx, svc, cfg, logger)
@@ -234,6 +273,11 @@ func loadConfig() config {
 		jaegerURL:   mainflux.Env(envJaegerURL, defJaegerURL),
 		authURL:     mainflux.Env(envAuthURL, defAuthURL),
 		authTimeout: authTimeout,
+
+		esThingsURL:    mainflux.Env(envThingsESURL, defThingsESURL),
+		esThingsPass:   mainflux.Env(envThingsESPass, defThingsESPass),
+		esThingsDB:     mainflux.Env(envThingsESDB, defThingsESDB),
+		esConsumerName: mainflux.Env(envESConsumerName, defESConsumerName),
 
 		signCAKeyPath:  mainflux.Env(envSignCAKey, defSignCAKeyPath),
 		signCAPath:     mainflux.Env(envSignCAPath, defSignCAPath),
@@ -336,8 +380,9 @@ func newService(auth mainflux.AuthServiceClient, db *sqlx.DB, logger mflog.Logge
 	}
 
 	sdk := mfsdk.NewSDK(config)
+	bsClient := certsBSClient.New(cfg.bootstrapURL, cfg.mfUser, cfg.mfPass, sdk)
 
-	svc := certs.New(auth, certsRepo, sdk, certsConfig, pkiAgent)
+	svc := certs.New(auth, certsRepo, sdk, bsClient, certsConfig, pkiAgent)
 	svc = api.NewLoggingMiddleware(svc, logger)
 	svc = api.MetricsMiddleware(
 		svc,
@@ -426,4 +471,26 @@ func loadCertificates(conf config) (tls.Certificate, *x509.Certificate, error) {
 	}
 
 	return tlsCert, caCert, nil
+}
+
+func subscribeToThingsES(svc certs.Service, client *r.Client, consumer string, logger mflog.Logger) {
+	eventStore := rediscons.NewEventStore(svc, client, consumer, logger)
+	logger.Info("Subscribed to Redis Event Store")
+	if err := eventStore.Subscribe(context.Background(), "mainflux.things"); err != nil {
+		logger.Warn(fmt.Sprintf("certs service failed to subscribe to event sourcing: %s", err))
+	}
+}
+
+func connectToRedis(redisURL, redisPass, redisDB string, logger mflog.Logger) *r.Client {
+	db, err := strconv.Atoi(redisDB)
+	if err != nil {
+		logger.Error(fmt.Sprintf("Failed to connect to redis: %s", err))
+		os.Exit(1)
+	}
+
+	return r.NewClient(&r.Options{
+		Addr:     redisURL,
+		Password: redisPass,
+		DB:       db,
+	})
 }
