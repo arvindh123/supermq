@@ -65,14 +65,6 @@ func Contains(e1 error, e2 error) bool {
 	return e1.Error() == e2.Error()
 }
 
-func MultiWrap(wrapper error, errs ...error) error {
-	var combainedErr error
-	for _, err := range errs {
-		Wrap(combainedErr, err)
-	}
-	return combainedErr
-}
-
 // Wrap returns an Error that wrap err with wrapper
 func Wrap(wrapper error, err error) error {
 	if wrapper == nil || err == nil {

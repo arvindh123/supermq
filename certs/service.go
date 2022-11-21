@@ -272,9 +272,9 @@ func (cs *certsService) RenewCerts(ctx context.Context, bsUpdateRenewCert bool) 
 				if err == errors.ErrNotFound {
 					revokes, err := cs.ThingCertsRevokeHandler(ctx, repoExpCert.ThingID)
 					if err != nil {
-						return errors.MultiWrap(errFailedToUpdateCertBSRenew, errThingNotInBS, fmt.Errorf(repoExpCert.ThingID), err)
+						return errors.Wrap(errFailedToUpdateCertBSRenew, errors.Wrap(errThingNotInBS, errors.Wrap(fmt.Errorf(repoExpCert.ThingID), err)))
 					}
-					return errors.MultiWrap(errFailedToUpdateCertBSRenew, errThingNotInBS, fmt.Errorf("%s certificate revoked at %v", repoExpCert.ThingID, revokes))
+					return errors.Wrap(errFailedToUpdateCertBSRenew, errors.Wrap(errThingNotInBS, fmt.Errorf("%s certificate revoked at %v", repoExpCert.ThingID, revokes)))
 				}
 				return errors.Wrap(errFailedToUpdateCertBSRenew, err)
 			}
