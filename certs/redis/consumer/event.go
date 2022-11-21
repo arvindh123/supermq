@@ -12,9 +12,3 @@ type updateChannelEvent struct {
 	name     string
 	metadata map[string]interface{}
 }
-
-// Connection event is either connect or disconnect event.
-type disconnectEvent struct {
-	thingID   string
-	channelID string
-}

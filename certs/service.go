@@ -31,12 +31,6 @@ var (
 	errFailedToUpdateCertBSRenew = errors.New("failed to update certificate in bootstrap while renewing")
 
 	errFailedToRemoveCertFromDB = errors.New("failed to remove cert serial from db")
-
-	errFailedToRetriveByThingID = errors.New("failed to retrive by thing ID ")
-
-	errFailedToGetThingService = errors.New("failed to get from thing service")
-
-	errFailedToReadFromPKI = errors.New("failed to read cert cert from PKI")
 )
 
 var _ Service = (*certsService)(nil)

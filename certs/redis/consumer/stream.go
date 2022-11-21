@@ -16,13 +16,10 @@ const (
 	stream = "mainflux.things"
 	group  = "mainflux.certs"
 
-	thingPrefix     = "thing."
-	thingRemove     = thingPrefix + "remove"
-	thingDisconnect = thingPrefix + "disconnect"
+	thingPrefix = "thing."
+	thingRemove = thingPrefix + "remove"
 
 	channelPrefix = "channel."
-	channelUpdate = channelPrefix + "update"
-	channelRemove = channelPrefix + "remove"
 
 	exists = "BUSYGROUP Consumer Group name already exists"
 )

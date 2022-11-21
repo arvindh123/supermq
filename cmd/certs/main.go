@@ -80,13 +80,9 @@ const (
 	defMFUser       = "test@email.com"
 	defMFPass       = "123"
 
-	defThingsESURL  = "localhost:6379"
-	defThingsESPass = ""
-	defThingsESDB   = "0"
-
-	defESURL          = "localhost:6379"
-	defESPass         = ""
-	defESDB           = "0"
+	defThingsESURL    = "localhost:6379"
+	defThingsESPass   = ""
+	defThingsESDB     = "0"
 	defESConsumerName = "certs"
 
 	defVaultHost       = ""

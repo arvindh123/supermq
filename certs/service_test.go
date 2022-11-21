@@ -57,7 +57,6 @@ const (
 	cfgBootStrapURL = "http://localhost"
 	cfgMfUser       = "admin@example.com"
 	cfgMfPass       = "12345678"
-	cfgMfToken      = ""
 
 	caPath            = "../docker/ssl/certs/ca.crt"
 	caKeyPath         = "../docker/ssl/certs/ca.key"
