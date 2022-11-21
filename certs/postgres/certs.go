@@ -265,36 +265,6 @@ func (cr certsRepository) ListExpiredCerts(ctx context.Context, timeBefore time.
 	}, nil
 }
 
-// func (cr certsRepository) AutoRetrieveByThingID(ctx context.Context, thingID string) (certs.Cert, error) {
-// 	q := `SELECT thing_id, owner_id, serial, expire FROM certs WHERE thing_id = $1`
-// 	var dbcrt dbCert
-// 	var c certs.Cert
-// 	if err := cr.db.QueryRowxContext(ctx, q, thingID).StructScan(&dbcrt); err != nil {
-// 		pqErr, ok := err.(*pq.Error)
-// 		if err == sql.ErrNoRows || ok && errInvalid == pqErr.Code.Name() {
-// 			return c, errors.Wrap(errors.ErrNotFound, err)
-// 		}
-
-// 		return c, errors.Wrap(errors.ErrViewEntity, err)
-// 	}
-// 	c = toCert(dbcrt)
-// 	return c, nil
-// }
-
-// func (cr certsRepository) AutoRemoveByThingID(ctx context.Context, thingID string) error {
-// 	if _, err := cr.AutoRetrieveByThingID(ctx, thingID); err != nil {
-// 		return errors.Wrap(errors.ErrRemoveEntity, err)
-// 	}
-// 	q := `DELETE FROM certs WHERE thing_id = :thingID`
-// 	var c certs.Cert
-// 	c.ThingID = thingID
-// 	dbcrt := toDBCert(c)
-// 	if _, err := cr.db.NamedExecContext(ctx, q, dbcrt); err != nil {
-// 		return errors.Wrap(errors.ErrRemoveEntity, err)
-// 	}
-// 	return nil
-// }
-
 func (cr certsRepository) rollback(content string, tx *sqlx.Tx, err error) {
 	cr.log.Error(fmt.Sprintf("%s %s", content, err))
 
