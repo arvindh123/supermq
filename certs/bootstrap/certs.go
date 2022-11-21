@@ -113,7 +113,7 @@ func (c *bootstrapClient) UpdateCerts(ctx context.Context, thingID, clientCert, 
 		}
 		headers["Authorization"] = fmt.Sprintf("%s %s", authHeaderPrefix, token)
 	case http.StatusNotFound:
-		return errors.Wrap(ErrUnableToAccess, errDetailsBSResp(res))
+		return bsResponseErrorType(res)
 	default:
 		return errors.Wrap(ErrUnexpectedBSResponse, errDetailsBSResp(res))
 	}
@@ -130,6 +130,8 @@ func (c *bootstrapClient) UpdateCerts(ctx context.Context, thingID, clientCert, 
 		return nil
 	case http.StatusForbidden, http.StatusUnauthorized:
 		return errors.Wrap(ErrUnauthorizedAccess, errDetailsBSResp(res1))
+	case http.StatusNotFound:
+		return bsResponseErrorType(res)
 	default:
 		return errors.Wrap(ErrUnexpectedBSResponse, errDetailsBSResp(res1))
 	}
@@ -152,9 +154,15 @@ func bsResponseErrorType(res *http.Response) error {
 	if bErr != nil {
 		return errors.Wrap(ErrFailedToReadResponseBody, bErr)
 	}
-	_ = b
-	fmt.Println(res.Header.Get("content-type"))
-	return nil
+	var content map[string]string
+	err := json.Unmarshal(b, &content)
+	if err != nil {
+		return errors.ErrNotFound
+	}
+	if msg, ok := content["error"]; ok {
+		return errors.New(msg)
+	}
+	return errors.New(string(b))
 }
 func request(ctx context.Context, method, url string, data []byte, header map[string]string) (*http.Response, error) {
 	req, err := http.NewRequest(method, url, bytes.NewReader(data))

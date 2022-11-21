@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"fmt"
 	"strings"
 	"time"
 
@@ -22,6 +23,8 @@ var (
 
 	// ErrFailedCertRevocation failed to revoke certificate
 	ErrFailedCertRevocation = errors.New("failed to revoke certificate in PKI")
+
+	errThingNotInBS = errors.New("Thing not found in bootstrap service")
 
 	errFailedToUpdateCertRenew = errors.New("failed to update certificate while renewing")
 
@@ -275,6 +278,13 @@ func (cs *certsService) RenewCerts(ctx context.Context, bsUpdateRenewCert bool) 
 		}
 		if bsUpdateRenewCert {
 			if err := cs.bsClient.UpdateCerts(ctx, repoExpCert.ThingID, cert.ClientCert, cert.ClientKey, strings.Join(cert.CAChain, "\n")); err != nil {
+				if err == errors.ErrNotFound {
+					revokes, err := cs.ThingCertsRevokeHandler(ctx, repoExpCert.ThingID)
+					if err != nil {
+						return errors.MultiWrap(errFailedToUpdateCertBSRenew, errThingNotInBS, fmt.Errorf(repoExpCert.ThingID), err)
+					}
+					return errors.MultiWrap(errFailedToUpdateCertBSRenew, errThingNotInBS, fmt.Errorf("%s certificate revoked at %v", repoExpCert.ThingID, revokes))
+				}
 				return errors.Wrap(errFailedToUpdateCertBSRenew, err)
 			}
 		}
@@ -302,8 +312,10 @@ func (cs *certsService) AutoRenew(ctx context.Context, bsUpdateRenewCert bool, r
 			rCancel()
 			return nil
 		case renewErr := <-renewErrChan:
-			rCancel()
-			return renewErr
+			if renewErr != nil {
+				rCancel()
+				return renewErr
+			}
 		case <-ticker.C:
 			go renewCertsFn(rCtx, bsUpdateRenewCert, renewErrChan, cs.RenewCerts)
 		}

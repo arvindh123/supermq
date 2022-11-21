@@ -173,7 +173,7 @@ func (cr certsRepository) RetrieveByThing(ctx context.Context, ownerID, thingID 
 
 	switch ownerID == "" {
 	case true:
-		q = `SELECT COUNT(*) FROM certs WHERE thing_id = $2`
+		q = `SELECT COUNT(*) FROM certs WHERE thing_id = $1`
 		queryParams = []interface{}{thingID}
 	default:
 		q = `SELECT COUNT(*) FROM certs WHERE owner_id = $1 AND thing_id = $2`
