@@ -45,10 +45,10 @@ func (cr certsRepository) RetrieveAll(ctx context.Context, ownerID string, offse
 	switch ownerID == "" {
 	case true:
 		q = `SELECT thing_id, owner_id, serial, expire FROM certs ORDER BY expire LIMIT $1 OFFSET $2;`
-		queryParams = []interface{}{offset, limit}
+		queryParams = []interface{}{limit, offset}
 	default:
 		q = `SELECT thing_id, owner_id, serial, expire FROM certs WHERE owner_id = $1 ORDER BY expire LIMIT $2 OFFSET $3;`
-		queryParams = []interface{}{ownerID, offset, limit}
+		queryParams = []interface{}{ownerID, limit, offset}
 
 	}
 	rows, err := cr.db.Query(q, queryParams...)
@@ -72,12 +72,11 @@ func (cr certsRepository) RetrieveAll(ctx context.Context, ownerID string, offse
 	q = `SELECT COUNT(*) FROM certs WHERE owner_id = $1`
 	switch ownerID == "" {
 	case true:
-		q = `SELECT COUNT(*) FROM certs  LIMIT $1 OFFSET $2;`
-		queryParams = []interface{}{offset, limit}
+		q = `SELECT COUNT(*) FROM certs;`
+		queryParams = []interface{}{}
 	default:
-		q = `SELECT COUNT(*) FROM certs WHERE owner_id = $1 LIMIT $2 OFFSET $3;`
-		queryParams = []interface{}{ownerID, offset, limit}
-
+		q = `SELECT COUNT(*) FROM certs WHERE owner_id = $1 ;`
+		queryParams = []interface{}{ownerID}
 	}
 	var total uint64
 	if err := cr.db.QueryRow(q, queryParams...).Scan(&total); err != nil {
@@ -166,11 +165,10 @@ func (cr certsRepository) RetrieveByThing(ctx context.Context, ownerID, thingID 
 	switch ownerID == "" {
 	case true:
 		q = `SELECT thing_id, owner_id, serial, expire FROM certs WHERE thing_id = $1 ORDER BY expire LIMIT $2 OFFSET $3;`
-		queryParams = []interface{}{thingID, offset, limit}
+		queryParams = []interface{}{thingID, limit, offset}
 	default:
 		q = `SELECT thing_id, owner_id, serial, expire FROM certs WHERE owner_id = $1 AND thing_id = $2 ORDER BY expire LIMIT $3 OFFSET $4;`
-		queryParams = []interface{}{ownerID, thingID, offset, limit}
-
+		queryParams = []interface{}{ownerID, thingID, limit, offset}
 	}
 	rows, err := cr.db.Query(q, queryParams...)
 	if err != nil {
