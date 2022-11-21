@@ -19,8 +19,6 @@ const (
 	thingPrefix = "thing."
 	thingRemove = thingPrefix + "remove"
 
-	channelPrefix = "channel."
-
 	exists = "BUSYGROUP Consumer Group name already exists"
 )
 

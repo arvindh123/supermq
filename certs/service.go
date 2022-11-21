@@ -264,7 +264,7 @@ func (cs *certsService) RenewCerts(ctx context.Context, renewThres time.Duration
 	}
 
 	for _, repoExpCert := range cp.Certs {
-		if renewThres < repoExpCert.Expire.Sub(time.Now()) {
+		if renewThres < time.Until(repoExpCert.Expire) {
 			continue
 		}
 		cert, err := cs.pki.IssueCert(repoExpCert.ThingID, cs.conf.SignHoursValid, "", cs.conf.SignRSABits)
