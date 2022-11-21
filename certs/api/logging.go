@@ -104,19 +104,6 @@ func (lm *loggingMiddleware) RenewCerts(ctx context.Context, bsUpdateRenewCert b
 	return lm.svc.RenewCerts(ctx, bsUpdateRenewCert)
 }
 
-func (lm *loggingMiddleware) AutoRenew(ctx context.Context, bsUpdateRenewCert bool, renewInterval time.Duration) (err error) {
-	defer func(begin time.Time) {
-		message := fmt.Sprintf("Method auto_renew for complete , running for %s", time.Since(begin))
-		if err != nil {
-			lm.logger.Warn(fmt.Sprintf("%s with error: %s.", message, err))
-			return
-		}
-		lm.logger.Info(fmt.Sprintf("%s without errors.", message))
-	}(time.Now())
-
-	return lm.svc.AutoRenew(ctx, bsUpdateRenewCert, renewInterval)
-}
-
 func (lm *loggingMiddleware) ThingCertsRevokeHandler(ctx context.Context, thingID string) (revokes []certs.Revoke, err error) {
 	defer func(begin time.Time) {
 		message := fmt.Sprintf("Method thing_certs_revoker_hander for complete for thing ID %s  cretificates revoked %+v, running for %s", thingID, revokes, time.Since(begin))

@@ -56,9 +56,6 @@ type Service interface {
 	// Renew the exipred certificate from certs repo
 	RenewCerts(ctx context.Context, bsUpdateRenewCert bool) error
 
-	// Automatically trigger RenewCert function for given renew interval time
-	AutoRenew(ctx context.Context, bsUpdateRenewCert bool, renewInterval time.Duration) error
-
 	// ThingCertsRevokeHandler  revokes certificates of the given thing ID ,  used for event streams thing remove handler.
 	ThingCertsRevokeHandler(ctx context.Context, thingID string) ([]Revoke, error)
 }
@@ -287,33 +284,6 @@ func (cs *certsService) RenewCerts(ctx context.Context, bsUpdateRenewCert bool) 
 		}
 	}
 	return nil
-}
-
-func (cs *certsService) AutoRenew(ctx context.Context, bsUpdateRenewCert bool, renewInterval time.Duration) error {
-	ticker := time.NewTicker(renewInterval)
-	rCtx, rCancel := context.WithCancel(context.Background())
-
-	renewErrChan := make(chan error, 1)
-	renewCertsFn := func(ctx context.Context, bsUpdateRenewCert bool, err chan error, renewCert func(ctx context.Context, bsUpdateRenewCert bool) error) {
-		err <- renewCert(ctx, bsUpdateRenewCert)
-	}
-
-	go renewCertsFn(rCtx, bsUpdateRenewCert, renewErrChan, cs.RenewCerts)
-
-	for {
-		select {
-		case <-ctx.Done():
-			rCancel()
-			return nil
-		case renewErr := <-renewErrChan:
-			if renewErr != nil {
-				rCancel()
-				return renewErr
-			}
-		case <-ticker.C:
-			go renewCertsFn(rCtx, bsUpdateRenewCert, renewErrChan, cs.RenewCerts)
-		}
-	}
 }
 
 func (cs *certsService) ThingCertsRevokeHandler(ctx context.Context, thingID string) ([]Revoke, error) {

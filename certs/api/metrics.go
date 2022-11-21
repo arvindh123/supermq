@@ -84,15 +84,6 @@ func (ms *metricsMiddleware) RenewCerts(ctx context.Context, bsUpdateRenewCert b
 	return ms.svc.RenewCerts(ctx, bsUpdateRenewCert)
 }
 
-func (ms *metricsMiddleware) AutoRenew(ctx context.Context, bsUpdateRenewCert bool, renewInterval time.Duration) (err error) {
-	defer func(begin time.Time) {
-		ms.counter.With("method", "auto_renew").Add(1)
-		ms.latency.With("method", "auto_renew").Observe(time.Since(begin).Seconds())
-	}(time.Now())
-
-	return ms.svc.AutoRenew(ctx, bsUpdateRenewCert, renewInterval)
-}
-
 func (ms *metricsMiddleware) ThingCertsRevokeHandler(ctx context.Context, thingID string) (revokes []certs.Revoke, err error) {
 	defer func(begin time.Time) {
 		ms.counter.With("method", "thing_certs_revoke_handler").Add(1)
