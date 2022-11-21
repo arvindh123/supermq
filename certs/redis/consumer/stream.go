@@ -73,11 +73,11 @@ func (es eventStore) Subscribe(ctx context.Context, subject string) error {
 			var err error
 			switch event["operation"] {
 			case thingRemove:
-				rev := certs.Revoke{}
+				rev := []certs.Revoke{}
 				rte := decodeRemoveThing(event)
-				rev, err = es.svc.AutoRevokeCerts(ctx, rte.id)
+				rev, err = es.svc.ThingCertsRevokeHandler(ctx, rte.id)
 				if err == nil {
-					es.logger.Info(fmt.Sprintf("Thing removee event handled , Thing ID %s certficate revoke at %v", rte.id, rev.RevocationTime))
+					es.logger.Info(fmt.Sprintf("Thing remove event handled , Thing ID %s all certficates revoke at %+v", rte.id, rev))
 				}
 			}
 			if err != nil {

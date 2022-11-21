@@ -62,8 +62,8 @@ type Service interface {
 	// Automatically trigger RenewCert function for given renew interval time
 	AutoRenew(ctx context.Context, bsUpdateRenewCert bool, renewInterval time.Duration) error
 
-	// Automatically trigger revokes certificate of the given thing ID without authentication , used for Auto Renewal of certificate.
-	AutoRevokeCerts(ctx context.Context, thingID string) (Revoke, error)
+	// ThingCertsRevokeHandler  revokes certificates of the given thing ID ,  used for event streams thing remove handler.
+	ThingCertsRevokeHandler(ctx context.Context, thingID string) ([]Revoke, error)
 }
 
 // Config defines the service parameters
@@ -278,7 +278,7 @@ func (cs *certsService) RenewCerts(ctx context.Context, bsUpdateRenewCert bool) 
 				return errors.Wrap(errFailedToUpdateCertBSRenew, err)
 			}
 		}
-		if err := cs.certsRepo.Update(ctx, c); err != nil {
+		if err := cs.certsRepo.Update(ctx, repoExpCert.Serial, c); err != nil {
 			return errors.Wrap(errFailedToUpdateCertRenew, err)
 		}
 	}
@@ -310,21 +310,36 @@ func (cs *certsService) AutoRenew(ctx context.Context, bsUpdateRenewCert bool, r
 	}
 }
 
-func (cs *certsService) AutoRevokeCerts(ctx context.Context, thingID string) (Revoke, error) {
-	var revoke Revoke
+func (cs *certsService) ThingCertsRevokeHandler(ctx context.Context, thingID string) ([]Revoke, error) {
+	var revokes []Revoke
 
-	c, err := cs.certsRepo.AutoRetrieveByThingID(ctx, thingID)
-	if err != nil {
-		return revoke, errors.Wrap(errFailedToRetriveByThingID, err)
+	cp := Page{}
+	cp.Limit = 100
+	cp.Total = 101
+	for cp.Offset+cp.Limit < cp.Total {
+		p, err := cs.certsRepo.RetrieveByThing(ctx, "", thingID, cp.Offset, cp.Limit)
+		if err != nil {
+			return []Revoke{}, errors.Wrap(ErrFailedCertRevocation, err)
+		}
+		cp.Certs = append(cp.Certs, p.Certs...)
+		if cp.Limit > p.Total {
+			break
+		}
+		cp.Offset = cp.Limit
+		cp.Limit = p.Total - cp.Limit
+		cp.Total = p.Total
 	}
-
-	revTime, err := cs.pki.Revoke(c.Serial)
-	if err != nil {
-		return revoke, errors.Wrap(ErrFailedCertRevocation, err)
+	for _, c := range cp.Certs {
+		var revoke Revoke
+		revTime, err := cs.pki.Revoke(c.Serial)
+		if err != nil {
+			return revokes, errors.Wrap(ErrFailedCertRevocation, err)
+		}
+		revoke.RevocationTime = revTime
+		revokes = append(revokes, revoke)
+		if err = cs.certsRepo.Remove(context.Background(), "", c.Serial); err != nil {
+			return revokes, errors.Wrap(errFailedToRemoveCertFromDB, err)
+		}
 	}
-	revoke.RevocationTime = revTime
-	if err = cs.certsRepo.AutoRemoveByThingID(context.Background(), c.Serial); err != nil {
-		return revoke, errors.Wrap(errFailedToRemoveCertFromDB, err)
-	}
-	return revoke, nil
+	return revokes, nil
 }

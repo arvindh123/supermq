@@ -102,8 +102,8 @@ func (cr certsRepository) Save(ctx context.Context, cert certs.Cert) (string, er
 	return cert.Serial, nil
 }
 
-func (cr certsRepository) Update(ctx context.Context, cert certs.Cert) error {
-	q := `UPDATE certs SET serial = :serial, expire = :expire	WHERE thing_id = :thing_id AND owner_id = :owner_id`
+func (cr certsRepository) Update(ctx context.Context, oldSerial string, cert certs.Cert) error {
+	q := fmt.Sprintf(`UPDATE certs SET serial = :serial, expire = :expire WHERE thing_id = :thing_id AND owner_id = :owner_id AND serial = %s`, oldSerial)
 	tx, err := cr.db.Beginx()
 	if err != nil {
 		return errors.Wrap(errors.ErrUpdateEntity, err)
@@ -142,8 +142,18 @@ func (cr certsRepository) Remove(ctx context.Context, ownerID, serial string) er
 }
 
 func (cr certsRepository) RetrieveByThing(ctx context.Context, ownerID, thingID string, offset, limit uint64) (certs.Page, error) {
-	q := `SELECT thing_id, owner_id, serial, expire FROM certs WHERE owner_id = $1 AND thing_id = $2 ORDER BY expire LIMIT $3 OFFSET $4;`
-	rows, err := cr.db.Query(q, ownerID, thingID, limit, offset)
+	var q string
+	var queryParams []interface{}
+	switch ownerID == "" {
+	case true:
+		q = `SELECT thing_id, owner_id, serial, expire FROM certs WHERE thing_id = $1 ORDER BY expire LIMIT $2 OFFSET $3;`
+		queryParams = []interface{}{thingID, offset, limit}
+	default:
+		q = `SELECT thing_id, owner_id, serial, expire FROM certs WHERE owner_id = $1 AND thing_id = $2 ORDER BY expire LIMIT $3 OFFSET $4;`
+		queryParams = []interface{}{ownerID, thingID, offset, limit}
+
+	}
+	rows, err := cr.db.Query(q, queryParams...)
 	if err != nil {
 		cr.log.Error(fmt.Sprintf("Failed to retrieve configs due to %s", err))
 		return certs.Page{}, err
@@ -161,9 +171,18 @@ func (cr certsRepository) RetrieveByThing(ctx context.Context, ownerID, thingID 
 		certificates = append(certificates, c)
 	}
 
-	q = `SELECT COUNT(*) FROM certs WHERE owner_id = $1 AND thing_id = $2`
+	switch ownerID == "" {
+	case true:
+		q = `SELECT COUNT(*) FROM certs WHERE thing_id = $2`
+		queryParams = []interface{}{thingID}
+	default:
+		q = `SELECT COUNT(*) FROM certs WHERE owner_id = $1 AND thing_id = $2`
+		queryParams = []interface{}{ownerID, thingID}
+
+	}
+
 	var total uint64
-	if err := cr.db.QueryRow(q, ownerID, thingID).Scan(&total); err != nil {
+	if err := cr.db.QueryRow(q, queryParams...).Scan(&total); err != nil {
 		cr.log.Error(fmt.Sprintf("Failed to count certs due to %s", err))
 		return certs.Page{}, err
 	}
@@ -177,11 +196,21 @@ func (cr certsRepository) RetrieveByThing(ctx context.Context, ownerID, thingID 
 }
 
 func (cr certsRepository) RetrieveBySerial(ctx context.Context, ownerID, serialID string) (certs.Cert, error) {
-	q := `SELECT thing_id, owner_id, serial, expire FROM certs WHERE owner_id = $1 AND serial = $2`
+	var q string
+	var queryParams []interface{}
+	switch ownerID == "" {
+	case true:
+		q = `SELECT thing_id, owner_id, serial, expire FROM certs WHERE serial = $2`
+		queryParams = []interface{}{serialID}
+	default:
+		q = `SELECT thing_id, owner_id, serial, expire FROM certs WHERE owner_id = $1 AND serial = $2`
+		queryParams = []interface{}{ownerID, serialID}
+	}
+
 	var dbcrt dbCert
 	var c certs.Cert
 
-	if err := cr.db.QueryRowxContext(ctx, q, ownerID, serialID).StructScan(&dbcrt); err != nil {
+	if err := cr.db.QueryRowxContext(ctx, q, queryParams...).StructScan(&dbcrt); err != nil {
 
 		pqErr, ok := err.(*pq.Error)
 		if err == sql.ErrNoRows || ok && errInvalid == pqErr.Code.Name() {
@@ -236,35 +265,35 @@ func (cr certsRepository) ListExpiredCerts(ctx context.Context, timeBefore time.
 	}, nil
 }
 
-func (cr certsRepository) AutoRetrieveByThingID(ctx context.Context, thingID string) (certs.Cert, error) {
-	q := `SELECT thing_id, owner_id, serial, expire FROM certs WHERE thing_id = $1`
-	var dbcrt dbCert
-	var c certs.Cert
-	if err := cr.db.QueryRowxContext(ctx, q, thingID).StructScan(&dbcrt); err != nil {
-		pqErr, ok := err.(*pq.Error)
-		if err == sql.ErrNoRows || ok && errInvalid == pqErr.Code.Name() {
-			return c, errors.Wrap(errors.ErrNotFound, err)
-		}
+// func (cr certsRepository) AutoRetrieveByThingID(ctx context.Context, thingID string) (certs.Cert, error) {
+// 	q := `SELECT thing_id, owner_id, serial, expire FROM certs WHERE thing_id = $1`
+// 	var dbcrt dbCert
+// 	var c certs.Cert
+// 	if err := cr.db.QueryRowxContext(ctx, q, thingID).StructScan(&dbcrt); err != nil {
+// 		pqErr, ok := err.(*pq.Error)
+// 		if err == sql.ErrNoRows || ok && errInvalid == pqErr.Code.Name() {
+// 			return c, errors.Wrap(errors.ErrNotFound, err)
+// 		}
 
-		return c, errors.Wrap(errors.ErrViewEntity, err)
-	}
-	c = toCert(dbcrt)
-	return c, nil
-}
+// 		return c, errors.Wrap(errors.ErrViewEntity, err)
+// 	}
+// 	c = toCert(dbcrt)
+// 	return c, nil
+// }
 
-func (cr certsRepository) AutoRemoveByThingID(ctx context.Context, thingID string) error {
-	if _, err := cr.AutoRetrieveByThingID(ctx, thingID); err != nil {
-		return errors.Wrap(errors.ErrRemoveEntity, err)
-	}
-	q := `DELETE FROM certs WHERE thing_id = :thingID`
-	var c certs.Cert
-	c.ThingID = thingID
-	dbcrt := toDBCert(c)
-	if _, err := cr.db.NamedExecContext(ctx, q, dbcrt); err != nil {
-		return errors.Wrap(errors.ErrRemoveEntity, err)
-	}
-	return nil
-}
+// func (cr certsRepository) AutoRemoveByThingID(ctx context.Context, thingID string) error {
+// 	if _, err := cr.AutoRetrieveByThingID(ctx, thingID); err != nil {
+// 		return errors.Wrap(errors.ErrRemoveEntity, err)
+// 	}
+// 	q := `DELETE FROM certs WHERE thing_id = :thingID`
+// 	var c certs.Cert
+// 	c.ThingID = thingID
+// 	dbcrt := toDBCert(c)
+// 	if _, err := cr.db.NamedExecContext(ctx, q, dbcrt); err != nil {
+// 		return errors.Wrap(errors.ErrRemoveEntity, err)
+// 	}
+// 	return nil
+// }
 
 func (cr certsRepository) rollback(content string, tx *sqlx.Tx, err error) {
 	cr.log.Error(fmt.Sprintf("%s %s", content, err))

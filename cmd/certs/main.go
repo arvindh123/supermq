@@ -435,9 +435,10 @@ func newService(auth mainflux.AuthServiceClient, db *sqlx.DB, logger mflog.Logge
 	}
 
 	config := mfsdk.Config{
-		CertsURL:  cfg.certsURL,
-		ThingsURL: cfg.thingsURL,
-		UsersURL:  cfg.usersUrl,
+		CertsURL:     cfg.certsURL,
+		ThingsURL:    cfg.thingsURL,
+		UsersURL:     cfg.usersUrl,
+		BootstrapURL: cfg.bootstrapURL,
 	}
 
 	sdk := mfsdk.NewSDK(config)

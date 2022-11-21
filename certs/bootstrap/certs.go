@@ -33,6 +33,8 @@ var (
 	ErrUnableToAccess = errors.New("unable to access bootstrap service")
 
 	ErrFailedToLogin = errors.New("Failed to login")
+
+	ErrFailedToReadResponseBody = errors.New("failed to read Bootstrap response body ")
 )
 
 type bootstrapClient struct {
@@ -100,7 +102,7 @@ func (c *bootstrapClient) UpdateCerts(ctx context.Context, thingID, clientCert, 
 		return err
 	}
 	defer res.Body.Close()
-
+	bsResponseErrorType(res)
 	switch res.StatusCode {
 	case http.StatusOK:
 		return nil
@@ -111,7 +113,7 @@ func (c *bootstrapClient) UpdateCerts(ctx context.Context, thingID, clientCert, 
 		}
 		headers["Authorization"] = fmt.Sprintf("%s %s", authHeaderPrefix, token)
 	case http.StatusNotFound:
-		return errors.Wrap(ErrUnableToAccess, errors.ErrNotFound)
+		return errors.Wrap(ErrUnableToAccess, errDetailsBSResp(res))
 	default:
 		return errors.Wrap(ErrUnexpectedBSResponse, errDetailsBSResp(res))
 	}
@@ -137,13 +139,23 @@ func errDetailsBSResp(res *http.Response) error {
 	err := fmt.Errorf("Bootstrap response http status code %d", res.StatusCode)
 	b, bErr := io.ReadAll(res.Body)
 	if bErr != nil {
-		err = fmt.Errorf("%w, failed to read Bootstrap response body error : %w ", err, bErr)
+		err = errors.Wrap(err, ErrFailedToReadResponseBody)
+		err = errors.Wrap(err, bErr)
 	}
 	err = fmt.Errorf("%w, response body: %s", err, b)
 	return err
 
 }
 
+func bsResponseErrorType(res *http.Response) error {
+	b, bErr := io.ReadAll(res.Body)
+	if bErr != nil {
+		return errors.Wrap(ErrFailedToReadResponseBody, bErr)
+	}
+	_ = b
+	fmt.Println(res.Header.Get("content-type"))
+	return nil
+}
 func request(ctx context.Context, method, url string, data []byte, header map[string]string) (*http.Response, error) {
 	req, err := http.NewRequest(method, url, bytes.NewReader(data))
 	req = req.WithContext(ctx)

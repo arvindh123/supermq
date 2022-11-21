@@ -25,7 +25,7 @@ type Repository interface {
 	RetrieveAll(ctx context.Context, ownerID string, offset, limit uint64) (Page, error)
 
 	// Update the certificate
-	Update(ctx context.Context, cert Cert) error
+	Update(ctx context.Context, oldSerial string, cert Cert) error
 
 	// Remove removes certificate from DB for a given thing ID
 	Remove(ctx context.Context, ownerID, thingID string) error
@@ -39,9 +39,9 @@ type Repository interface {
 	//List the certifcate need to be renew before the expiry
 	ListExpiredCerts(ctx context.Context, timeBefore time.Duration, limit, offset uint64) (Page, error)
 
-	// AutoRetrieveByThingID  retrieves list of certificate for a given thing ID without owner ID , used  for AutoRenew process
-	AutoRetrieveByThingID(ctx context.Context, thingID string) (Cert, error)
+	// 	// AutoRetrieveByThingID  retrieves list of certificate for a given thing ID without owner ID , used  for AutoRenew process
+	// 	AutoRetrieveByThingID(ctx context.Context, thingID string) (Cert, error)
 
-	// AutoRemoveByThingID removes certificate from DB for a given thing ID without owner ID , used  for AutoRenew process
-	AutoRemoveByThingID(ctx context.Context, thingID string) error
+	// // AutoRemoveByThingID removes certificate from DB for a given thing ID without owner ID , used  for AutoRenew process
+	// AutoRemoveByThingID(ctx context.Context, thingID string) error
 }
