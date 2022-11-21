@@ -165,6 +165,7 @@ func bsResponseErrorType(res *http.Response) error {
 	}
 	return errors.New(string(b))
 }
+
 func request(ctx context.Context, method, url string, data []byte, header map[string]string) (*http.Response, error) {
 	req, err := http.NewRequest(method, url, bytes.NewReader(data))
 	req = req.WithContext(ctx)
