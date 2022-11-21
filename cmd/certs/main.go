@@ -69,10 +69,10 @@ const (
 	defSignHoursValid = "2048h"
 	defSignRSABits    = "2048"
 
-	defCertsAutoRenewRestartInterval = "10s"
-	defCertsAutoRenew                = "true"
-	defCertsAutoRenewUpdateBS        = "true"
-	defStopSvcOnCertsAutoRenewErr    = "false"
+	defCertsAutoRenewInterval     = "10m"
+	defCertsAutoRenew             = "true"
+	defCertsAutoRenewUpdateBS     = "true"
+	defStopSvcOnCertsAutoRenewErr = "false"
 
 	defUsersURL = "http://user:8180"
 
@@ -116,10 +116,10 @@ const (
 	envSignRSABits    = "MF_CERTS_SIGN_RSA_BITS"
 	envUsersURL       = "MF_CERTS_USERS_URL"
 
-	envCertsAutoRenewRestartInterval = "MF_CERT_AUTO_RENEW_RESTART_INTERVAL"
-	envCertsAutoRenew                = "MF_CERTS_AUTO_RENEW"
-	envCertsAutoRenewUpdateBS        = "MF_CERTS_AUTO_RENEW_UDPATE_BS"
-	envStopSvcOnCertsAutoRenewErr    = "MF_CERTS_STOP_ON_AUTO_RENEW_ERROR"
+	envCertsAutoRenewInterval     = "MF_CERT_AUTO_RENEW_INTERVAL"
+	envCertsAutoRenew             = "MF_CERTS_AUTO_RENEW"
+	envCertsAutoRenewUpdateBS     = "MF_CERTS_AUTO_RENEW_UDPATE_BS"
+	envStopSvcOnCertsAutoRenewErr = "MF_CERTS_STOP_ON_AUTO_RENEW_ERROR"
 
 	envVaultHost       = "MF_CERTS_VAULT_HOST"
 	envVaultPKIIntPath = "MF_VAULT_PKI_INT_PATH"
@@ -161,10 +161,10 @@ type config struct {
 	mfPass       string
 	usersUrl     string
 
-	certsAutoRenewRestartInterval time.Duration
-	certsAutoRenew                bool
-	certsAutoRenewUpdateBS        bool
-	stopSvcOnCertsAutoRenewErr    bool
+	certsAutoRenewInterval     time.Duration
+	certsAutoRenew             bool
+	certsAutoRenewUpdateBS     bool
+	stopSvcOnCertsAutoRenewErr bool
 
 	esThingsURL    string
 	esThingsPass   string
@@ -238,19 +238,7 @@ func main() {
 	})
 
 	g.Go(func() error {
-		for {
-			select {
-			case <-ctx.Done():
-				return nil
-			default:
-				err := svc.AutoRenew(ctx, true, 10*time.Minute)
-				if cfg.stopSvcOnCertsAutoRenewErr {
-					return err
-				}
-				logger.Warn(fmt.Sprintf("auto_renew restarting in %v", cfg.certsAutoRenewRestartInterval))
-				time.Sleep(cfg.certsAutoRenewRestartInterval)
-			}
-		}
+		return autoRenewCertificate(ctx, cfg, svc, logger)
 	})
 
 	if err := g.Wait(); err != nil {
@@ -284,9 +272,9 @@ func loadConfig() config {
 	if err != nil {
 		log.Fatalf("Invalid %s value: %s", envSignRSABits, err.Error())
 	}
-	certsAutoRenewRestartInterval, err := time.ParseDuration(mainflux.Env(envCertsAutoRenewRestartInterval, defCertsAutoRenewRestartInterval))
+	certsAutoRenewInterval, err := time.ParseDuration(mainflux.Env(envCertsAutoRenewInterval, defCertsAutoRenewInterval))
 	if err != nil {
-		log.Fatalf("Invalid %s value: %s", envCertsAutoRenewRestartInterval, err.Error())
+		log.Fatalf("Invalid %s value: %s", envCertsAutoRenewInterval, err.Error())
 	}
 	certsAutoRenew, err := strconv.ParseBool(mainflux.Env(envCertsAutoRenew, defCertsAutoRenew))
 	if err != nil {
@@ -331,10 +319,10 @@ func loadConfig() config {
 		signHoursValid: mainflux.Env(envSignHoursValid, defSignHoursValid),
 		signRSABits:    signRSABits,
 
-		certsAutoRenewRestartInterval: certsAutoRenewRestartInterval,
-		certsAutoRenew:                certsAutoRenew,
-		certsAutoRenewUpdateBS:        certAutoRenewUpdateBS,
-		stopSvcOnCertsAutoRenewErr:    stopSvcOnCertsAutoRenewErr,
+		certsAutoRenewInterval:     certsAutoRenewInterval,
+		certsAutoRenew:             certsAutoRenew,
+		certsAutoRenewUpdateBS:     certAutoRenewUpdateBS,
+		stopSvcOnCertsAutoRenewErr: stopSvcOnCertsAutoRenewErr,
 
 		bootstrapURL: mainflux.Env(envBootstrapURL, defBootstrapURL),
 		mfUser:       mainflux.Env(envMFUser, defMFUser),
@@ -551,4 +539,18 @@ func connectToRedis(redisURL, redisPass, redisDB string, logger mflog.Logger) *r
 		Password: redisPass,
 		DB:       db,
 	})
+}
+
+func autoRenewCertificate(ctx context.Context, cfg config, svc certs.Service, logger mflog.Logger) error {
+	ticker := time.NewTicker(cfg.certsAutoRenewInterval)
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.C:
+			if err := svc.RenewCerts(ctx, true); err != nil && cfg.stopSvcOnCertsAutoRenewErr {
+				return err
+			}
+		}
+	}
 }
