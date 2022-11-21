@@ -54,7 +54,7 @@ type Service interface {
 	RevokeCert(ctx context.Context, token, serialID string) (Revoke, error)
 
 	// Renew the exipred certificate from certs repo
-	RenewCerts(ctx context.Context, bsUpdateRenewCert bool) error
+	RenewCerts(ctx context.Context, renewThres time.Duration, bsUpdateRenewCert bool) error
 
 	// ThingCertsRevokeHandler  revokes certificates of the given thing ID ,  used for event streams thing remove handler.
 	ThingCertsRevokeHandler(ctx context.Context, thingID string) ([]Revoke, error)
@@ -81,7 +81,6 @@ type Config struct {
 	PKIRole             string
 	PKIToken            string
 	NumOfRenewInOneScan uint64
-	RenewBeforeExpiry   time.Duration
 	ExpireCheckInterval time.Duration
 }
 
@@ -246,12 +245,28 @@ func (cs *certsService) ViewCert(ctx context.Context, token, serialID string) (C
 	return c, nil
 }
 
-func (cs *certsService) RenewCerts(ctx context.Context, bsUpdateRenewCert bool) error {
-	cr, err := cs.certsRepo.ListExpiredCerts(ctx, cs.conf.RenewBeforeExpiry, cs.conf.NumOfRenewInOneScan, 0)
-	if err != nil {
-		return err
+func (cs *certsService) RenewCerts(ctx context.Context, renewThres time.Duration, bsUpdateRenewCert bool) error {
+	cp := Page{}
+	cp.Limit = 100
+	cp.Total = 101
+	for cp.Offset+cp.Limit < cp.Total {
+		p, err := cs.certsRepo.RetrieveAll(ctx, "", cp.Limit, cp.Offset)
+		if err != nil {
+			return err
+		}
+		cp.Certs = append(cp.Certs, p.Certs...)
+		if cp.Limit > p.Total {
+			break
+		}
+		cp.Offset = cp.Limit
+		cp.Limit = p.Total - cp.Limit
+		cp.Total = p.Total
 	}
-	for _, repoExpCert := range cr.Certs {
+
+	for _, repoExpCert := range cp.Certs {
+		if renewThres < repoExpCert.Expire.Sub(time.Now()) {
+			continue
+		}
 		cert, err := cs.pki.IssueCert(repoExpCert.ThingID, cs.conf.SignHoursValid, "", cs.conf.SignRSABits)
 		if err != nil {
 			return errors.Wrap(ErrFailedCertCreation, err)

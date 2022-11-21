@@ -69,6 +69,7 @@ const (
 	defSignHoursValid = "2048h"
 	defSignRSABits    = "2048"
 
+	defCertsRenewThres            = "1h"
 	defCertsAutoRenewInterval     = "10m"
 	defCertsAutoRenew             = "true"
 	defCertsAutoRenewUpdateBS     = "true"
@@ -116,7 +117,8 @@ const (
 	envSignRSABits    = "MF_CERTS_SIGN_RSA_BITS"
 	envUsersURL       = "MF_CERTS_USERS_URL"
 
-	envCertsAutoRenewInterval     = "MF_CERT_AUTO_RENEW_INTERVAL"
+	envCertsRenewThres            = "MF_CERTS_RENEW_THRESHOLD"
+	envCertsAutoRenewInterval     = "MF_CERTS_AUTO_RENEW_INTERVAL"
 	envCertsAutoRenew             = "MF_CERTS_AUTO_RENEW"
 	envCertsAutoRenewUpdateBS     = "MF_CERTS_AUTO_RENEW_UDPATE_BS"
 	envStopSvcOnCertsAutoRenewErr = "MF_CERTS_STOP_ON_AUTO_RENEW_ERROR"
@@ -161,6 +163,7 @@ type config struct {
 	mfPass       string
 	usersUrl     string
 
+	certsRenewThres            time.Duration
 	certsAutoRenewInterval     time.Duration
 	certsAutoRenew             bool
 	certsAutoRenewUpdateBS     bool
@@ -272,6 +275,12 @@ func loadConfig() config {
 	if err != nil {
 		log.Fatalf("Invalid %s value: %s", envSignRSABits, err.Error())
 	}
+
+	certsRenewThres, err := time.ParseDuration(mainflux.Env(envCertsRenewThres, defCertsRenewThres))
+	if err != nil {
+		log.Fatalf("Invalid %s value: %s", envCertsRenewThres, err.Error())
+	}
+
 	certsAutoRenewInterval, err := time.ParseDuration(mainflux.Env(envCertsAutoRenewInterval, defCertsAutoRenewInterval))
 	if err != nil {
 		log.Fatalf("Invalid %s value: %s", envCertsAutoRenewInterval, err.Error())
@@ -319,6 +328,7 @@ func loadConfig() config {
 		signHoursValid: mainflux.Env(envSignHoursValid, defSignHoursValid),
 		signRSABits:    signRSABits,
 
+		certsRenewThres:            certsRenewThres,
 		certsAutoRenewInterval:     certsAutoRenewInterval,
 		certsAutoRenew:             certsAutoRenew,
 		certsAutoRenewUpdateBS:     certAutoRenewUpdateBS,
@@ -548,7 +558,7 @@ func autoRenewCertificate(ctx context.Context, cfg config, svc certs.Service, lo
 		case <-ctx.Done():
 			return nil
 		case <-ticker.C:
-			if err := svc.RenewCerts(ctx, true); err != nil && cfg.stopSvcOnCertsAutoRenewErr {
+			if err := svc.RenewCerts(ctx, cfg.certsRenewThres, true); err != nil && cfg.stopSvcOnCertsAutoRenewErr {
 				return err
 			}
 		}

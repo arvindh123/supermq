@@ -91,7 +91,7 @@ func (lm *loggingMiddleware) RevokeCert(ctx context.Context, token, thingID stri
 	return lm.svc.RevokeCert(ctx, token, thingID)
 }
 
-func (lm *loggingMiddleware) RenewCerts(ctx context.Context, bsUpdateRenewCert bool) (err error) {
+func (lm *loggingMiddleware) RenewCerts(ctx context.Context, renewThres time.Duration, bsUpdateRenewCert bool) (err error) {
 	defer func(begin time.Time) {
 		message := fmt.Sprintf("Method renew_certs took %s to complete", time.Since(begin))
 		if err != nil {
@@ -101,7 +101,7 @@ func (lm *loggingMiddleware) RenewCerts(ctx context.Context, bsUpdateRenewCert b
 		lm.logger.Info(fmt.Sprintf("%s without errors.", message))
 	}(time.Now())
 
-	return lm.svc.RenewCerts(ctx, bsUpdateRenewCert)
+	return lm.svc.RenewCerts(ctx, renewThres, bsUpdateRenewCert)
 }
 
 func (lm *loggingMiddleware) ThingCertsRevokeHandler(ctx context.Context, thingID string) (revokes []certs.Revoke, err error) {

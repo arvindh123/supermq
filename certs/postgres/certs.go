@@ -40,8 +40,18 @@ func NewRepository(db *sqlx.DB, log logger.Logger) certs.Repository {
 }
 
 func (cr certsRepository) RetrieveAll(ctx context.Context, ownerID string, offset, limit uint64) (certs.Page, error) {
-	q := `SELECT thing_id, owner_id, serial, expire FROM certs WHERE owner_id = $1 ORDER BY expire LIMIT $2 OFFSET $3;`
-	rows, err := cr.db.Query(q, ownerID, limit, offset)
+	var q string
+	var queryParams []interface{}
+	switch ownerID == "" {
+	case true:
+		q = `SELECT thing_id, owner_id, serial, expire FROM certs ORDER BY expire LIMIT $1 OFFSET $2;`
+		queryParams = []interface{}{offset, limit}
+	default:
+		q = `SELECT thing_id, owner_id, serial, expire FROM certs WHERE owner_id = $1 ORDER BY expire LIMIT $2 OFFSET $3;`
+		queryParams = []interface{}{ownerID, offset, limit}
+
+	}
+	rows, err := cr.db.Query(q, queryParams...)
 	if err != nil {
 		cr.log.Error(fmt.Sprintf("Failed to retrieve configs due to %s", err))
 		return certs.Page{}, err
@@ -60,8 +70,17 @@ func (cr certsRepository) RetrieveAll(ctx context.Context, ownerID string, offse
 	}
 
 	q = `SELECT COUNT(*) FROM certs WHERE owner_id = $1`
+	switch ownerID == "" {
+	case true:
+		q = `SELECT COUNT(*) FROM certs  LIMIT $1 OFFSET $2;`
+		queryParams = []interface{}{offset, limit}
+	default:
+		q = `SELECT COUNT(*) FROM certs WHERE owner_id = $1 LIMIT $2 OFFSET $3;`
+		queryParams = []interface{}{ownerID, offset, limit}
+
+	}
 	var total uint64
-	if err := cr.db.QueryRow(q, ownerID).Scan(&total); err != nil {
+	if err := cr.db.QueryRow(q, queryParams...).Scan(&total); err != nil {
 		cr.log.Error(fmt.Sprintf("Failed to count certs due to %s", err))
 		return certs.Page{}, err
 	}
@@ -222,47 +241,6 @@ func (cr certsRepository) RetrieveBySerial(ctx context.Context, ownerID, serialI
 	c = toCert(dbcrt)
 
 	return c, nil
-}
-
-func (cr certsRepository) ListExpiredCerts(ctx context.Context, timeBefore time.Duration, limit, offset uint64) (certs.Page, error) {
-	whereClause := fmt.Sprintf("WHERE expire <= now()  - interval '%s'", timeBefore)
-	limitClause := ""
-	offsetClause := ""
-	if limit > 0 {
-		limitClause = fmt.Sprintf("LIMIT %d", limit)
-	}
-	if offset > 0 {
-		offsetClause = fmt.Sprintf("OFFSET %d", offset)
-	}
-	q := fmt.Sprintf(`SELECT thing_id, owner_id, expire, serial FROM public.certs  %s %s %s`, whereClause, limitClause, offsetClause)
-	rows, err := cr.db.Query(q)
-	defer rows.Close()
-	if err != nil {
-		return certs.Page{}, errors.Wrap(errors.ErrViewEntity, err)
-	}
-
-	certificates := []certs.Cert{}
-	for rows.Next() {
-		c := certs.Cert{}
-		if err := rows.Scan(&c.ThingID, &c.OwnerID, &c.Expire, &c.Serial); err != nil {
-			return certs.Page{}, errors.Wrap(errors.ErrScanEntity, err)
-
-		}
-		certificates = append(certificates, c)
-	}
-
-	q = fmt.Sprintf(`SELECT COUNT(*) FROM public.certs %s %s %s`, whereClause, limitClause, offsetClause)
-	var total uint64
-	if err := cr.db.QueryRow(q).Scan(&total); err != nil {
-		return certs.Page{}, errors.Wrap(errors.ErrScanCountEntity, err)
-	}
-
-	return certs.Page{
-		Total:  total,
-		Limit:  0,
-		Offset: 0,
-		Certs:  certificates,
-	}, nil
 }
 
 func (cr certsRepository) rollback(content string, tx *sqlx.Tx, err error) {

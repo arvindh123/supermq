@@ -5,7 +5,6 @@ package certs
 
 import (
 	"context"
-	"time"
 )
 
 // ConfigsPage contains page related metadata as well as list
@@ -35,7 +34,4 @@ type Repository interface {
 
 	// RetrieveBySerial retrieves a certificate for a given serial ID
 	RetrieveBySerial(ctx context.Context, ownerID, serialID string) (Cert, error)
-
-	//List the certifcate need to be renew before the expiry
-	ListExpiredCerts(ctx context.Context, timeBefore time.Duration, limit, offset uint64) (Page, error)
 }
