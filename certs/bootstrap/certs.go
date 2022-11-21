@@ -30,6 +30,7 @@ var (
 	// ErrUnexpectedBSResponse indicates unexpected response from Bootstrap service.
 	ErrUnexpectedBSResponse = errors.New("unexpected Bootstrap service response")
 
+	//ErrUnableToAccess indicates boostrap service is not accessible
 	ErrUnableToAccess = errors.New("unable to access bootstrap service")
 
 	ErrFailedToLogin = errors.New("Failed to login")
