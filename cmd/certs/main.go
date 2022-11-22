@@ -71,7 +71,7 @@ const (
 
 	defCertsRenewThres            = "1h"
 	defCertsAutoRenewInterval     = "10m"
-	defCertsAutoRenew             = "true"
+	defCertsAutoRenew             = "false"
 	defCertsAutoRenewUpdateBS     = "true"
 	defStopSvcOnCertsAutoRenewErr = "false"
 
@@ -240,9 +240,11 @@ func main() {
 		return nil
 	})
 
-	g.Go(func() error {
-		return autoRenewCertificate(ctx, cfg, svc, logger)
-	})
+	if cfg.certsAutoRenew {
+		g.Go(func() error {
+			return autoRenewCertificate(ctx, cfg, svc, logger)
+		})
+	}
 
 	if err := g.Wait(); err != nil {
 		logger.Error(fmt.Sprintf("Certs service terminated: %s", err))
@@ -287,7 +289,7 @@ func loadConfig() config {
 	}
 	certsAutoRenew, err := strconv.ParseBool(mainflux.Env(envCertsAutoRenew, defCertsAutoRenew))
 	if err != nil {
-		certsAutoRenew = true
+		certsAutoRenew = false
 	}
 
 	certAutoRenewUpdateBS, err := strconv.ParseBool(mainflux.Env(envCertsAutoRenewUpdateBS, defCertsAutoRenewUpdateBS))
