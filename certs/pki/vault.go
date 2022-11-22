@@ -5,7 +5,10 @@
 package pki
 
 import (
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"regexp"
@@ -146,6 +149,11 @@ func (p *pkiAgent) IssueCert(cn string, ttl, keyType string, keyBits int) (Cert,
 	if err = mapstructure.Decode(s.Data, &cert); err != nil {
 		return Cert{}, errors.Wrap(errFailedCertDecoding, err)
 	}
+	pubCert, err := p.parseCert(cert.ClientCert)
+	if err != nil {
+		return Cert{}, errors.Wrap(errFailedCertDecoding, err)
+	}
+	cert.Expire = pubCert.NotAfter
 
 	return cert, nil
 }
@@ -218,4 +226,12 @@ func (p *pkiAgent) Revoke(serial string) (time.Time, error) {
 	}
 
 	return time.Unix(0, int64(rev)*int64(time.Millisecond)), nil
+}
+
+func (c *pkiAgent) parseCert(data string) (*x509.Certificate, error) {
+	block, _ := pem.Decode([]byte(data))
+	if block == nil {
+		return nil, fmt.Errorf("failed to decode client certificate")
+	}
+	return x509.ParseCertificate(block.Bytes)
 }
