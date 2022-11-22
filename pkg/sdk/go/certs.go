@@ -33,7 +33,7 @@ func (sdk mfSDK) IssueCert(thingID string, keyBits int, keyType, valid, token st
 	}
 
 	url := fmt.Sprintf("%s/%s", sdk.certsURL, certsEndpoint)
-	res, err := request(http.MethodPost, token, url, d)
+	res, err := request(sdk, http.MethodPost, token, url, d)
 	if err != nil {
 		return Cert{}, err
 	}
@@ -53,7 +53,7 @@ func (sdk mfSDK) IssueCert(thingID string, keyBits int, keyType, valid, token st
 }
 
 func (sdk mfSDK) RemoveCert(id, token string) error {
-	res, err := request(http.MethodDelete, token, fmt.Sprintf("%s/%s", sdk.certsURL, id), nil)
+	res, err := request(sdk, http.MethodDelete, token, fmt.Sprintf("%s/%s", sdk.certsURL, id), nil)
 	if res != nil {
 		res.Body.Close()
 	}
@@ -74,20 +74,16 @@ func (sdk mfSDK) RevokeCert(thingID, certID string, token string) error {
 	panic("not implemented")
 }
 
-func request(method, jwt, url string, data []byte) (*http.Response, error) {
+func request(sdk mfSDK, method, jwt, url string, data []byte) (*http.Response, error) {
 	req, err := http.NewRequest(method, url, bytes.NewReader(data))
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", jwt)
-	c := &http.Client{}
-	res, err := c.Do(req)
+	resp, err := sdk.sendRequest(req, jwt, string(CTJSON))
 	if err != nil {
 		return nil, err
 	}
-
-	return res, nil
+	return resp, nil
 }
 
 type certReq struct {
