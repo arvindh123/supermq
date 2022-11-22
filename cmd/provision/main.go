@@ -23,6 +23,7 @@ import (
 
 const (
 	stopWaitTime = 5 * time.Second
+	defKeyType   = "rsa"
 
 	defLogLevel        = "error"
 	defConfigFile      = "config.toml"
@@ -229,6 +230,7 @@ func loadConfig() (provision.Config, error) {
 		Cert: provision.Cert{
 			TTL:     mainflux.Env(envCertsHoursValid, defCertsHoursValid),
 			KeyBits: keyBits,
+			KeyType: defKeyType,
 		},
 		Bootstrap: provision.Bootstrap{
 			X509Provision: provisionX509,
