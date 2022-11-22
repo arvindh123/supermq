@@ -38,7 +38,7 @@ func (sdk mfSDK) IssueCert(thingID string, keyBits int, keyType, valid, token st
 		return Cert{}, err
 	}
 	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
+	if res.StatusCode != http.StatusCreated {
 		return Cert{}, ErrCerts
 	}
 	body, err := ioutil.ReadAll(res.Body)
