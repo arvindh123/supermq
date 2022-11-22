@@ -161,6 +161,9 @@ func bsResponseErrorType(res *http.Response) error {
 		return errors.Wrap(ErrUnableToAccess, fmt.Errorf("%s", string(b)))
 	}
 	if msg, ok := content["error"]; ok {
+		if res.StatusCode == http.StatusNotFound {
+			return errors.ErrNotFound
+		}
 		return errors.New(msg)
 	}
 	return errors.New(string(b))
