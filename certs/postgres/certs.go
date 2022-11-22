@@ -217,7 +217,7 @@ func (cr certsRepository) RetrieveBySerial(ctx context.Context, ownerID, serialI
 	var queryParams []interface{}
 	switch ownerID == "" {
 	case true:
-		q = `SELECT thing_id, owner_id, serial, expire FROM certs WHERE serial = $2`
+		q = `SELECT thing_id, owner_id, serial, expire FROM certs WHERE serial = $1`
 		queryParams = []interface{}{serialID}
 	default:
 		q = `SELECT thing_id, owner_id, serial, expire FROM certs WHERE owner_id = $1 AND serial = $2`

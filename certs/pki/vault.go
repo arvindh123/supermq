@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
+	"regexp"
 	"time"
 
 	"github.com/hashicorp/vault/api"
@@ -35,6 +36,7 @@ var (
 	errFailedVaultCertIssue = errors.New("failed to issue vault certificate")
 	errFailedVaultRead      = errors.New("failed to read vault certificate")
 	errFailedCertDecoding   = errors.New("failed to decode response from vault service")
+	expSerialNotFound       = regexp.MustCompile(`Errors:\s*(.*?)\s*certificate with serial\s*(.*?)\s*not found`)
 )
 
 type Cert struct {
@@ -190,6 +192,9 @@ func (p *pkiAgent) Revoke(serial string) (time.Time, error) {
 
 	resp, err := p.client.RawRequest(r)
 	if err != nil {
+		if expSerialNotFound.Match([]byte(err.Error())) {
+			return time.Time{}, errors.ErrNotFound
+		}
 		return time.Time{}, err
 	}
 	defer resp.Body.Close()

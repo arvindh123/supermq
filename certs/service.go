@@ -250,7 +250,7 @@ func (cs *certsService) RenewCerts(ctx context.Context, renewThres time.Duration
 	cp.Limit = 100
 	cp.Total = 101
 	for cp.Offset+cp.Limit < cp.Total {
-		p, err := cs.certsRepo.RetrieveAll(ctx, "", cp.Limit, cp.Offset)
+		p, err := cs.certsRepo.RetrieveAll(ctx, "", cp.Offset, cp.Limit)
 		if err != nil {
 			return err
 		}
@@ -284,14 +284,14 @@ func (cs *certsService) RenewCerts(ctx context.Context, renewThres time.Duration
 		}
 		if bsUpdateRenewCert {
 			if err := cs.bsClient.UpdateCerts(ctx, repoExpCert.ThingID, cert.ClientCert, cert.ClientKey, strings.Join(cert.CAChain, "\n")); err != nil {
-				if err == errors.ErrNotFound {
-					revokes, err := cs.ThingCertsRevokeHandler(ctx, repoExpCert.ThingID)
-					if err != nil {
-						return errors.Wrap(errFailedToUpdateCertBSRenew, errors.Wrap(errThingNotInBS, errors.Wrap(fmt.Errorf(repoExpCert.ThingID), err)))
-					}
-					return errors.Wrap(errFailedToUpdateCertBSRenew, errors.Wrap(errThingNotInBS, fmt.Errorf("%s certificate revoked at %v", repoExpCert.ThingID, revokes)))
+				if err != errors.ErrNotFound {
+					return errors.Wrap(errFailedToUpdateCertBSRenew, errors.Wrap(fmt.Errorf(repoExpCert.ThingID), err))
 				}
-				return errors.Wrap(errFailedToUpdateCertBSRenew, err)
+				revokes, err := cs.ThingCertsRevokeHandler(ctx, repoExpCert.ThingID)
+				if err != nil {
+					return errors.Wrap(errFailedToUpdateCertBSRenew, errors.Wrap(errThingNotInBS, errors.Wrap(fmt.Errorf(repoExpCert.ThingID), err)))
+				}
+				return errors.Wrap(errFailedToUpdateCertBSRenew, errors.Wrap(errThingNotInBS, fmt.Errorf("%s certificate revoked at %v", repoExpCert.ThingID, revokes)))
 			}
 		}
 		if err := cs.certsRepo.Update(ctx, repoExpCert.Serial, c); err != nil {
@@ -323,7 +323,7 @@ func (cs *certsService) ThingCertsRevokeHandler(ctx context.Context, thingID str
 	for _, c := range cp.Certs {
 		var revoke Revoke
 		revTime, err := cs.pki.Revoke(c.Serial)
-		if err != nil {
+		if err != nil && err != errors.ErrNotFound {
 			return revokes, errors.Wrap(ErrFailedCertRevocation, err)
 		}
 		revoke.RevocationTime = revTime
