@@ -103,7 +103,6 @@ func (c *bootstrapClient) UpdateCerts(ctx context.Context, thingID, clientCert, 
 		return err
 	}
 	defer res.Body.Close()
-	bsResponseErrorType(res)
 	switch res.StatusCode {
 	case http.StatusOK:
 		return nil
@@ -157,8 +156,9 @@ func bsResponseErrorType(res *http.Response) error {
 	}
 	var content map[string]string
 	err := json.Unmarshal(b, &content)
+	fmt.Println(string(b))
 	if err != nil {
-		return errors.ErrNotFound
+		return errors.Wrap(ErrUnableToAccess, fmt.Errorf("%s", string(b)))
 	}
 	if msg, ok := content["error"]; ok {
 		return errors.New(msg)
