@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/mainflux/mainflux/bootstrap"
 	"github.com/mainflux/mainflux/certs"
 	"github.com/mainflux/mainflux/pkg/errors"
 
@@ -18,6 +19,7 @@ import (
 	"sync"
 
 	mfsdk "github.com/mainflux/mainflux/pkg/sdk/go"
+	mfsdkErrors "github.com/mainflux/mainflux/pkg/sdk/go/errors"
 )
 
 const authHeaderPrefix = "Bearer"
@@ -33,7 +35,7 @@ var (
 	//ErrUnableToAccess indicates boostrap service is not accessible
 	ErrUnableToAccess = errors.New("unable to access bootstrap service")
 
-	ErrFailedToLogin = errors.New("Failed to login")
+	ErrFailedToLogin = errors.New("failed to login")
 
 	ErrFailedToReadResponseBody = errors.New("failed to read Bootstrap response body ")
 )
@@ -83,58 +85,31 @@ func (c *bootstrapClient) login() (string, error) {
 }
 
 func (c *bootstrapClient) UpdateCerts(ctx context.Context, thingID, clientCert, clientKey, caCert string) error {
-	url := fmt.Sprintf("%s/%s", c.updateURL, thingID)
-	r := cert{
-		ClientCert: clientCert,
-		ClientKey:  clientKey,
-		CACert:     caCert,
-	}
-	data, err := json.Marshal(r)
-	if err != nil {
-		return err
-	}
-	headers := map[string]string{
-		"Content-Type":  "application/json",
-		"Authorization": fmt.Sprintf("%s %s", authHeaderPrefix, c.fetchToken()),
-	}
-
-	res, err := request(ctx, http.MethodPatch, url, data, headers)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	switch res.StatusCode {
-	case http.StatusOK:
-		return nil
-	case http.StatusForbidden, http.StatusUnauthorized:
-		token, err := c.login()
-		if err != nil {
+	if err := c.sdk.UpdateBootstrapCerts(c.fetchToken(), thingID, clientCert, clientKey, caCert); err != nil {
+		err := sdkError(err)
+		if err != ErrUnauthorizedAccess {
+			return err
+		}
+		if _, err := c.login(); err != nil {
 			return errors.Wrap(ErrFailedToLogin, err)
 		}
-		headers["Authorization"] = fmt.Sprintf("%s %s", authHeaderPrefix, token)
-	case http.StatusNotFound:
-		return bsResponseErrorType(res)
-	default:
-		return errors.Wrap(ErrUnexpectedBSResponse, errDetailsBSResp(res))
+		return c.sdk.UpdateBootstrapCerts(c.fetchToken(), thingID, clientCert, clientKey, caCert)
 	}
+	return nil
+}
 
-	res1, err := request(ctx, http.MethodPatch, url, data, headers)
-	if err != nil {
-		return err
+func sdkError(err error) error {
+	if sdkErr, ok := err.(mfsdkErrors.Error); ok {
+		switch sdkErr.StatusCode() {
+		case http.StatusForbidden, http.StatusUnauthorized:
+			return ErrUnauthorizedAccess
+		case http.StatusNotFound:
+			if mfsdkErrors.Contains(sdkErr, bootstrap.ErrUpdateCert) {
+				return errors.ErrNotFound
+			}
+		}
 	}
-
-	defer res1.Body.Close()
-
-	switch res1.StatusCode {
-	case http.StatusOK:
-		return nil
-	case http.StatusForbidden, http.StatusUnauthorized:
-		return errors.Wrap(ErrUnauthorizedAccess, errDetailsBSResp(res1))
-	case http.StatusNotFound:
-		return bsResponseErrorType(res)
-	default:
-		return errors.Wrap(ErrUnexpectedBSResponse, errDetailsBSResp(res1))
-	}
+	return errors.Wrap(ErrUnexpectedBSResponse, err)
 }
 
 func errDetailsBSResp(res *http.Response) error {
