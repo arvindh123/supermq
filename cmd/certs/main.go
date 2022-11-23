@@ -77,7 +77,7 @@ const (
 
 	defUsersURL = "http://user:8180"
 
-	defBootstrapURL = "http://bootstrap:8202/things/configs/certs"
+	defBootstrapURL = "http://bootstrap:8202"
 	defMFUser       = "test@email.com"
 	defMFPass       = "123"
 

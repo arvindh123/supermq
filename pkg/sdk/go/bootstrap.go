@@ -18,7 +18,7 @@ import (
 const configsEndpoint = "configs"
 const bootstrapEndpoint = "bootstrap"
 const whitelistEndpoint = "state"
-const bootstrapCertsEndpoint = "configs/certs"
+const bootstrapCertsEndpoint = "things/configs/certs"
 
 // BootstrapConfig represents Configuration entity. It wraps information about external entity
 // as well as info about corresponding Mainflux entities.
