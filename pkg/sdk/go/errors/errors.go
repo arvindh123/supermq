@@ -135,9 +135,11 @@ func NewWithStatus(statusCode int, status, text string) Error {
 	}
 }
 
-func EncodeError(resp *http.Response, expectedStatusCode int, errorMsgJsonKey string) error {
-	if resp.StatusCode == expectedStatusCode {
-		return nil
+func EncodeError(resp *http.Response, errorMsgJsonKey string, expectedStatusCodes ...int) error {
+	for expectedStatusCode := range expectedStatusCodes {
+		if resp.StatusCode == expectedStatusCode {
+			return nil
+		}
 	}
 
 	b, bErr := io.ReadAll(resp.Body)
