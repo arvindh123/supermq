@@ -63,11 +63,25 @@ func (ce *customError) Err() Error {
 }
 
 func (ce *customError) StatusCode() int {
-	return ce.statusCode
+	if ce.statusCode != 0 {
+		return ce.statusCode
+	}
+	err := ce.Err()
+	if err != nil {
+		return err.StatusCode()
+	}
+	return 0
 }
 
 func (ce *customError) Status() string {
-	return ce.status
+	if ce.status != "" {
+		return ce.status
+	}
+	err := ce.Err()
+	if err != nil {
+		return err.Status()
+	}
+	return ""
 }
 
 // Contains inspects if e2 error is contained in any layer of e1 error
