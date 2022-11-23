@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/mainflux/mainflux/pkg/errors"
+	sdkErrors "github.com/mainflux/mainflux/pkg/sdk/go/errors"
 )
 
 const configsEndpoint = "configs"
@@ -176,11 +177,7 @@ func (sdk mfSDK) UpdateBootstrapCerts(token, id, clientCert, clientKey, ca strin
 		return err
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		return errors.Wrap(ErrFailedCertUpdate, errors.New(resp.Status))
-	}
-
-	return nil
+	return sdkErrors.EncodeError(resp, "error", http.StatusOK, http.StatusCreated)
 }
 
 func (sdk mfSDK) RemoveBootstrap(token, id string) error {
