@@ -34,12 +34,6 @@ var (
 	// ErrViewEntity indicates error in viewing entity or entities
 	ErrViewEntity = New("view entity failed")
 
-	// ErrScanEntity indicates error in viewing entity or entities
-	ErrScanEntity = New("failed to scan entity ")
-
-	// ErrScanCountEntity indicates error in viewing entity or entities
-	ErrScanCountEntity = New("failed to count entity")
-
 	// ErrUpdateEntity indicates error in updating entity or entities
 	ErrUpdateEntity = New("update entity failed")
 
