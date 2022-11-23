@@ -3,9 +3,7 @@
 
 package certs
 
-import (
-	"context"
-)
+import "context"
 
 // ConfigsPage contains page related metadata as well as list
 type Page struct {
