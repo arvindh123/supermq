@@ -4,11 +4,7 @@
 package bootstrap
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"fmt"
-	"io"
 	"net/http"
 
 	"github.com/mainflux/mainflux/bootstrap"
@@ -19,10 +15,7 @@ import (
 	"sync"
 
 	mfsdk "github.com/mainflux/mainflux/pkg/sdk/go"
-	mfsdkErrors "github.com/mainflux/mainflux/pkg/sdk/go/errors"
 )
-
-const authHeaderPrefix = "Bearer"
 
 var (
 	// ErrUnauthorizedAccess indicates missing or invalid credentials provided
@@ -99,73 +92,15 @@ func (c *bootstrapClient) UpdateCerts(ctx context.Context, thingID, clientCert, 
 }
 
 func sdkError(err error) error {
-	if sdkErr, ok := err.(mfsdkErrors.Error); ok {
+	if sdkErr, ok := err.(errors.SDKError); ok {
 		switch sdkErr.StatusCode() {
 		case http.StatusForbidden, http.StatusUnauthorized:
 			return ErrUnauthorizedAccess
 		case http.StatusNotFound:
-			if mfsdkErrors.Contains(sdkErr, bootstrap.ErrUpdateCert) {
+			if errors.Contains(sdkErr, bootstrap.ErrUpdateCert) {
 				return errors.ErrNotFound
 			}
 		}
 	}
 	return errors.Wrap(ErrUnexpectedBSResponse, err)
-}
-
-func errDetailsBSResp(res *http.Response) error {
-	err := fmt.Errorf("Bootstrap response http status code %d", res.StatusCode)
-	b, bErr := io.ReadAll(res.Body)
-	if bErr != nil {
-		err = errors.Wrap(err, ErrFailedToReadResponseBody)
-		err = errors.Wrap(err, bErr)
-	}
-	err = fmt.Errorf("%w, response body: %s", err, b)
-	return err
-
-}
-
-func bsResponseErrorType(res *http.Response) error {
-	b, bErr := io.ReadAll(res.Body)
-	if bErr != nil {
-		return errors.Wrap(ErrFailedToReadResponseBody, bErr)
-	}
-	var content map[string]string
-	err := json.Unmarshal(b, &content)
-	if err != nil {
-		return errors.Wrap(ErrUnableToAccess, fmt.Errorf("%s", string(b)))
-	}
-	if msg, ok := content["error"]; ok {
-		if res.StatusCode == http.StatusNotFound {
-			return errors.ErrNotFound
-		}
-		return errors.New(msg)
-	}
-	return errors.New(string(b))
-}
-
-func request(ctx context.Context, method, url string, data []byte, header map[string]string) (*http.Response, error) {
-	req, err := http.NewRequest(method, url, bytes.NewReader(data))
-	req = req.WithContext(ctx)
-
-	if err != nil {
-		return nil, err
-	}
-
-	for k, v := range header {
-		req.Header.Add(k, v)
-	}
-	defer req.Body.Close()
-
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-
-	return res, nil
-}
-
-type cert struct {
-	ClientCert string `json:"client_cert"`
-	ClientKey  string `json:"client_key"`
-	CACert     string `json:"ca_cert"`
 }
