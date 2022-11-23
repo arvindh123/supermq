@@ -3,6 +3,20 @@
 
 package errors
 
+import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+)
+
+var (
+	errFailedToReadBody = New("failed to read http response body ")
+	errRespBodyNotJSON  = New("response body is not vaild JSON ")
+	errJSONKeyNotFound  = New("response body expected error message json key not found ")
+)
+
+// Error type for SDK
 type Error interface {
 	// Error implements the error interface.
 	Error() string
@@ -12,6 +26,7 @@ type Error interface {
 
 	// Err returns wrapped error
 	Err() Error
+
 	// StatusCode returns error status code
 	StatusCode() int
 
@@ -103,11 +118,49 @@ func cast(err error) Error {
 }
 
 // New returns an Error that formats as the given text.
-func New(statusCode int, status, text string) Error {
+func New(text string) Error {
+	return &customError{
+		msg: text,
+		err: nil,
+	}
+}
+
+// New returns an Error that formats as the given text.
+func NewWithStatus(statusCode int, status, text string) Error {
 	return &customError{
 		statusCode: statusCode,
 		status:     status,
 		msg:        text,
 		err:        nil,
 	}
+}
+
+func EncodeError(resp *http.Response, expectedStatusCode int, errorMsgJsonKey string) error {
+	if resp.StatusCode == expectedStatusCode {
+		return nil
+	}
+
+	b, bErr := io.ReadAll(resp.Body)
+	if bErr != nil {
+		e := Wrap(errFailedToReadBody, bErr)
+		return Wrap(NewWithStatus(resp.StatusCode, resp.Status, ""), e)
+	}
+
+	if errorMsgJsonKey == "" {
+		return NewWithStatus(resp.StatusCode, resp.Status, string(b))
+	}
+
+	var content map[string]interface{}
+	err := json.Unmarshal(b, &content)
+	if err != nil {
+		e := Wrap(errRespBodyNotJSON, New(string(b)))
+
+		return Wrap(NewWithStatus(resp.StatusCode, resp.Status, ""), e)
+	}
+
+	if msg, ok := content[errorMsgJsonKey]; ok {
+		return NewWithStatus(resp.StatusCode, resp.Status, fmt.Sprintf("%v", msg))
+	}
+	e := Wrap(errJSONKeyNotFound, New(string(b)))
+	return Wrap(NewWithStatus(resp.StatusCode, resp.Status, ""), e)
 }
