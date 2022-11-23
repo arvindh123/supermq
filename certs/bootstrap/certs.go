@@ -131,7 +131,6 @@ func bsResponseErrorType(res *http.Response) error {
 	}
 	var content map[string]string
 	err := json.Unmarshal(b, &content)
-	fmt.Println(string(b))
 	if err != nil {
 		return errors.Wrap(ErrUnableToAccess, fmt.Errorf("%s", string(b)))
 	}
