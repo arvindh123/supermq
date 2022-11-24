@@ -55,7 +55,7 @@ func NewSDKErrorWithStatus(msg string, statusCode int) SDKError {
 
 // CheckError will check for error in http response.
 func CheckError(resp *http.Response, expectedStatusCodes ...int) error {
-	for expectedStatusCode := range expectedStatusCodes {
+	for _, expectedStatusCode := range expectedStatusCodes {
 		if resp.StatusCode == expectedStatusCode {
 			return nil
 		}
