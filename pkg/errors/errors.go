@@ -11,17 +11,15 @@ import (
 	"syscall"
 )
 
-type baseError interface {
+// Error specifies an API that must be fullfiled by error type
+type Error interface {
+
 	// Error implements the error interface.
 	Error() string
 
 	// Msg returns error message
 	Msg() string
-}
 
-// Error specifies an API that must be fullfiled by error type
-type Error interface {
-	baseError
 	// Err returns wrapped error
 	Err() Error
 }
@@ -57,13 +55,8 @@ func Contains(e1 error, e2 error) bool {
 	if e1 == nil || e2 == nil {
 		return e2 == e1
 	}
-	if ce, ok := e1.(Error); ok {
-		if ce.Msg() == e2.Error() {
-			return true
-		}
-		return Contains(ce.Err(), e2)
-	}
-	if ce, ok := e1.(SDKError); ok {
+	ce, ok := e1.(Error)
+	if ok {
 		if ce.Msg() == e2.Error() {
 			return true
 		}
@@ -81,12 +74,6 @@ func Wrap(wrapper error, err error) error {
 		return &customError{
 			msg: w.Msg(),
 			err: cast(err),
-		}
-	}
-	if w, ok := wrapper.(SDKError); ok {
-		return &customSDKError{
-			msg: w.Msg(),
-			err: castSDKError(err),
 		}
 	}
 	return &customError{
