@@ -246,90 +246,94 @@ func (cs *certsService) ViewCert(ctx context.Context, token, serialID string) (C
 }
 
 func (cs *certsService) RenewCerts(ctx context.Context, renewThres time.Duration, bsUpdateRenewCert bool) error {
-	cp := Page{}
-	cp.Limit = 100
-	cp.Total = 101
-	for cp.Offset+cp.Limit < cp.Total {
-		p, err := cs.certsRepo.RetrieveAll(ctx, "", cp.Offset, cp.Limit)
+	limit := uint64(100)
+	total := uint64(100)
+	offset := uint64(0)
+	for offset+limit < total {
+		p, err := cs.certsRepo.RetrieveAll(ctx, "", offset, limit)
 		if err != nil {
 			return err
 		}
-		cp.Certs = append(cp.Certs, p.Certs...)
-		if cp.Limit > p.Total {
-			break
-		}
-		cp.Offset = cp.Limit
-		cp.Limit = p.Total - cp.Limit
-		cp.Total = p.Total
-	}
-
-	for _, repoExpCert := range cp.Certs {
-		if renewThres < time.Until(repoExpCert.Expire) {
-			continue
-		}
-		cert, err := cs.pki.IssueCert(repoExpCert.ThingID, cs.conf.SignHoursValid, "", cs.conf.SignRSABits)
-		if err != nil {
-			return errors.Wrap(ErrFailedCertCreation, err)
-		}
-		c := Cert{
-			ThingID:        repoExpCert.ThingID,
-			OwnerID:        repoExpCert.OwnerID,
-			ClientCert:     cert.ClientCert,
-			IssuingCA:      cert.IssuingCA,
-			CAChain:        cert.CAChain,
-			ClientKey:      cert.ClientKey,
-			PrivateKeyType: cert.PrivateKeyType,
-			Serial:         cert.Serial,
-			Expire:         cert.Expire,
-		}
-		if bsUpdateRenewCert {
-			if err := cs.bsClient.UpdateCerts(ctx, repoExpCert.ThingID, cert.ClientCert, cert.ClientKey, strings.Join(cert.CAChain, "\n")); err != nil {
-				if err != errors.ErrNotFound {
-					return errors.Wrap(errFailedToUpdateCertBSRenew, errors.Wrap(fmt.Errorf(repoExpCert.ThingID), err))
+		for _, repoExpCert := range p.Certs {
+			if renewThres < time.Until(repoExpCert.Expire) {
+				continue
+			}
+			cert, err := cs.pki.IssueCert(repoExpCert.ThingID, cs.conf.SignHoursValid, "", cs.conf.SignRSABits)
+			if err != nil {
+				return errors.Wrap(ErrFailedCertCreation, err)
+			}
+			c := Cert{
+				ThingID:        repoExpCert.ThingID,
+				OwnerID:        repoExpCert.OwnerID,
+				ClientCert:     cert.ClientCert,
+				IssuingCA:      cert.IssuingCA,
+				CAChain:        cert.CAChain,
+				ClientKey:      cert.ClientKey,
+				PrivateKeyType: cert.PrivateKeyType,
+				Serial:         cert.Serial,
+				Expire:         cert.Expire,
+			}
+			if bsUpdateRenewCert {
+				if err := cs.bsClient.UpdateCerts(ctx, repoExpCert.ThingID, cert.ClientCert, cert.ClientKey, strings.Join(cert.CAChain, "\n")); err != nil {
+					if err != errors.ErrNotFound {
+						return errors.Wrap(errFailedToUpdateCertBSRenew, errors.Wrap(fmt.Errorf(repoExpCert.ThingID), err))
+					}
+					revokes, err := cs.ThingCertsRevokeHandler(ctx, repoExpCert.ThingID)
+					if err != nil {
+						return errors.Wrap(errFailedToUpdateCertBSRenew, errors.Wrap(errThingNotInBS, errors.Wrap(fmt.Errorf(repoExpCert.ThingID), err)))
+					}
+					return errors.Wrap(errFailedToUpdateCertBSRenew, errors.Wrap(errThingNotInBS, fmt.Errorf("%s certificate revoked at %v", repoExpCert.ThingID, revokes)))
 				}
-				revokes, err := cs.ThingCertsRevokeHandler(ctx, repoExpCert.ThingID)
-				if err != nil {
-					return errors.Wrap(errFailedToUpdateCertBSRenew, errors.Wrap(errThingNotInBS, errors.Wrap(fmt.Errorf(repoExpCert.ThingID), err)))
-				}
-				return errors.Wrap(errFailedToUpdateCertBSRenew, errors.Wrap(errThingNotInBS, fmt.Errorf("%s certificate revoked at %v", repoExpCert.ThingID, revokes)))
+			}
+			if err := cs.certsRepo.Update(ctx, repoExpCert.Serial, c); err != nil {
+				return errors.Wrap(errFailedToUpdateCertRenew, err)
 			}
 		}
-		if err := cs.certsRepo.Update(ctx, repoExpCert.Serial, c); err != nil {
-			return errors.Wrap(errFailedToUpdateCertRenew, err)
+
+		if limit > p.Total {
+			break
+		}
+		offset = offset + limit
+		total = p.Total
+		if offset+limit > total && total%limit > 0 {
+			limit = total % limit
 		}
 	}
+
 	return nil
 }
 
 func (cs *certsService) ThingCertsRevokeHandler(ctx context.Context, thingID string) ([]Revoke, error) {
 	var revokes []Revoke
 
-	cp := Page{}
-	cp.Limit = 100
-	cp.Total = 101
-	for cp.Offset+cp.Limit < cp.Total {
-		p, err := cs.certsRepo.RetrieveByThing(ctx, "", thingID, cp.Offset, cp.Limit)
+	limit := uint64(100)
+	total := uint64(100)
+	offset := uint64(0)
+	for offset+limit < total {
+		p, err := cs.certsRepo.RetrieveByThing(ctx, "", thingID, offset, limit)
 		if err != nil {
-			return []Revoke{}, errors.Wrap(ErrFailedCertRevocation, err)
-		}
-		cp.Certs = append(cp.Certs, p.Certs...)
-		if cp.Limit > p.Total {
-			break
-		}
-		cp.Offset = cp.Limit
-		cp.Limit = p.Total - cp.Limit
-		cp.Total = p.Total
-	}
-	for _, c := range cp.Certs {
-		var revoke Revoke
-		revTime, err := cs.pki.Revoke(c.Serial)
-		if err != nil && err != errors.ErrNotFound {
 			return revokes, errors.Wrap(ErrFailedCertRevocation, err)
 		}
-		revoke.RevocationTime = revTime
-		revokes = append(revokes, revoke)
-		if err = cs.certsRepo.Remove(context.Background(), "", c.Serial); err != nil {
-			return revokes, errors.Wrap(errFailedToRemoveCertFromDB, err)
+		for _, c := range p.Certs {
+			var revoke Revoke
+			revTime, err := cs.pki.Revoke(c.Serial)
+			if err != nil && err != errors.ErrNotFound {
+				return revokes, errors.Wrap(ErrFailedCertRevocation, err)
+			}
+			revoke.RevocationTime = revTime
+			revokes = append(revokes, revoke)
+			if err = cs.certsRepo.Remove(context.Background(), "", c.Serial); err != nil {
+				return revokes, errors.Wrap(errFailedToRemoveCertFromDB, err)
+			}
+		}
+
+		if limit > p.Total {
+			break
+		}
+		offset = offset + limit
+		total = p.Total
+		if offset+limit > total && total%limit > 0 {
+			limit = total % limit
 		}
 	}
 	return revokes, nil
