@@ -290,9 +290,6 @@ func (cs *certsService) RenewCerts(ctx context.Context, renewThres time.Duration
 			}
 		}
 
-		if limit > p.Total {
-			break
-		}
 		offset = offset + limit
 		total = p.Total
 		if offset+limit > total && total%limit > 0 {
@@ -327,9 +324,6 @@ func (cs *certsService) ThingCertsRevokeHandler(ctx context.Context, thingID str
 			}
 		}
 
-		if limit > p.Total {
-			break
-		}
 		offset = offset + limit
 		total = p.Total
 		if offset+limit > total && total%limit > 0 {
