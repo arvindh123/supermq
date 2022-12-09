@@ -13,7 +13,7 @@ import (
 	"github.com/cenkalti/backoff/v4"
 	"github.com/mainflux/mainflux"
 	internalauth "github.com/mainflux/mainflux/internal/auth"
-	mfdatabase "github.com/mainflux/mainflux/internal/db"
+	internaldb "github.com/mainflux/mainflux/internal/db"
 	mflog "github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/mqtt"
 	mqttredis "github.com/mainflux/mainflux/mqtt/redis"
@@ -141,7 +141,7 @@ func main() {
 	conn := internalauth.ConnectToThings(cfg.clientTLS, cfg.caCerts, cfg.thingsAuthURL, svcName, logger)
 	defer conn.Close()
 
-	ec := mfdatabase.ConnectToRedis(cfg.esURL, cfg.esPass, cfg.esDB, logger)
+	ec := internaldb.ConnectToRedis(cfg.esURL, cfg.esPass, cfg.esDB, logger)
 	defer ec.Close()
 
 	nps, err := nats.NewPubSub(cfg.natsURL, "mqtt", logger)
@@ -172,7 +172,7 @@ func main() {
 
 	es := mqttredis.NewEventStore(ec, cfg.instance)
 
-	ac := mfdatabase.ConnectToRedis(cfg.authURL, cfg.authPass, cfg.authDB, logger)
+	ac := internaldb.ConnectToRedis(cfg.authURL, cfg.authPass, cfg.authDB, logger)
 	defer ac.Close()
 
 	thingsTracer, thingsCloser := internalauth.Jaeger("things", cfg.jaegerURL, logger)

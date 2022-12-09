@@ -17,7 +17,7 @@ import (
 	redisprod "github.com/mainflux/mainflux/bootstrap/redis/producer"
 	"github.com/mainflux/mainflux/internal"
 	internalauth "github.com/mainflux/mainflux/internal/auth"
-	mfdatabase "github.com/mainflux/mainflux/internal/db"
+	internaldb "github.com/mainflux/mainflux/internal/db"
 	"github.com/mainflux/mainflux/internal/server"
 	httpserver "github.com/mainflux/mainflux/internal/server/http"
 	"github.com/mainflux/mainflux/logger"
@@ -33,7 +33,7 @@ import (
 )
 
 const (
-	svcName       = "bootstrap"
+	svcName = "bootstrap"
 
 	defLogLevel       = "error"
 	defDBHost         = "localhost"
@@ -130,10 +130,10 @@ func main() {
 	db := connectToDB(cfg.dbConfig, logger)
 	defer db.Close()
 
-	thingsESConn := mfdatabase.ConnectToRedis(cfg.esThingsURL, cfg.esThingsPass, cfg.esThingsDB, logger)
+	thingsESConn := internaldb.ConnectToRedis(cfg.esThingsURL, cfg.esThingsPass, cfg.esThingsDB, logger)
 	defer thingsESConn.Close()
 
-	esClient := mfdatabase.ConnectToRedis(cfg.esURL, cfg.esPass, cfg.esDB, logger)
+	esClient := internaldb.ConnectToRedis(cfg.esURL, cfg.esPass, cfg.esDB, logger)
 	defer esClient.Close()
 
 	authTracer, authCloser := internalauth.Jaeger("auth", cfg.jaegerURL, logger)

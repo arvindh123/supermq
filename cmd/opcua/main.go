@@ -12,7 +12,7 @@ import (
 	r "github.com/go-redis/redis/v8"
 	"github.com/mainflux/mainflux"
 	"github.com/mainflux/mainflux/internal"
-	mfdatabase "github.com/mainflux/mainflux/internal/db"
+	internaldb "github.com/mainflux/mainflux/internal/db"
 	"github.com/mainflux/mainflux/internal/server"
 	httpserver "github.com/mainflux/mainflux/internal/server/http"
 	"github.com/mainflux/mainflux/logger"
@@ -26,7 +26,7 @@ import (
 )
 
 const (
-	svcName      = "opc-ua-adapter"
+	svcName = "opc-ua-adapter"
 
 	defLogLevel       = "error"
 	defHTTPPort       = "8180"
@@ -89,14 +89,14 @@ func main() {
 		log.Fatalf(err.Error())
 	}
 
-	rmConn := mfdatabase.ConnectToRedis(cfg.routeMapURL, cfg.routeMapPass, cfg.routeMapDB, logger)
+	rmConn := internaldb.ConnectToRedis(cfg.routeMapURL, cfg.routeMapPass, cfg.routeMapDB, logger)
 	defer rmConn.Close()
 
 	thingRM := newRouteMapRepositoy(rmConn, thingsRMPrefix, logger)
 	chanRM := newRouteMapRepositoy(rmConn, channelsRMPrefix, logger)
 	connRM := newRouteMapRepositoy(rmConn, connectionRMPrefix, logger)
 
-	esConn := mfdatabase.ConnectToRedis(cfg.esURL, cfg.esPass, cfg.esDB, logger)
+	esConn := internaldb.ConnectToRedis(cfg.esURL, cfg.esPass, cfg.esDB, logger)
 	defer esConn.Close()
 
 	pubSub, err := nats.NewPubSub(cfg.natsURL, "", logger)

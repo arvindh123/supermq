@@ -16,7 +16,7 @@ import (
 	authapi "github.com/mainflux/mainflux/auth/api/grpc"
 	"github.com/mainflux/mainflux/internal"
 	internalauth "github.com/mainflux/mainflux/internal/auth"
-	mfdatabase "github.com/mainflux/mainflux/internal/db"
+	internaldb "github.com/mainflux/mainflux/internal/db"
 	"github.com/mainflux/mainflux/internal/server"
 	httpserver "github.com/mainflux/mainflux/internal/server/http"
 	"github.com/mainflux/mainflux/logger"
@@ -110,7 +110,7 @@ func main() {
 		log.Fatalf(err.Error())
 	}
 
-	cacheClient := mfdatabase.ConnectToRedis(cfg.cacheURL, cfg.cachePass, cfg.cacheDB, logger)
+	cacheClient := internaldb.ConnectToRedis(cfg.cacheURL, cfg.cachePass, cfg.cacheDB, logger)
 	cacheTracer, cacheCloser := internalauth.Jaeger("twins_cache", cfg.jaegerURL, logger)
 	defer cacheCloser.Close()
 
