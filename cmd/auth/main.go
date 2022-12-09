@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/caarlos0/env/v6"
 	"github.com/jmoiron/sqlx"
 	"github.com/mainflux/mainflux"
 	"github.com/mainflux/mainflux/auth"
@@ -22,7 +23,6 @@ import (
 	"github.com/mainflux/mainflux/internal/server"
 	grpcserver "github.com/mainflux/mainflux/internal/server/grpc"
 	httpserver "github.com/mainflux/mainflux/internal/server/http"
-	"github.com/mainflux/mainflux/internal/starter"
 	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/pkg/uuid"
 	"github.com/opentracing/opentracing-go"
@@ -51,28 +51,14 @@ type config struct {
 	LoginDuration time.Duration `env:"MF_AUTH_LOGIN_TOKEN_DURATION"  default:"10h"`
 }
 
-type DbConfig struct {
-	Host        string `env:"MF_AUTH_DB_HOST"           default:"localhost"`
-	Port        string `env:"MF_AUTH_DB_PORT"           default:"5432"`
-	User        string `env:"MF_AUTH_DB_USER"           default:"mainflux"`
-	Pass        string `env:"MF_AUTH_DB_PASS"           default:"mainflux"`
-	Name        string `env:"MF_AUTH_DB"                default:"auth"`
-	SSLMode     string `env:"MF_AUTH_DB_SSL_MODE"       default:"disable"`
-	SSLCert     string `env:"MF_AUTH_DB_SSL_CERT"       default:""`
-	SSLKey      string `env:"MF_AUTH_DB_SSL_KEY"        default:""`
-	SSLRootCert string `env:"MF_AUTH_DB_SSL_ROOT_CERT"  default:""`
-}
-
 func main() {
 	cfg := config{}
-	dbConfig := DbConfig{}
+	dbConfig := postgres.Config{}
 
-	err := starter.LoadConfig(&cfg)
-	if err != nil {
+	if err := env.Parse(&cfg); err != nil {
 		log.Fatalf(fmt.Sprintf("Failed to load %s configuration : %s", svcName, err.Error()))
 	}
-	err = starter.LoadConfig(&dbConfig)
-	if err != nil {
+	if err := env.Parse(&dbConfig); err != nil {
 		log.Fatalf(fmt.Sprintf("Failed to load %s database configuration : %s", svcName, err.Error()))
 	}
 
@@ -83,7 +69,7 @@ func main() {
 		log.Fatalf(err.Error())
 	}
 
-	db := connectToDB(postgres.Config(dbConfig), logger)
+	db := connectToDB(dbConfig, logger)
 	defer db.Close()
 
 	tracer, closer := internalauth.Jaeger("auth", cfg.JaegerURL, logger)
