@@ -14,7 +14,7 @@ import (
 	"github.com/mainflux/mainflux/consumers/writers/api"
 	"github.com/mainflux/mainflux/consumers/writers/mongodb"
 	"github.com/mainflux/mainflux/internal"
-	mfdatabase "github.com/mainflux/mainflux/internal/db"
+	internaldb "github.com/mainflux/mainflux/internal/db"
 	"github.com/mainflux/mainflux/internal/server"
 	httpserver "github.com/mainflux/mainflux/internal/server/http"
 	"github.com/mainflux/mainflux/logger"
@@ -70,7 +70,7 @@ func main() {
 	}
 	defer pubSub.Close()
 
-	db := mfdatabase.ConnectToMongoDB(cfg.dbHost, cfg.dbPort, cfg.dbName, logger)
+	db := internaldb.ConnectToMongoDB(cfg.dbHost, cfg.dbPort, cfg.dbName, logger)
 
 	repo := newService(db, logger)
 
