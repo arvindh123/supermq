@@ -286,7 +286,7 @@ func decodeListMembersRequest(_ context.Context, r *http.Request) (interface{}, 
 	req := listMemberGroupReq{
 		token:    apiutil.ExtractBearerToken(r),
 		status:   s,
-		id:       bone.GetValue(r, "groupId"),
+		id:       bone.GetValue(r, "id"),
 		offset:   o,
 		limit:    l,
 		metadata: m,
@@ -328,6 +328,8 @@ func encodeError(_ context.Context, err error, w http.ResponseWriter) {
 		err == apiutil.ErrMissingHost,
 		err == apiutil.ErrMissingPass,
 		err == apiutil.ErrMissingConfPass,
+		err == apiutil.ErrLimitSize,
+		err == apiutil.ErrOffsetSize,
 		err == apiutil.ErrInvalidResetPass:
 		w.WriteHeader(http.StatusBadRequest)
 	case errors.Contains(err, errors.ErrAuthentication),
