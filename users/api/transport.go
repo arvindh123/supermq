@@ -134,7 +134,7 @@ func MakeHandler(svc users.Service, tracer opentracing.Tracer, logger logger.Log
 func decodeViewUser(_ context.Context, r *http.Request) (interface{}, error) {
 	req := viewUserReq{
 		token: apiutil.ExtractBearerToken(r),
-		id:    bone.GetValue(r, "userID"),
+		id:    bone.GetValue(r, "id"),
 	}
 
 	return req, nil

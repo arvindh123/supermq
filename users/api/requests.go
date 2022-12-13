@@ -63,6 +63,11 @@ func (req listUsersReq) validate() error {
 	if len(req.email) > maxEmailSize {
 		return apiutil.ErrEmailSize
 	}
+	if req.status != users.AllStatusKey &&
+		req.status != users.EnabledStatusKey &&
+		req.status != users.DisabledStatusKey {
+		return apiutil.ErrInvalidStatus
+	}
 
 	return nil
 }
