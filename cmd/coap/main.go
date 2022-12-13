@@ -28,8 +28,6 @@ import (
 const (
 	svcName = "coap_adapter"
 
-	svcName = "coap_adapter"
-
 	defPort              = "5683"
 	defBrokerURL         = "nats://localhost:4222"
 	defLogLevel          = "error"
@@ -71,10 +69,8 @@ func main() {
 	}
 
 	conn := internalauth.ConnectToThings(cfg.clientTLS, cfg.caCerts, cfg.thingsAuthURL, svcName, logger)
-	conn := internalauth.ConnectToThings(cfg.clientTLS, cfg.caCerts, cfg.thingsAuthURL, svcName, logger)
 	defer conn.Close()
 
-	thingsTracer, thingsCloser := internalauth.Jaeger("things", cfg.jaegerURL, logger)
 	thingsTracer, thingsCloser := internalauth.Jaeger("things", cfg.jaegerURL, logger)
 	defer thingsCloser.Close()
 
@@ -89,26 +85,12 @@ func main() {
 	defer nps.Close()
 
 	svc := coap.New(tc, nps)
-	svc := coap.New(tc, nps)
 
 	svc = api.LoggingMiddleware(svc, logger)
 
 	counter, latency := internal.MakeMetrics(svcName, "api")
 	svc = api.MetricsMiddleware(svc, counter, latency)
-	counter, latency := internal.MakeMetrics(svcName, "api")
-	svc = api.MetricsMiddleware(svc, counter, latency)
 
-	hs := httpserver.New(ctx, cancel, svcName, "", cfg.port, api.MakeHTTPHandler(), "", "", logger)
-	cs := coapserver.New(ctx, cancel, svcName, "", cfg.port, api.MakeCoAPHandler(svc, logger), logger)
-	g.Go(func() error {
-		return hs.Start()
-	})
-	g.Go(func() error {
-		return cs.Start()
-	})
-	g.Go(func() error {
-		return server.StopSignalHandler(ctx, cancel, logger, svcName, hs, cs)
-	})
 	hs := httpserver.New(ctx, cancel, svcName, "", cfg.port, api.MakeHTTPHandler(), "", "", logger)
 	cs := coapserver.New(ctx, cancel, svcName, "", cfg.port, api.MakeCoAPHandler(svc, logger), logger)
 	g.Go(func() error {

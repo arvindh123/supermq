@@ -3,165 +3,448 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-/*
-Package amqp091 is an AMQP 0.9.1 client with RabbitMQ extensions
-
-Understand the AMQP 0.9.1 messaging model by reviewing these links first. Much
-of the terminology in this library directly relates to AMQP concepts.
-
-	Resources
-
-	http://www.rabbitmq.com/tutorials/amqp-concepts.html
-	http://www.rabbitmq.com/getstarted.html
-	http://www.rabbitmq.com/amqp-0-9-1-reference.html
-
-# Design
-
-Most other broker clients publish to queues, but in AMQP, clients publish
-Exchanges instead.  AMQP is programmable, meaning that both the producers and
-consumers agree on the configuration of the broker, instead of requiring an
-operator or system configuration that declares the logical topology in the
-broker.  The routing between producers and consumer queues is via Bindings.
-These bindings form the logical topology of the broker.
-
-In this library, a message sent from publisher is called a "Publishing" and a
-message received to a consumer is called a "Delivery".  The fields of
-Publishings and Deliveries are close but not exact mappings to the underlying
-wire format to maintain stronger types.  Many other libraries will combine
-message properties with message headers.  In this library, the message well
-known properties are strongly typed fields on the Publishings and Deliveries,
-whereas the user defined headers are in the Headers field.
-
-The method naming closely matches the protocol's method name with positional
-parameters mapping to named protocol message fields.  The motivation here is to
-present a comprehensive view over all possible interactions with the server.
-
-Generally, methods that map to protocol methods of the "basic" class will be
-elided in this interface, and "select" methods of various channel mode selectors
-will be elided for example Channel.Confirm and Channel.Tx.
-
-The library is intentionally designed to be synchronous, where responses for
-each protocol message are required to be received in an RPC manner.  Some
-methods have a noWait parameter like Channel.QueueDeclare, and some methods are
-asynchronous like Channel.Publish.  The error values should still be checked for
-these methods as they will indicate IO failures like when the underlying
-connection closes.
-
-# Asynchronous Events
-
-Clients of this library may be interested in receiving some of the protocol
-messages other than Deliveries like basic.ack methods while a channel is in
-confirm mode.
-
-The Notify* methods with Connection and Channel receivers model the pattern of
-asynchronous events like closes due to exceptions, or messages that are sent out
-of band from an RPC call like basic.ack or basic.flow.
-
-Any asynchronous events, including Deliveries and Publishings must always have
-a receiver until the corresponding chans are closed.  Without asynchronous
-receivers, the synchronous methods will block.
-
-# Use Case
-
-It's important as a client to an AMQP topology to ensure the state of the
-broker matches your expectations.  For both publish and consume use cases,
-make sure you declare the queues, exchanges and bindings you expect to exist
-prior to calling Channel.Publish or Channel.Consume.
-
-	// Connections start with amqp.Dial() typically from a command line argument
-	// or environment variable.
-	connection, err := amqp.Dial(os.Getenv("AMQP_URL"))
-
-	// To cleanly shutdown by flushing kernel buffers, make sure to close and
-	// wait for the response.
-	defer connection.Close()
-
-	// Most operations happen on a channel.  If any error is returned on a
-	// channel, the channel will no longer be valid, throw it away and try with
-	// a different channel.  If you use many channels, it's useful for the
-	// server to
-	channel, err := connection.Channel()
-
-	// Declare your topology here, if it doesn't exist, it will be created, if
-	// it existed already and is not what you expect, then that's considered an
-	// error.
-
-	// Use your connection on this topology with either Publish or Consume, or
-	// inspect your queues with QueueInspect.  It's unwise to mix Publish and
-	// Consume to let TCP do its job well.
-
-SSL/TLS - Secure connections
-
-When Dial encounters an amqps:// scheme, it will use the zero value of a
-tls.Config.  This will only perform server certificate and host verification.
-
-Use DialTLS when you wish to provide a client certificate (recommended),
-include a private certificate authority's certificate in the cert chain for
-server validity, or run insecure by not verifying the server certificate dial
-your own connection.  DialTLS will use the provided tls.Config when it
-encounters an amqps:// scheme and will dial a plain connection when it
-encounters an amqp:// scheme.
-
-SSL/TLS in RabbitMQ is documented here: http://www.rabbitmq.com/ssl.html
-
-Best practises to handle library notifications.
-
-Best practises for Connections and Channels notifications:
-
-In order to be notified when a connection or channel gets closed both the structures offer the possibility to register channels using the `notifyClose` function like:
-notifyConnClose := make(chan *amqp.Error)
-conn.NotifyClose(notifyConnClose)
-No errors will be sent in case of a graceful connection close.
-In case of a non-graceful close, because of a network issue of forced disconnection from the UI, the error will be notified synchronously by the library.
-You can see that in the shutdown function of connection and channel (see connection.go and channel.go)
-
-	if err != nil {
-	     for _, c := range c.closes {
-	       c <- err
-	     }
-	   }
-
-The error is sent synchronously to the channel so that the flow will wait until the channel will be consumed by the caller.
-To avoid deadlocks it is necessary to consume the messages from the channels.
-This could be done inside a different goroutine with a select listening on the two channels inside a for loop like:
-
-	go func() {
-	  for notifyConnClose != nil || notifyChanClose != nil {
-	    select {
-	      case err, ok := <-notifyConnClose:
-	        if !(ok) {
-	          notifyConnClose = nil
-	        } else {
-	          fmt.Printf("connection closed, error %s", err)
-	        }
-	      case err, ok := <-notifyChanClose:
-	        if !(ok) {
-	          notifyChanClose = nil
-	        } else {
-	          fmt.Printf("channel closed, error %s", err)
-	        }
-	      }
-	  }
-	}()
-
-Best practises for NotifyPublish notifications:
-
-Similary to the previous sceneario using the NotifyPublish method allows the caller of the library to be notified through a go channel when a message has been received
-from the broker after Channel.Confirm has been set.
-It's advisable to wait for all Confirmations to arrive before calling Channel.Close() or Connection.Close().
-It is also necessary for the caller to always consume from this channel till it get closed from the library to avoid possible deadlocks.
-Confirmations go channel are indeed notified inside the confirm function of the Confirm struct synchronously:
-
-	  // confirm confirms one publishing, increments the expecting delivery tag, and
-	  // removes bookkeeping for that delivery tag.
-	  func (c *confirms) confirm(confirmation Confirmation) {
-		  delete(c.sequencer, c.expecting)
-		  c.expecting++
-		  for _, l := range c.listeners {
-			  l <- confirmation
-		  }
-	  }
-
-It is so necessary to have a goroutine consuming from this channel till it get closed.
-*/
 package amqp091
+
+import (
+	"bytes"
+	"encoding/binary"
+	"errors"
+	"io"
+	"time"
+)
+
+/*
+ReadFrame reads a frame from an input stream and returns an interface that can be cast into
+one of the following:
+
+   methodFrame
+   PropertiesFrame
+   bodyFrame
+   heartbeatFrame
+
+2.3.5  frame Details
+
+All frames consist of a header (7 octets), a payload of arbitrary size, and a
+'frame-end' octet that detects malformed frames:
+
+  0      1         3             7                  size+7 size+8
+  +------+---------+-------------+  +------------+  +-----------+
+  | type | channel |     size    |  |  payload   |  | frame-end |
+  +------+---------+-------------+  +------------+  +-----------+
+   octet   short         long         size octets       octet
+
+To read a frame, we:
+  1. Read the header and check the frame type and channel.
+	2. Depending on the frame type, we read the payload and process it.
+  3. Read the frame end octet.
+
+In realistic implementations where performance is a concern, we would use
+“read-ahead buffering” or
+
+“gathering reads” to avoid doing three separate system calls to read a frame.
+*/
+func (r *reader) ReadFrame() (frame frame, err error) {
+	var scratch [7]byte
+
+	if _, err = io.ReadFull(r.r, scratch[:7]); err != nil {
+		return
+	}
+
+	typ := scratch[0]
+	channel := binary.BigEndian.Uint16(scratch[1:3])
+	size := binary.BigEndian.Uint32(scratch[3:7])
+
+	switch typ {
+	case frameMethod:
+		if frame, err = r.parseMethodFrame(channel, size); err != nil {
+			return
+		}
+
+	case frameHeader:
+		if frame, err = r.parseHeaderFrame(channel, size); err != nil {
+			return
+		}
+
+	case frameBody:
+		if frame, err = r.parseBodyFrame(channel, size); err != nil {
+			return nil, err
+		}
+
+	case frameHeartbeat:
+		if frame, err = r.parseHeartbeatFrame(channel, size); err != nil {
+			return
+		}
+
+	default:
+		return nil, ErrFrame
+	}
+
+	if _, err = io.ReadFull(r.r, scratch[:1]); err != nil {
+		return nil, err
+	}
+
+	if scratch[0] != frameEnd {
+		return nil, ErrFrame
+	}
+
+	return
+}
+
+func readShortstr(r io.Reader) (v string, err error) {
+	var length uint8
+	if err = binary.Read(r, binary.BigEndian, &length); err != nil {
+		return
+	}
+
+	bytes := make([]byte, length)
+	if _, err = io.ReadFull(r, bytes); err != nil {
+		return
+	}
+	return string(bytes), nil
+}
+
+func readLongstr(r io.Reader) (v string, err error) {
+	var length uint32
+	if err = binary.Read(r, binary.BigEndian, &length); err != nil {
+		return
+	}
+
+	// slices can't be longer than max int32 value
+	if length > (^uint32(0) >> 1) {
+		return
+	}
+
+	bytes := make([]byte, length)
+	if _, err = io.ReadFull(r, bytes); err != nil {
+		return
+	}
+	return string(bytes), nil
+}
+
+func readDecimal(r io.Reader) (v Decimal, err error) {
+	if err = binary.Read(r, binary.BigEndian, &v.Scale); err != nil {
+		return
+	}
+	if err = binary.Read(r, binary.BigEndian, &v.Value); err != nil {
+		return
+	}
+	return
+}
+
+func readTimestamp(r io.Reader) (v time.Time, err error) {
+	var sec int64
+	if err = binary.Read(r, binary.BigEndian, &sec); err != nil {
+		return
+	}
+	return time.Unix(sec, 0), nil
+}
+
+/*
+'A': []interface{}
+'D': Decimal
+'F': Table
+'I': int32
+'S': string
+'T': time.Time
+'V': nil
+'b': int8
+'B': byte
+'d': float64
+'f': float32
+'l': int64
+'s': int16
+'t': bool
+'x': []byte
+*/
+func readField(r io.Reader) (v interface{}, err error) {
+	var typ byte
+	if err = binary.Read(r, binary.BigEndian, &typ); err != nil {
+		return
+	}
+
+	switch typ {
+	case 't':
+		var value uint8
+		if err = binary.Read(r, binary.BigEndian, &value); err != nil {
+			return
+		}
+		return (value != 0), nil
+
+	case 'B':
+		var value [1]byte
+		if _, err = io.ReadFull(r, value[0:1]); err != nil {
+			return
+		}
+		return value[0], nil
+
+	case 'b':
+		var value int8
+		if err = binary.Read(r, binary.BigEndian, &value); err != nil {
+			return
+		}
+		return value, nil
+
+	case 's':
+		var value int16
+		if err = binary.Read(r, binary.BigEndian, &value); err != nil {
+			return
+		}
+		return value, nil
+
+	case 'I':
+		var value int32
+		if err = binary.Read(r, binary.BigEndian, &value); err != nil {
+			return
+		}
+		return value, nil
+
+	case 'l':
+		var value int64
+		if err = binary.Read(r, binary.BigEndian, &value); err != nil {
+			return
+		}
+		return value, nil
+
+	case 'f':
+		var value float32
+		if err = binary.Read(r, binary.BigEndian, &value); err != nil {
+			return
+		}
+		return value, nil
+
+	case 'd':
+		var value float64
+		if err = binary.Read(r, binary.BigEndian, &value); err != nil {
+			return
+		}
+		return value, nil
+
+	case 'D':
+		return readDecimal(r)
+
+	case 'S':
+		return readLongstr(r)
+
+	case 'A':
+		return readArray(r)
+
+	case 'T':
+		return readTimestamp(r)
+
+	case 'F':
+		return readTable(r)
+
+	case 'x':
+		var len int32
+		if err = binary.Read(r, binary.BigEndian, &len); err != nil {
+			return nil, err
+		}
+
+		value := make([]byte, len)
+		if _, err = io.ReadFull(r, value); err != nil {
+			return nil, err
+		}
+		return value, err
+
+	case 'V':
+		return nil, nil
+	}
+
+	return nil, ErrSyntax
+}
+
+/*
+	Field tables are long strings that contain packed name-value pairs.  The
+	name-value pairs are encoded as short string defining the name, and octet
+	defining the values type and then the value itself.   The valid field types for
+	tables are an extension of the native integer, bit, string, and timestamp
+	types, and are shown in the grammar.  Multi-octet integer fields are always
+	held in network byte order.
+*/
+func readTable(r io.Reader) (table Table, err error) {
+	var nested bytes.Buffer
+	var str string
+
+	if str, err = readLongstr(r); err != nil {
+		return
+	}
+
+	nested.Write([]byte(str))
+
+	table = make(Table)
+
+	for nested.Len() > 0 {
+		var key string
+		var value interface{}
+
+		if key, err = readShortstr(&nested); err != nil {
+			return
+		}
+
+		if value, err = readField(&nested); err != nil {
+			return
+		}
+
+		table[key] = value
+	}
+
+	return
+}
+
+func readArray(r io.Reader) ([]interface{}, error) {
+	var (
+		size uint32
+		err  error
+	)
+
+	if err = binary.Read(r, binary.BigEndian, &size); err != nil {
+		return nil, err
+	}
+
+	var (
+		lim   = &io.LimitedReader{R: r, N: int64(size)}
+		arr   []interface{}
+		field interface{}
+	)
+
+	for {
+		if field, err = readField(lim); err != nil {
+			if err == io.EOF {
+				break
+			}
+			return nil, err
+		}
+		arr = append(arr, field)
+	}
+
+	return arr, nil
+}
+
+// Checks if this bit mask matches the flags bitset
+func hasProperty(mask uint16, prop int) bool {
+	return int(mask)&prop > 0
+}
+
+func (r *reader) parseHeaderFrame(channel uint16, size uint32) (frame frame, err error) {
+	hf := &headerFrame{
+		ChannelId: channel,
+	}
+
+	if err = binary.Read(r.r, binary.BigEndian, &hf.ClassId); err != nil {
+		return
+	}
+
+	if err = binary.Read(r.r, binary.BigEndian, &hf.weight); err != nil {
+		return
+	}
+
+	if err = binary.Read(r.r, binary.BigEndian, &hf.Size); err != nil {
+		return
+	}
+
+	var flags uint16
+
+	if err = binary.Read(r.r, binary.BigEndian, &flags); err != nil {
+		return
+	}
+
+	if hasProperty(flags, flagContentType) {
+		if hf.Properties.ContentType, err = readShortstr(r.r); err != nil {
+			return
+		}
+	}
+	if hasProperty(flags, flagContentEncoding) {
+		if hf.Properties.ContentEncoding, err = readShortstr(r.r); err != nil {
+			return
+		}
+	}
+	if hasProperty(flags, flagHeaders) {
+		if hf.Properties.Headers, err = readTable(r.r); err != nil {
+			return
+		}
+	}
+	if hasProperty(flags, flagDeliveryMode) {
+		if err = binary.Read(r.r, binary.BigEndian, &hf.Properties.DeliveryMode); err != nil {
+			return
+		}
+	}
+	if hasProperty(flags, flagPriority) {
+		if err = binary.Read(r.r, binary.BigEndian, &hf.Properties.Priority); err != nil {
+			return
+		}
+	}
+	if hasProperty(flags, flagCorrelationId) {
+		if hf.Properties.CorrelationId, err = readShortstr(r.r); err != nil {
+			return
+		}
+	}
+	if hasProperty(flags, flagReplyTo) {
+		if hf.Properties.ReplyTo, err = readShortstr(r.r); err != nil {
+			return
+		}
+	}
+	if hasProperty(flags, flagExpiration) {
+		if hf.Properties.Expiration, err = readShortstr(r.r); err != nil {
+			return
+		}
+	}
+	if hasProperty(flags, flagMessageId) {
+		if hf.Properties.MessageId, err = readShortstr(r.r); err != nil {
+			return
+		}
+	}
+	if hasProperty(flags, flagTimestamp) {
+		if hf.Properties.Timestamp, err = readTimestamp(r.r); err != nil {
+			return
+		}
+	}
+	if hasProperty(flags, flagType) {
+		if hf.Properties.Type, err = readShortstr(r.r); err != nil {
+			return
+		}
+	}
+	if hasProperty(flags, flagUserId) {
+		if hf.Properties.UserId, err = readShortstr(r.r); err != nil {
+			return
+		}
+	}
+	if hasProperty(flags, flagAppId) {
+		if hf.Properties.AppId, err = readShortstr(r.r); err != nil {
+			return
+		}
+	}
+	if hasProperty(flags, flagReserved1) {
+		if hf.Properties.reserved1, err = readShortstr(r.r); err != nil {
+			return
+		}
+	}
+
+	return hf, nil
+}
+
+func (r *reader) parseBodyFrame(channel uint16, size uint32) (frame frame, err error) {
+	bf := &bodyFrame{
+		ChannelId: channel,
+		Body:      make([]byte, size),
+	}
+
+	if _, err = io.ReadFull(r.r, bf.Body); err != nil {
+		return nil, err
+	}
+
+	return bf, nil
+}
+
+var errHeartbeatPayload = errors.New("Heartbeats should not have a payload")
+
+func (r *reader) parseHeartbeatFrame(channel uint16, size uint32) (frame frame, err error) {
+	hf := &heartbeatFrame{
+		ChannelId: channel,
+	}
+
+	if size > 0 {
+		return nil, errHeartbeatPayload
+	}
+
+	return hf, nil
+}

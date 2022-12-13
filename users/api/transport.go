@@ -133,8 +133,8 @@ func MakeHandler(svc users.Service, tracer opentracing.Tracer, logger logger.Log
 
 func decodeViewUser(_ context.Context, r *http.Request) (interface{}, error) {
 	req := viewUserReq{
-		token:  apiutil.ExtractBearerToken(r),
-		userID: bone.GetValue(r, "userID"),
+		token: apiutil.ExtractBearerToken(r),
+		id:    bone.GetValue(r, "userID"),
 	}
 
 	return req, nil
@@ -173,6 +173,7 @@ func decodeListUsers(_ context.Context, r *http.Request) (interface{}, error) {
 	}
 	req := listUsersReq{
 		token:    apiutil.ExtractBearerToken(r),
+		status:   s,
 		offset:   o,
 		limit:    l,
 		email:    e,
@@ -277,14 +278,15 @@ func decodeListMembersRequest(_ context.Context, r *http.Request) (interface{}, 
 	if err != nil {
 		return nil, err
 	}
-	s, err := initutil.ReadStringQuery(r, statusKey, users.EnabledStatusKey)
+	s, err := apiutil.ReadStringQuery(r, statusKey, users.EnabledStatusKey)
 	if err != nil {
 		return nil, err
 	}
 
 	req := listMemberGroupReq{
 		token:    apiutil.ExtractBearerToken(r),
-		groupID:  bone.GetValue(r, "groupId"),
+		status:   s,
+		id:       bone.GetValue(r, "groupId"),
 		offset:   o,
 		limit:    l,
 		metadata: m,

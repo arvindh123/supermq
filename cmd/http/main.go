@@ -19,13 +19,14 @@ import (
 	"github.com/mainflux/mainflux/internal/server"
 	httpserver "github.com/mainflux/mainflux/internal/server/http"
 	"github.com/mainflux/mainflux/logger"
+	"github.com/mainflux/mainflux/pkg/messaging"
 	"github.com/mainflux/mainflux/pkg/messaging/brokers"
 	thingsapi "github.com/mainflux/mainflux/things/api/auth/grpc"
 	"golang.org/x/sync/errgroup"
 )
 
 const (
-	svcName      = "http_adapter"
+	svcName = "http_adapter"
 
 	defLogLevel          = "error"
 	defClientTLS         = "false"
@@ -125,7 +126,7 @@ func loadConfig() config {
 	}
 }
 
-func newService(pub nats.Publisher, tc mainflux.ThingsServiceClient, logger logger.Logger) adapter.Service {
+func newService(pub messaging.Publisher, tc mainflux.ThingsServiceClient, logger logger.Logger) adapter.Service {
 	svc := adapter.New(pub, tc)
 	svc = api.LoggingMiddleware(svc, logger)
 	counter, latency := internal.MakeMetrics(svcName, "api")

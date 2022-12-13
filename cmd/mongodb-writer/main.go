@@ -17,14 +17,9 @@ import (
 	internaldb "github.com/mainflux/mainflux/internal/db"
 	"github.com/mainflux/mainflux/internal/server"
 	httpserver "github.com/mainflux/mainflux/internal/server/http"
-	"github.com/mainflux/mainflux/internal"
-	internaldb "github.com/mainflux/mainflux/internal/db"
-	"github.com/mainflux/mainflux/internal/server"
-	httpserver "github.com/mainflux/mainflux/internal/server/http"
 	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/pkg/messaging/brokers"
 	"go.mongodb.org/mongo-driver/mongo"
-	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -62,8 +57,6 @@ func main() {
 	cfg := loadConfigs()
 	ctx, cancel := context.WithCancel(context.Background())
 	g, ctx := errgroup.WithContext(ctx)
-	ctx, cancel := context.WithCancel(context.Background())
-	g, ctx := errgroup.WithContext(ctx)
 
 	logger, err := logger.New(os.Stdout, cfg.logLevel)
 	if err != nil {
@@ -78,9 +71,7 @@ func main() {
 	defer pubSub.Close()
 
 	db := internaldb.ConnectToMongoDB(cfg.dbHost, cfg.dbPort, cfg.dbName, logger)
-	db := internaldb.ConnectToMongoDB(cfg.dbHost, cfg.dbPort, cfg.dbName, logger)
 
-	repo := newService(db, logger)
 	repo := newService(db, logger)
 
 	if err := consumers.Start(svcName, pubSub, repo, cfg.configPath, logger); err != nil {
@@ -92,14 +83,7 @@ func main() {
 	g.Go(func() error {
 		return hs.Start()
 	})
-	hs := httpserver.New(ctx, cancel, svcName, "", cfg.port, api.MakeHandler(svcName), "", "", logger)
-	g.Go(func() error {
-		return hs.Start()
-	})
 
-	g.Go(func() error {
-		return server.StopSignalHandler(ctx, cancel, logger, svcName, hs)
-	})
 	g.Go(func() error {
 		return server.StopSignalHandler(ctx, cancel, logger, svcName, hs)
 	})
@@ -107,12 +91,6 @@ func main() {
 	if err := g.Wait(); err != nil {
 		logger.Error(fmt.Sprintf("MongoDB writer service terminated: %s", err))
 	}
-	if err := g.Wait(); err != nil {
-		logger.Error(fmt.Sprintf("MongoDB writer service terminated: %s", err))
-	}
-
-}
-
 }
 
 func loadConfigs() config {
@@ -132,12 +110,5 @@ func newService(db *mongo.Database, logger logger.Logger) consumers.Consumer {
 	repo = api.LoggingMiddleware(repo, logger)
 	counter, latency := internal.MakeMetrics("mongodb", "message_writer")
 	repo = api.MetricsMiddleware(repo, counter, latency)
-func newService(db *mongo.Database, logger logger.Logger) consumers.Consumer {
-	repo := mongodb.New(db)
-	repo = api.LoggingMiddleware(repo, logger)
-	counter, latency := internal.MakeMetrics("mongodb", "message_writer")
-	repo = api.MetricsMiddleware(repo, counter, latency)
-
-	return repo
 	return repo
 }

@@ -9,7 +9,6 @@ import (
 
 	"github.com/mainflux/mainflux/pkg/messaging"
 	"github.com/mainflux/mainflux/pkg/messaging/nats"
-	"github.com/mainflux/mainflux/pkg/messaging/nats"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -20,7 +19,6 @@ const (
 	channel     = "9b7b1b3f-b1b0-46a8-a717-b8213f9eda3b"
 	subtopic    = "engine"
 	clientID    = "9b7b1b3f-b1b0-46a8-a717-b8213f9eda3b"
-	clientID    = "9b7b1b3f-b1b0-46a8-a717-b8213f9eda3b"
 )
 
 var (
@@ -30,10 +28,7 @@ var (
 
 func TestPublisher(t *testing.T) {
 	err := pubsub.Subscribe(clientID, fmt.Sprintf("%s.%s", chansPrefix, topic), handler{})
-func TestPublisher(t *testing.T) {
-	err := pubsub.Subscribe(clientID, fmt.Sprintf("%s.%s", chansPrefix, topic), handler{})
 	require.Nil(t, err, fmt.Sprintf("got unexpected error: %s", err))
-	err = pubsub.Subscribe(clientID, fmt.Sprintf("%s.%s.%s", chansPrefix, topic, subtopic), handler{})
 	err = pubsub.Subscribe(clientID, fmt.Sprintf("%s.%s.%s", chansPrefix, topic, subtopic), handler{})
 	require.Nil(t, err, fmt.Sprintf("got unexpected error: %s", err))
 

@@ -110,16 +110,6 @@ type Group struct {
 	Metadata    map[string]interface{} `json:"metadata,omitempty"`
 }
 
-type PageMetadata struct {
-	Total    uint64
-	Offset   uint64
-	Limit    uint64
-	Level    uint64
-	Name     string
-	Type     string
-	Metadata map[string]interface{}
-}
-
 // Thing represents mainflux thing.
 type Thing struct {
 	ID       string                 `json:"id,omitempty"`

@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"context"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -13,8 +12,6 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/mainflux/mainflux"
-	internalauth "github.com/mainflux/mainflux/internal/auth"
-	internaldb "github.com/mainflux/mainflux/internal/db"
 	internalauth "github.com/mainflux/mainflux/internal/auth"
 	internaldb "github.com/mainflux/mainflux/internal/db"
 	mflog "github.com/mainflux/mainflux/logger"
@@ -29,7 +26,6 @@ import (
 	mp "github.com/mainflux/mproxy/pkg/mqtt"
 	"github.com/mainflux/mproxy/pkg/session"
 	ws "github.com/mainflux/mproxy/pkg/websocket"
-	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -116,8 +112,6 @@ func main() {
 	cfg := loadConfig()
 	ctx, cancel := context.WithCancel(context.Background())
 	g, ctx := errgroup.WithContext(ctx)
-	ctx, cancel := context.WithCancel(context.Background())
-	g, ctx := errgroup.WithContext(ctx)
 
 	logger, err := mflog.New(os.Stdout, cfg.logLevel)
 	if err != nil {
@@ -171,10 +165,8 @@ func main() {
 	es := mqttredis.NewEventStore(ec, cfg.instance)
 
 	ac := internaldb.ConnectToRedis(cfg.authURL, cfg.authPass, cfg.authDB, logger)
-	ac := internaldb.ConnectToRedis(cfg.authURL, cfg.authPass, cfg.authDB, logger)
 	defer ac.Close()
 
-	thingsTracer, thingsCloser := internalauth.Jaeger("things", cfg.jaegerURL, logger)
 	thingsTracer, thingsCloser := internalauth.Jaeger("things", cfg.jaegerURL, logger)
 	defer thingsCloser.Close()
 	tc := thingsapi.NewClient(conn, thingsTracer, cfg.thingsAuthTimeout)
@@ -265,7 +257,6 @@ func loadConfig() config {
 }
 
 func proxyMQTT(ctx context.Context, cfg config, logger mflog.Logger, handler session.Handler) error {
-func proxyMQTT(ctx context.Context, cfg config, logger mflog.Logger, handler session.Handler) error {
 	address := fmt.Sprintf(":%s", cfg.mqttPort)
 	target := fmt.Sprintf("%s:%s", cfg.mqttTargetHost, cfg.mqttTargetPort)
 	mp := mp.New(address, target, handler, logger)
@@ -282,40 +273,13 @@ func proxyMQTT(ctx context.Context, cfg config, logger mflog.Logger, handler ses
 	case err := <-errCh:
 		return err
 	}
-
-	errCh := make(chan error)
-	go func() {
-		errCh <- mp.Listen()
-	}()
-
-	select {
-	case <-ctx.Done():
-		logger.Info(fmt.Sprintf("proxy MQTT shutdown at %s", target))
-		return nil
-	case err := <-errCh:
-		return err
-	}
-
 }
-func proxyWS(ctx context.Context, cfg config, logger mflog.Logger, handler session.Handler) error {
+
 func proxyWS(ctx context.Context, cfg config, logger mflog.Logger, handler session.Handler) error {
 	target := fmt.Sprintf("%s:%s", cfg.httpTargetHost, cfg.httpTargetPort)
 	wp := ws.New(target, cfg.httpTargetPath, "ws", handler, logger)
 	http.Handle("/mqtt", wp.Handler())
 
-	errCh := make(chan error)
-
-	go func() {
-		errCh <- wp.Listen(cfg.httpPort)
-	}()
-
-	select {
-	case <-ctx.Done():
-		logger.Info(fmt.Sprintf("proxy MQTT WS shutdown at %s", target))
-		return nil
-	case err := <-errCh:
-		return err
-	}
 	errCh := make(chan error)
 
 	go func() {

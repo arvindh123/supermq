@@ -20,13 +20,6 @@ type MessageHandler interface {
 	// Cancel is used for cleanup during unsubscribing and it's optional.
 	Cancel() error
 }
-type MessageHandler interface {
-	// Handle handles messages passed by underlying implementation.
-	Handle(msg Message) error
-
-	// Cancel is used for cleanup during unsubscribing and it's optional.
-	Cancel() error
-}
 
 // Subscriber specifies message subscription API.
 type Subscriber interface {

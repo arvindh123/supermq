@@ -17,14 +17,11 @@ import (
 	internaldb "github.com/mainflux/mainflux/internal/db"
 	"github.com/mainflux/mainflux/internal/server"
 	httpserver "github.com/mainflux/mainflux/internal/server/http"
-	"github.com/mainflux/mainflux/internal"
-	internaldb "github.com/mainflux/mainflux/internal/db"
-	"github.com/mainflux/mainflux/internal/server"
-	httpserver "github.com/mainflux/mainflux/internal/server/http"
 	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/lora"
 	"github.com/mainflux/mainflux/lora/api"
 	"github.com/mainflux/mainflux/lora/mqtt"
+	"github.com/mainflux/mainflux/pkg/messaging"
 	"github.com/mainflux/mainflux/pkg/messaging/brokers"
 	"golang.org/x/sync/errgroup"
 
@@ -32,8 +29,6 @@ import (
 )
 
 const (
-	svcName = "lora-adapter"
-
 	svcName = "lora-adapter"
 
 	defLogLevel       = "error"
@@ -95,8 +90,6 @@ func main() {
 	cfg := loadConfig()
 	ctx, cancel := context.WithCancel(context.Background())
 	g, ctx := errgroup.WithContext(ctx)
-	ctx, cancel := context.WithCancel(context.Background())
-	g, ctx := errgroup.WithContext(ctx)
 
 	logger, err := logger.New(os.Stdout, cfg.logLevel)
 	if err != nil {
@@ -104,10 +97,8 @@ func main() {
 	}
 
 	rmConn := internaldb.ConnectToRedis(cfg.routeMapURL, cfg.routeMapPass, cfg.routeMapDB, logger)
-	rmConn := internaldb.ConnectToRedis(cfg.routeMapURL, cfg.routeMapPass, cfg.routeMapDB, logger)
 	defer rmConn.Close()
 
-	esConn := internaldb.ConnectToRedis(cfg.esURL, cfg.esPass, cfg.esDB, logger)
 	esConn := internaldb.ConnectToRedis(cfg.esURL, cfg.esPass, cfg.esDB, logger)
 	defer esConn.Close()
 
@@ -119,7 +110,6 @@ func main() {
 	defer pub.Close()
 
 	svc := newService(pub, rmConn, thingsRMPrefix, channelsRMPrefix, connsRMPrefix, logger)
-	svc := newService(pub, rmConn, thingsRMPrefix, channelsRMPrefix, connsRMPrefix, logger)
 
 	mqttConn := connectToMQTTBroker(cfg.loraMsgURL, cfg.loraMsgUser, cfg.loraMsgPass, cfg.loraMsgTimeout, logger)
 
@@ -130,14 +120,7 @@ func main() {
 	g.Go(func() error {
 		return hs.Start()
 	})
-	hs := httpserver.New(ctx, cancel, svcName, "", cfg.httpPort, api.MakeHandler(), "", "", logger)
-	g.Go(func() error {
-		return hs.Start()
-	})
 
-	g.Go(func() error {
-		return server.StopSignalHandler(ctx, cancel, logger, svcName, hs)
-	})
 	g.Go(func() error {
 		return server.StopSignalHandler(ctx, cancel, logger, svcName, hs)
 	})
@@ -145,12 +128,6 @@ func main() {
 	if err := g.Wait(); err != nil {
 		logger.Error(fmt.Sprintf("LoRa adapter terminated: %s", err))
 	}
-	if err := g.Wait(); err != nil {
-		logger.Error(fmt.Sprintf("LoRa adapter terminated: %s", err))
-	}
-
-}
-
 }
 
 func loadConfig() config {
@@ -223,18 +200,7 @@ func newRouteMapRepository(client *r.Client, prefix string, logger logger.Logger
 	return redis.NewRouteMapRepository(client, prefix)
 }
 
-func newService(pub nats.Publisher, rmConn *r.Client, thingsRMPrefix, channelsRMPrefix, connsRMPrefix string, logger logger.Logger) lora.Service {
-	thingsRM := newRouteMapRepository(rmConn, thingsRMPrefix, logger)
-	chansRM := newRouteMapRepository(rmConn, channelsRMPrefix, logger)
-	connsRM := newRouteMapRepository(rmConn, connsRMPrefix, logger)
-
-	svc := lora.New(pub, thingsRM, chansRM, connsRM)
-	svc = api.LoggingMiddleware(svc, logger)
-	counter, latency := internal.MakeMetrics(svcName, "api")
-	svc = api.MetricsMiddleware(svc, counter, latency)
-
-	return svc
-func newService(pub nats.Publisher, rmConn *r.Client, thingsRMPrefix, channelsRMPrefix, connsRMPrefix string, logger logger.Logger) lora.Service {
+func newService(pub messaging.Publisher, rmConn *r.Client, thingsRMPrefix, channelsRMPrefix, connsRMPrefix string, logger logger.Logger) lora.Service {
 	thingsRM := newRouteMapRepository(rmConn, thingsRMPrefix, logger)
 	chansRM := newRouteMapRepository(rmConn, channelsRMPrefix, logger)
 	connsRM := newRouteMapRepository(rmConn, connsRMPrefix, logger)

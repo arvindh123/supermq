@@ -50,9 +50,6 @@ func New(auth mainflux.ThingsServiceClient, pubsub messaging.PubSub) Service {
 		auth:    auth,
 		pubsub:  pubsub,
 		obsLock: sync.Mutex{},
-		auth:    auth,
-		pubsub:  pubsub,
-		obsLock: sync.Mutex{},
 	}
 
 	return as
@@ -85,7 +82,6 @@ func (svc *adapterService) Subscribe(ctx context.Context, key, chanID, subtopic 
 		subject = fmt.Sprintf("%s.%s", subject, subtopic)
 	}
 	return svc.pubsub.Subscribe(c.Token(), subject, c)
-	return svc.pubsub.Subscribe(c.Token(), subject, c)
 }
 
 func (svc *adapterService) Unsubscribe(ctx context.Context, key, chanID, subtopic, token string) error {
@@ -100,6 +96,5 @@ func (svc *adapterService) Unsubscribe(ctx context.Context, key, chanID, subtopi
 	if subtopic != "" {
 		subject = fmt.Sprintf("%s.%s", subject, subtopic)
 	}
-	return svc.pubsub.Unsubscribe(token, subject)
 	return svc.pubsub.Unsubscribe(token, subject)
 }

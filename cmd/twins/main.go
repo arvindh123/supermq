@@ -5,7 +5,6 @@ package main
 
 import (
 	"context"
-	"context"
 	"fmt"
 	"log"
 	"os"
@@ -15,11 +14,6 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/mainflux/mainflux"
 	authapi "github.com/mainflux/mainflux/auth/api/grpc"
-	"github.com/mainflux/mainflux/internal"
-	internalauth "github.com/mainflux/mainflux/internal/auth"
-	internaldb "github.com/mainflux/mainflux/internal/db"
-	"github.com/mainflux/mainflux/internal/server"
-	httpserver "github.com/mainflux/mainflux/internal/server/http"
 	"github.com/mainflux/mainflux/internal"
 	internalauth "github.com/mainflux/mainflux/internal/auth"
 	internaldb "github.com/mainflux/mainflux/internal/db"
@@ -110,16 +104,12 @@ func main() {
 	cfg := loadConfig()
 	ctx, cancel := context.WithCancel(context.Background())
 	g, ctx := errgroup.WithContext(ctx)
-	ctx, cancel := context.WithCancel(context.Background())
-	g, ctx := errgroup.WithContext(ctx)
 
 	logger, err := logger.New(os.Stdout, cfg.logLevel)
 	if err != nil {
 		log.Fatalf(err.Error())
 	}
 
-	cacheClient := internaldb.ConnectToRedis(cfg.cacheURL, cfg.cachePass, cfg.cacheDB, logger)
-	cacheTracer, cacheCloser := internalauth.Jaeger("twins_cache", cfg.jaegerURL, logger)
 	cacheClient := internaldb.ConnectToRedis(cfg.cacheURL, cfg.cachePass, cfg.cacheDB, logger)
 	cacheTracer, cacheCloser := internalauth.Jaeger("twins_cache", cfg.jaegerURL, logger)
 	defer cacheCloser.Close()
@@ -130,10 +120,8 @@ func main() {
 		os.Exit(1)
 	}
 	dbTracer, dbCloser := internalauth.Jaeger("twins_db", cfg.jaegerURL, logger)
-	dbTracer, dbCloser := internalauth.Jaeger("twins_db", cfg.jaegerURL, logger)
 	defer dbCloser.Close()
 
-	authTracer, authCloser := internalauth.Jaeger("auth", cfg.jaegerURL, logger)
 	authTracer, authCloser := internalauth.Jaeger("auth", cfg.jaegerURL, logger)
 	defer authCloser.Close()
 	auth, _ := createAuthClient(cfg, authTracer, logger)
@@ -146,9 +134,7 @@ func main() {
 	defer pubSub.Close()
 
 	svc := newService(svcName, pubSub, cfg.channelID, auth, dbTracer, db, cacheTracer, cacheClient, logger)
-	svc := newService(svcName, pubSub, cfg.channelID, auth, dbTracer, db, cacheTracer, cacheClient, logger)
 
-	tracer, closer := internalauth.Jaeger("twins", cfg.jaegerURL, logger)
 	tracer, closer := internalauth.Jaeger("twins", cfg.jaegerURL, logger)
 	defer closer.Close()
 
@@ -157,22 +143,10 @@ func main() {
 		return hs.Start()
 	})
 
-	hs := httpserver.New(ctx, cancel, svcName, "", cfg.httpPort, twapi.MakeHandler(tracer, svc, logger), cfg.serverCert, cfg.serverKey, logger)
-	g.Go(func() error {
-		return hs.Start()
-	})
-
-	g.Go(func() error {
-		return server.StopSignalHandler(ctx, cancel, logger, svcName, hs)
-	})
 	g.Go(func() error {
 		return server.StopSignalHandler(ctx, cancel, logger, svcName, hs)
 	})
 
-	if err := g.Wait(); err != nil {
-		logger.Error(fmt.Sprintf("Twins service terminated: %s", err))
-	}
-}
 	if err := g.Wait(); err != nil {
 		logger.Error(fmt.Sprintf("Twins service terminated: %s", err))
 	}
@@ -222,11 +196,9 @@ func createAuthClient(cfg config, tracer opentracing.Tracer, logger logger.Logge
 	}
 
 	conn := internalauth.ConnectToAuth(cfg.clientTLS, cfg.caCerts, cfg.authURL, svcName, logger)
-	conn := internalauth.ConnectToAuth(cfg.clientTLS, cfg.caCerts, cfg.authURL, svcName, logger)
 	return authapi.NewClient(tracer, conn, cfg.authTimeout), conn.Close
 }
 
-func newService(id string, ps messaging.PubSub, chanID string, users mainflux.AuthServiceClient, dbTracer opentracing.Tracer, db *mongo.Database, cacheTracer opentracing.Tracer, cacheClient *redis.Client, logger logger.Logger) twins.Service {
 func newService(id string, ps messaging.PubSub, chanID string, users mainflux.AuthServiceClient, dbTracer opentracing.Tracer, db *mongo.Database, cacheTracer opentracing.Tracer, cacheClient *redis.Client, logger logger.Logger) twins.Service {
 	twinRepo := twmongodb.NewTwinRepository(db)
 	twinRepo = tracing.TwinRepositoryMiddleware(dbTracer, twinRepo)
@@ -240,21 +212,8 @@ func newService(id string, ps messaging.PubSub, chanID string, users mainflux.Au
 
 	svc := twins.New(ps, users, twinRepo, twinCache, stateRepo, idProvider, chanID, logger)
 	svc = api.LoggingMiddleware(svc, logger)
-	svc = api.MetricsMiddleware(
-		svc,
-		kitprometheus.NewCounterFrom(stdprometheus.CounterOpts{
-			Namespace: "twins",
-			Subsystem: "api",
-			Name:      "request_count",
-			Help:      "Number of requests received.",
-		}, []string{"method"}),
-		kitprometheus.NewSummaryFrom(stdprometheus.SummaryOpts{
-			Namespace: "twins",
-			Subsystem: "api",
-			Name:      "request_latency_microseconds",
-			Help:      "Total duration of requests in microseconds.",
-		}, []string{"method"}),
-	)
+	counter, latency := internal.MakeMetrics(svcName, "api")
+	svc = api.MetricsMiddleware(svc, counter, latency)
 	err := ps.Subscribe(id, brokers.SubjectAllChannels, handle(logger, chanID, svc))
 	if err != nil {
 		logger.Error(err.Error())
@@ -263,8 +222,6 @@ func newService(id string, ps messaging.PubSub, chanID string, users mainflux.Au
 	return svc
 }
 
-func handle(logger logger.Logger, chanID string, svc twins.Service) handlerFunc {
-	return func(msg messaging.Message) error {
 func handle(logger logger.Logger, chanID string, svc twins.Service) handlerFunc {
 	return func(msg messaging.Message) error {
 		if msg.Channel == chanID {
@@ -280,14 +237,6 @@ func handle(logger logger.Logger, chanID string, svc twins.Service) handlerFunc 
 	}
 }
 
-type handlerFunc func(msg messaging.Message) error
-
-func (h handlerFunc) Handle(msg messaging.Message) error {
-	return h(msg)
-}
-
-func (h handlerFunc) Cancel() error {
-	return nil
 type handlerFunc func(msg messaging.Message) error
 
 func (h handlerFunc) Handle(msg messaging.Message) error {
