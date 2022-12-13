@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -14,6 +15,9 @@ import (
 	"github.com/mainflux/mainflux/consumers"
 	"github.com/mainflux/mainflux/consumers/writers/api"
 	"github.com/mainflux/mainflux/consumers/writers/influxdb"
+	"github.com/mainflux/mainflux/internal"
+	"github.com/mainflux/mainflux/internal/server"
+	httpserver "github.com/mainflux/mainflux/internal/server/http"
 	"github.com/mainflux/mainflux/internal"
 	"github.com/mainflux/mainflux/internal/server"
 	httpserver "github.com/mainflux/mainflux/internal/server/http"
@@ -62,6 +66,8 @@ func main() {
 	cfg, clientCfg := loadConfigs()
 	ctx, cancel := context.WithCancel(context.Background())
 	g, ctx := errgroup.WithContext(ctx)
+	ctx, cancel := context.WithCancel(context.Background())
+	g, ctx := errgroup.WithContext(ctx)
 
 	logger, err := logger.New(os.Stdout, cfg.logLevel)
 	if err != nil {
@@ -83,7 +89,9 @@ func main() {
 	defer client.Close()
 
 	repo := newService(client, cfg.dbName, logger)
+	repo := newService(client, cfg.dbName, logger)
 
+	if err := consumers.Start(svcName, pubSub, repo, cfg.configPath, logger); err != nil {
 	if err := consumers.Start(svcName, pubSub, repo, cfg.configPath, logger); err != nil {
 		logger.Error(fmt.Sprintf("Failed to start InfluxDB writer: %s", err))
 		os.Exit(1)
@@ -93,11 +101,18 @@ func main() {
 	g.Go(func() error {
 		return hs.Start()
 	})
+	hs := httpserver.New(ctx, cancel, svcName, "", cfg.port, api.MakeHandler(svcName), "", "", logger)
+	g.Go(func() error {
+		return hs.Start()
+	})
 
 	g.Go(func() error {
 		return server.StopSignalHandler(ctx, cancel, logger, svcName, hs)
 	})
 
+	if err := g.Wait(); err != nil {
+		logger.Error(fmt.Sprintf("InfluxDB reader service terminated: %s", err))
+	}
 	if err := g.Wait(); err != nil {
 		logger.Error(fmt.Sprintf("InfluxDB reader service terminated: %s", err))
 	}
@@ -125,6 +140,11 @@ func loadConfigs() (config, influxdata.HTTPConfig) {
 	return cfg, clientCfg
 }
 
+func newService(client influxdata.Client, dbName string, logger logger.Logger) consumers.Consumer {
+	repo := influxdb.New(client, dbName)
+	repo = api.LoggingMiddleware(repo, logger)
+	counter, latency := internal.MakeMetrics("influxdb", "message_writer")
+	repo = api.MetricsMiddleware(repo, counter, latency)
 func newService(client influxdata.Client, dbName string, logger logger.Logger) consumers.Consumer {
 	repo := influxdb.New(client, dbName)
 	repo = api.LoggingMiddleware(repo, logger)

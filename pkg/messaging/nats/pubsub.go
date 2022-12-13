@@ -32,6 +32,11 @@ type subscription struct {
 	cancel func() error
 }
 
+type subscription struct {
+	*broker.Subscription
+	cancel func() error
+}
+
 type pubsub struct {
 	publisher
 	logger        log.Logger

@@ -61,6 +61,8 @@ func main() {
 	cfg := loadConfig()
 	ctx, cancel := context.WithCancel(context.Background())
 	g, ctx := errgroup.WithContext(ctx)
+	ctx, cancel := context.WithCancel(context.Background())
+	g, ctx := errgroup.WithContext(ctx)
 
 	logger, err := logger.New(os.Stdout, cfg.logLevel)
 	if err != nil {
@@ -80,18 +82,27 @@ func main() {
 	repo := newService(session, logger)
 
 	if err := consumers.Start(svcName, pubSub, repo, cfg.configPath, logger); err != nil {
-		logger.Error(fmt.Sprintf("Failed to create Cassandra writer: %s", err))
+		if err := consumers.Start(svcName, pubSub, repo, cfg.configPath, logger); err != nil {
+			logger.Error(fmt.Sprintf("Failed to create Cassandra writer: %s", err))
+		}
+
+		hs := httpserver.New(ctx, cancel, svcName, "", cfg.port, api.MakeHandler(svcName), "", "", logger)
+		g.Go(func() error {
+			return hs.Start()
+		})
+		hs := httpserver.New(ctx, cancel, svcName, "", cfg.port, api.MakeHandler(svcName), "", "", logger)
+		g.Go(func() error {
+			return hs.Start()
+		})
+
+		g.Go(func() error {
+			return server.StopSignalHandler(ctx, cancel, logger, svcName, hs)
+		})
+
+		if err := g.Wait(); err != nil {
+			logger.Error(fmt.Sprintf("Cassandra writer service terminated: %s", err))
+		}
 	}
-
-	hs := httpserver.New(ctx, cancel, svcName, "", cfg.port, api.MakeHandler(svcName), "", "", logger)
-	g.Go(func() error {
-		return hs.Start()
-	})
-
-	g.Go(func() error {
-		return server.StopSignalHandler(ctx, cancel, logger, svcName, hs)
-	})
-
 	if err := g.Wait(); err != nil {
 		logger.Error(fmt.Sprintf("Cassandra writer service terminated: %s", err))
 	}
@@ -133,6 +144,8 @@ func connectToCassandra(dbCfg cassandra.DBConfig, logger logger.Logger) *gocql.S
 func newService(session *gocql.Session, logger logger.Logger) consumers.Consumer {
 	repo := cassandra.New(session)
 	repo = api.LoggingMiddleware(repo, logger)
+	counter, latency := internal.MakeMetrics("cassandra", "message_writer")
+	repo = api.MetricsMiddleware(repo, counter, latency)
 	counter, latency := internal.MakeMetrics("cassandra", "message_writer")
 	repo = api.MetricsMiddleware(repo, counter, latency)
 

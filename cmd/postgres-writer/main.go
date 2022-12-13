@@ -27,6 +27,9 @@ const (
 	svcName      = "postgres-writer"
 	sep          = ","
 	stopWaitTime = 5 * time.Second
+	svcName      = "postgres-writer"
+	sep          = ","
+	stopWaitTime = 5 * time.Second
 
 	defLogLevel      = "error"
 	defBrokerURL     = "nats://localhost:4222"
@@ -69,6 +72,8 @@ func main() {
 	cfg := loadConfig()
 	ctx, cancel := context.WithCancel(context.Background())
 	g, ctx := errgroup.WithContext(ctx)
+	ctx, cancel := context.WithCancel(context.Background())
+	g, ctx := errgroup.WithContext(ctx)
 
 	logger, err := logger.New(os.Stdout, cfg.logLevel)
 	if err != nil {
@@ -88,20 +93,30 @@ func main() {
 	repo := newService(db, logger)
 
 	if err = consumers.Start(svcName, pubSub, repo, cfg.configPath, logger); err != nil {
-		logger.Error(fmt.Sprintf("Failed to create Postgres writer: %s", err))
-	}
+		if err = consumers.Start(svcName, pubSub, repo, cfg.configPath, logger); err != nil {
+			logger.Error(fmt.Sprintf("Failed to create Postgres writer: %s", err))
+		}
 
-	hs := httpserver.New(ctx, cancel, svcName, "", cfg.port, api.MakeHandler(svcName), "", "", logger)
-	g.Go(func() error {
-		return hs.Start()
-	})
+		hs := httpserver.New(ctx, cancel, svcName, "", cfg.port, api.MakeHandler(svcName), "", "", logger)
+		g.Go(func() error {
+			return hs.Start()
+		})
+		hs := httpserver.New(ctx, cancel, svcName, "", cfg.port, api.MakeHandler(svcName), "", "", logger)
+		g.Go(func() error {
+			return hs.Start()
+		})
 
-	g.Go(func() error {
-		return server.StopSignalHandler(ctx, cancel, logger, svcName, hs)
-	})
+		g.Go(func() error {
+			return server.StopSignalHandler(ctx, cancel, logger, svcName, hs)
+		})
+		g.Go(func() error {
+			return server.StopSignalHandler(ctx, cancel, logger, svcName, hs)
+		})
 
-	if err := g.Wait(); err != nil {
-		logger.Error(fmt.Sprintf("Postgres writer service terminated: %s", err))
+		if err := g.Wait(); err != nil {
+			logger.Error(fmt.Sprintf("Postgres writer service terminated: %s", err))
+		}
+
 	}
 
 }
@@ -140,6 +155,8 @@ func connectToDB(dbConfig postgres.Config, logger logger.Logger) *sqlx.DB {
 func newService(db *sqlx.DB, logger logger.Logger) consumers.Consumer {
 	svc := postgres.New(db)
 	svc = api.LoggingMiddleware(svc, logger)
+	counter, latency := internal.MakeMetrics("postgres", "message_writer")
+	svc = api.MetricsMiddleware(svc, counter, latency)
 	counter, latency := internal.MakeMetrics("postgres", "message_writer")
 	svc = api.MetricsMiddleware(svc, counter, latency)
 

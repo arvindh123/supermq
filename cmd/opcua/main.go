@@ -15,6 +15,10 @@ import (
 	internaldb "github.com/mainflux/mainflux/internal/db"
 	"github.com/mainflux/mainflux/internal/server"
 	httpserver "github.com/mainflux/mainflux/internal/server/http"
+	"github.com/mainflux/mainflux/internal"
+	internaldb "github.com/mainflux/mainflux/internal/db"
+	"github.com/mainflux/mainflux/internal/server"
+	httpserver "github.com/mainflux/mainflux/internal/server/http"
 	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/opcua"
 	"github.com/mainflux/mainflux/opcua/api"
@@ -26,6 +30,8 @@ import (
 )
 
 const (
+	svcName = "opc-ua-adapter"
+
 	svcName = "opc-ua-adapter"
 
 	defLogLevel       = "error"
@@ -83,6 +89,8 @@ func main() {
 	cfg := loadConfig()
 	httpCtx, httpCancel := context.WithCancel(context.Background())
 	g, httpCtx := errgroup.WithContext(httpCtx)
+	httpCtx, httpCancel := context.WithCancel(context.Background())
+	g, httpCtx := errgroup.WithContext(httpCtx)
 
 	logger, err := logger.New(os.Stdout, cfg.logLevel)
 	if err != nil {
@@ -90,12 +98,14 @@ func main() {
 	}
 
 	rmConn := internaldb.ConnectToRedis(cfg.routeMapURL, cfg.routeMapPass, cfg.routeMapDB, logger)
+	rmConn := internaldb.ConnectToRedis(cfg.routeMapURL, cfg.routeMapPass, cfg.routeMapDB, logger)
 	defer rmConn.Close()
 
 	thingRM := newRouteMapRepositoy(rmConn, thingsRMPrefix, logger)
 	chanRM := newRouteMapRepositoy(rmConn, channelsRMPrefix, logger)
 	connRM := newRouteMapRepositoy(rmConn, connectionRMPrefix, logger)
 
+	esConn := internaldb.ConnectToRedis(cfg.esURL, cfg.esPass, cfg.esDB, logger)
 	esConn := internaldb.ConnectToRedis(cfg.esURL, cfg.esPass, cfg.esDB, logger)
 	defer esConn.Close()
 
@@ -119,11 +129,21 @@ func main() {
 	g.Go(func() error {
 		return hs.Start()
 	})
+	hs := httpserver.New(httpCtx, httpCancel, svcName, "", cfg.httpPort, api.MakeHandler(svc, logger), cfg.opcuaConfig.CertFile, cfg.opcuaConfig.KeyFile, logger)
+	g.Go(func() error {
+		return hs.Start()
+	})
 
 	g.Go(func() error {
 		return server.StopSignalHandler(httpCtx, httpCancel, logger, svcName, hs)
 	})
+	g.Go(func() error {
+		return server.StopSignalHandler(httpCtx, httpCancel, logger, svcName, hs)
+	})
 
+	if err := g.Wait(); err != nil {
+		logger.Error(fmt.Sprintf("OPC-UA adapter service terminated: %s", err))
+	}
 	if err := g.Wait(); err != nil {
 		logger.Error(fmt.Sprintf("OPC-UA adapter service terminated: %s", err))
 	}
@@ -182,6 +202,13 @@ func newRouteMapRepositoy(client *r.Client, prefix string, logger logger.Logger)
 	return redis.NewRouteMapRepository(client, prefix)
 }
 
+func newService(sub opcua.Subscriber, browser opcua.Browser, thingRM, chanRM, connRM opcua.RouteMapRepository, opcuaConfig opcua.Config, logger logger.Logger) opcua.Service {
+	svc := opcua.New(sub, browser, thingRM, chanRM, connRM, opcuaConfig, logger)
+	svc = api.LoggingMiddleware(svc, logger)
+	counter, latency := internal.MakeMetrics(svcName, "api")
+	svc = api.MetricsMiddleware(svc, counter, latency)
+
+	return svc
 func newService(sub opcua.Subscriber, browser opcua.Browser, thingRM, chanRM, connRM opcua.RouteMapRepository, opcuaConfig opcua.Config, logger logger.Logger) opcua.Service {
 	svc := opcua.New(sub, browser, thingRM, chanRM, connRM, opcuaConfig, logger)
 	svc = api.LoggingMiddleware(svc, logger)
