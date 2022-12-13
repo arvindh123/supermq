@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"time"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/mainflux/mainflux"
@@ -24,9 +23,7 @@ import (
 )
 
 const (
-	svcName      = "postgres-writer"
-	sep          = ","
-	stopWaitTime = 5 * time.Second
+	svcName = "postgres-writer"
 
 	defLogLevel      = "error"
 	defBrokerURL     = "nats://localhost:4222"

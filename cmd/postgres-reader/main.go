@@ -27,9 +27,7 @@ import (
 )
 
 const (
-	svcName      = "postgres-reader"
-	sep          = ","
-	stopWaitTime = 5 * time.Second
+	svcName = "postgres-reader"
 
 	defLogLevel          = "error"
 	defPort              = "8180"
