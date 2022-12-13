@@ -26,13 +26,15 @@ type serviceRegister func(srv *grpc.Server)
 
 var _ server.Server = (*Server)(nil)
 
-func New(ctx context.Context, cancel context.CancelFunc, name string, address string, port string, registerService serviceRegister, certPath string, keyPath string, logger logger.Logger) server.Server {
+func New(ctx context.Context, cancel context.CancelFunc, name string, host string, port string, registerService serviceRegister, certPath string, keyPath string, logger logger.Logger) server.Server {
+	listenFullAddress := fmt.Sprintf("%s:%s", host, port)
 	return &Server{
 		BaseServer: server.BaseServer{
 			Ctx:      ctx,
 			Cancel:   cancel,
 			Name:     name,
-			Address:  address,
+			Address:  listenFullAddress,
+			Host:     host,
 			Port:     port,
 			CertFile: certPath,
 			KeyFile:  keyPath,
@@ -43,10 +45,9 @@ func New(ctx context.Context, cancel context.CancelFunc, name string, address st
 }
 
 func (s *Server) Start() error {
-	p := fmt.Sprintf("%s:%s", s.Address, s.Port)
 	errCh := make(chan error)
 
-	listener, err := net.Listen("tcp", p)
+	listener, err := net.Listen("tcp", s.Address)
 	if err != nil {
 		return fmt.Errorf("failed to listen on port %s: %w", s.Port, err)
 	}
@@ -57,16 +58,15 @@ func (s *Server) Start() error {
 		if err != nil {
 			return fmt.Errorf("failed to load auth certificates: %w", err)
 		}
-		s.Logger.Info(fmt.Sprintf("%s gRPC service started using https on port %s with cert %s key %s", s.Name, s.Port, s.CertFile, s.KeyFile))
+		s.Logger.Info(fmt.Sprintf("%s service gRPC server listening at %s with TLS cert %s and key %s", s.Name, s.Address, s.CertFile, s.KeyFile))
 		s.server = grpc.NewServer(grpc.Creds(creds))
 	default:
-		s.Logger.Info(fmt.Sprintf("%s gRPC service started using http on port %s", s.Name, s.Port))
+		s.Logger.Info(fmt.Sprintf("%s service gRPC server listening at %s without TLS", s.Name, s.Address))
 		s.server = grpc.NewServer()
 	}
 
 	s.registerService(s.server)
 
-	s.Logger.Info(fmt.Sprintf("%s gRPC service started, exposed port %s", s.Name, s.Port))
 	go func() {
 		errCh <- s.server.Serve(listener)
 	}()

@@ -20,6 +20,7 @@ type BaseServer struct {
 	Cancel   context.CancelFunc
 	Name     string
 	Address  string
+	Host     string
 	Port     string
 	CertFile string
 	KeyFile  string
