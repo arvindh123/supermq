@@ -16,10 +16,11 @@ import (
 	httpapi "github.com/mainflux/mainflux/auth/api/http"
 	"github.com/mainflux/mainflux/auth/jwt"
 	"github.com/mainflux/mainflux/auth/keto"
-	"github.com/mainflux/mainflux/auth/postgres"
+	authRepo "github.com/mainflux/mainflux/auth/postgres"
 	"github.com/mainflux/mainflux/auth/tracing"
 	"github.com/mainflux/mainflux/internal"
 	internalauth "github.com/mainflux/mainflux/internal/auth"
+	"github.com/mainflux/mainflux/internal/db/postgres"
 	"github.com/mainflux/mainflux/internal/server"
 	grpcserver "github.com/mainflux/mainflux/internal/server/grpc"
 	httpserver "github.com/mainflux/mainflux/internal/server/http"
@@ -69,7 +70,10 @@ func main() {
 		log.Fatalf(err.Error())
 	}
 
-	db := connectToDB(dbConfig, logger)
+	db, err := postgres.SetupDB(dbConfig, *authRepo.Migration())
+	if err != nil {
+		log.Fatalf(fmt.Sprintf("Failed to setup %s database : %s", svcName, err.Error()))
+	}
 	defer db.Close()
 
 	tracer, closer := internalauth.Jaeger("auth", cfg.JaegerURL, logger)
@@ -103,20 +107,11 @@ func main() {
 	}
 }
 
-func connectToDB(dbConfig postgres.Config, logger logger.Logger) *sqlx.DB {
-	db, err := postgres.Connect(dbConfig)
-	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to connect to postgres: %s", err))
-		os.Exit(1)
-	}
-	return db
-}
-
 func newService(db *sqlx.DB, tracer opentracing.Tracer, secret string, logger logger.Logger, readerConn, writerConn *grpc.ClientConn, duration time.Duration) auth.Service {
-	database := postgres.NewDatabase(db)
-	keysRepo := tracing.New(postgres.New(database), tracer)
+	database := authRepo.NewDatabase(db)
+	keysRepo := tracing.New(authRepo.New(database), tracer)
 
-	groupsRepo := postgres.NewGroupRepo(database)
+	groupsRepo := authRepo.NewGroupRepo(database)
 	groupsRepo = tracing.GroupRepositoryMiddleware(tracer, groupsRepo)
 
 	pa := keto.NewPolicyAgent(acl.NewCheckServiceClient(readerConn), acl.NewWriteServiceClient(writerConn), acl.NewReadServiceClient(readerConn))

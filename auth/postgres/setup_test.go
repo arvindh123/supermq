@@ -14,7 +14,8 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib" // required for SQL access
 	"github.com/jmoiron/sqlx"
-	"github.com/mainflux/mainflux/auth/postgres"
+	authRepo "github.com/mainflux/mainflux/auth/postgres"
+	"github.com/mainflux/mainflux/internal/db/postgres"
 	dockertest "github.com/ory/dockertest/v3"
 )
 
@@ -61,7 +62,7 @@ func TestMain(m *testing.M) {
 		SSLRootCert: "",
 	}
 
-	if db, err = postgres.Connect(dbConfig); err != nil {
+	if db, err = postgres.SetupDB(dbConfig, *authRepo.Migration()); err != nil {
 		log.Fatalf("Could not setup test DB connection: %s", err)
 	}
 
