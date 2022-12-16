@@ -1,4 +1,4 @@
-package postgres
+package key
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/mainflux/mainflux/auth"
+	"github.com/mainflux/mainflux/internal/db/sqlxt"
 	"github.com/mainflux/mainflux/pkg/errors"
 )
 
@@ -19,11 +20,11 @@ var (
 var _ auth.KeyRepository = (*repo)(nil)
 
 type repo struct {
-	db Database
+	db sqlxt.Database
 }
 
-// New instantiates a PostgreSQL implementation of key repository.
-func New(db Database) auth.KeyRepository {
+// New instantiates a implementation of key repository.
+func New(db sqlxt.Database) auth.KeyRepository {
 	return &repo{
 		db: db,
 	}

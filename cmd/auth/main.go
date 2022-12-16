@@ -16,11 +16,15 @@ import (
 	httpapi "github.com/mainflux/mainflux/auth/api/http"
 	"github.com/mainflux/mainflux/auth/jwt"
 	"github.com/mainflux/mainflux/auth/keto"
-	authRepo "github.com/mainflux/mainflux/auth/postgres"
+	"github.com/mainflux/mainflux/auth/repo/groups"
+	grpPgDb "github.com/mainflux/mainflux/auth/repo/groups/db/postgres"
+	"github.com/mainflux/mainflux/auth/repo/key"
+	keyPgDb "github.com/mainflux/mainflux/auth/repo/key/db/postgres"
 	"github.com/mainflux/mainflux/auth/tracing"
 	"github.com/mainflux/mainflux/internal"
 	internalauth "github.com/mainflux/mainflux/internal/auth"
 	"github.com/mainflux/mainflux/internal/db/postgres"
+	"github.com/mainflux/mainflux/internal/db/sqlxt"
 	"github.com/mainflux/mainflux/internal/server"
 	grpcserver "github.com/mainflux/mainflux/internal/server/grpc"
 	httpserver "github.com/mainflux/mainflux/internal/server/http"
@@ -50,6 +54,7 @@ type config struct {
 	KetoWritePort string        `env:"MF_KETO_READ_REMOTE_PORT"      default:"4466"`
 	KetoReadPort  string        `env:"MF_KETO_WRITE_REMOTE_PORT"     default:"4467"`
 	LoginDuration time.Duration `env:"MF_AUTH_LOGIN_TOKEN_DURATION"  default:"10h"`
+	Database      string        `env:"MF_AUTH_DATABASE"              default:"postgres"`
 }
 
 func main() {
@@ -69,12 +74,18 @@ func main() {
 	if err != nil {
 		log.Fatalf(err.Error())
 	}
+	var db *sqlx.DB
 
-	db, err := postgres.SetupDB(dbConfig, *authRepo.Migration())
-	if err != nil {
-		log.Fatalf(fmt.Sprintf("Failed to setup %s database : %s", svcName, err.Error()))
+	switch cfg.Database {
+	case "postgres":
+		db, err = postgres.SetupDB(dbConfig, *grpPgDb.Migration(), *keyPgDb.Migration())
+		if err != nil {
+			log.Fatalf(fmt.Sprintf("Failed to setup %s database : %s", svcName, err.Error()))
+		}
+		defer db.Close()
+	default:
+		log.Fatalf(fmt.Sprintf("Failed to setup %s database : %s not yet implemented", svcName, cfg.Database))
 	}
-	defer db.Close()
 
 	tracer, closer := internalauth.Jaeger("auth", cfg.JaegerURL, logger)
 	defer closer.Close()
@@ -108,10 +119,10 @@ func main() {
 }
 
 func newService(db *sqlx.DB, tracer opentracing.Tracer, secret string, logger logger.Logger, readerConn, writerConn *grpc.ClientConn, duration time.Duration) auth.Service {
-	database := authRepo.NewDatabase(db)
-	keysRepo := tracing.New(authRepo.New(database), tracer)
+	database := sqlxt.NewDatabase(db)
+	keysRepo := tracing.New(key.New(database), tracer)
 
-	groupsRepo := authRepo.NewGroupRepo(database)
+	groupsRepo := groups.New(database)
 	groupsRepo = tracing.GroupRepositoryMiddleware(tracer, groupsRepo)
 
 	pa := keto.NewPolicyAgent(acl.NewCheckServiceClient(readerConn), acl.NewWriteServiceClient(writerConn), acl.NewReadServiceClient(readerConn))

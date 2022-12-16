@@ -12,17 +12,8 @@ func Migration() *migrate.MemoryMigrationSource {
 	return &migrate.MemoryMigrationSource{
 		Migrations: []*migrate.Migration{
 			{
-				Id: "auth_1",
+				Id: "auth_groups_1",
 				Up: []string{
-					`CREATE TABLE IF NOT EXISTS keys (
-						id          VARCHAR(254) NOT NULL,
-						type        SMALLINT,
-						subject     VARCHAR(254) NOT NULL,
-						issuer_id   UUID NOT NULL,
-						issued_at   TIMESTAMP NOT NULL,
-						expires_at  TIMESTAMP,
-						PRIMARY KEY (id, issuer_id)
-					)`,
 					`CREATE EXTENSION IF NOT EXISTS LTREE`,
 					`CREATE TABLE IF NOT EXISTS groups ( 
 						id          VARCHAR(254) UNIQUE NOT NULL,
@@ -70,7 +61,6 @@ func Migration() *migrate.MemoryMigrationSource {
 					 EXECUTE PROCEDURE inherit_group();`,
 				},
 				Down: []string{
-					`DROP TABLE IF EXISTS keys`,
 					`DROP EXTENSION IF EXISTS LTREE`,
 					`DROP TABLE IF EXISTS groups`,
 					`DROP TABLE IF EXISTS group_relations`,

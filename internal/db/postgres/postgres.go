@@ -21,14 +21,17 @@ type Config struct {
 }
 
 // SetupDB create connection to database and migrate
-func SetupDB(cfg Config, migrations migrate.MemoryMigrationSource) (*sqlx.DB, error) {
+func SetupDB(cfg Config, migrations ...migrate.MemoryMigrationSource) (*sqlx.DB, error) {
 	db, err := Connect(cfg)
 	if err != nil {
 		return nil, err
 	}
-	if err := MigrateDB(db, migrations); err != nil {
-		return nil, err
+	for _, migration := range migrations {
+		if err := MigrateDB(db, migration); err != nil {
+			return nil, err
+		}
 	}
+
 	return db, nil
 }
 

@@ -1,7 +1,7 @@
 // Copyright (c) Mainflux
 // SPDX-License-Identifier: Apache-2.0
 
-package postgres
+package groups
 
 import (
 	"context"
@@ -17,6 +17,7 @@ import (
 	"github.com/jmoiron/sqlx"
 
 	"github.com/mainflux/mainflux/auth"
+	"github.com/mainflux/mainflux/internal/db/sqlxt"
 	"github.com/mainflux/mainflux/pkg/errors"
 )
 
@@ -30,12 +31,12 @@ var (
 var _ auth.GroupRepository = (*groupRepository)(nil)
 
 type groupRepository struct {
-	db Database
+	db sqlxt.Database
 }
 
-// NewGroupRepo instantiates a PostgreSQL implementation of group
+// New instantiates a implementation of group
 // repository.
-func NewGroupRepo(db Database) auth.GroupRepository {
+func New(db sqlxt.Database) auth.GroupRepository {
 	return &groupRepository{
 		db: db,
 	}
@@ -694,7 +695,7 @@ func (gr groupRepository) processRows(rows *sqlx.Rows) ([]auth.Group, error) {
 	return items, nil
 }
 
-func total(ctx context.Context, db Database, query string, params interface{}) (uint64, error) {
+func total(ctx context.Context, db sqlxt.Database, query string, params interface{}) (uint64, error) {
 	rows, err := db.NamedQueryContext(ctx, query, params)
 	if err != nil {
 		return 0, errors.Wrap(errGetTotal, err)
