@@ -24,6 +24,7 @@ type Database interface {
 	QueryxContext(context.Context, string, ...interface{}) (*sqlx.Rows, error)
 	NamedQueryContext(context.Context, string, interface{}) (*sqlx.Rows, error)
 	BeginTxx(ctx context.Context, opts *sql.TxOptions) (*sqlx.Tx, error)
+	GetContext(context.Context, interface{}, string, ...interface{}) error
 	DriverName() string
 }
 
@@ -66,6 +67,11 @@ func (d database) BeginTxx(ctx context.Context, opts *sql.TxOptions) (*sqlx.Tx, 
 		span.SetTag("db.type", "sql")
 	}
 	return d.db.BeginTxx(ctx, opts)
+}
+
+func (dm database) GetContext(ctx context.Context, dest interface{}, query string, args ...interface{}) error {
+	addSpanTags(ctx, query)
+	return dm.db.GetContext(ctx, dest, query, args...)
 }
 
 func addSpanTags(ctx context.Context, query string) {
