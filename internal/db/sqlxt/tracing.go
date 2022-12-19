@@ -24,6 +24,7 @@ type Database interface {
 	QueryxContext(context.Context, string, ...interface{}) (*sqlx.Rows, error)
 	NamedQueryContext(context.Context, string, interface{}) (*sqlx.Rows, error)
 	BeginTxx(ctx context.Context, opts *sql.TxOptions) (*sqlx.Tx, error)
+	DriverName() string
 }
 
 // NewDatabase creates a ThingDatabase instance
@@ -33,6 +34,10 @@ func NewDatabase(db *sqlx.DB) Database {
 	}
 }
 
+func (d database) DriverName() string {
+	return d.db.DriverName()
+
+}
 func (d database) NamedQueryContext(ctx context.Context, query string, args interface{}) (*sqlx.Rows, error) {
 	addSpanTags(ctx, query)
 	return d.db.NamedQueryContext(ctx, query, args)
