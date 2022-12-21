@@ -17,10 +17,6 @@ type userReq struct {
 	user users.User
 }
 
-func (req *userReq) clean() {
-	req.user.Clean()
-}
-
 func (req userReq) validate() error {
 	return req.user.Validate()
 }
@@ -28,10 +24,6 @@ func (req userReq) validate() error {
 type createUserReq struct {
 	user  users.User
 	token string
-}
-
-func (req *createUserReq) clean() {
-	req.user.Clean()
 }
 
 func (req createUserReq) validate() error {

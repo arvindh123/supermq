@@ -14,7 +14,6 @@ import (
 func registrationEndpoint(svc users.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(createUserReq)
-		req.clean()
 		if err := req.validate(); err != nil {
 			return createUserRes{}, err
 		}
@@ -168,7 +167,6 @@ func passwordChangeEndpoint(svc users.Service) endpoint.Endpoint {
 func loginEndpoint(svc users.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(userReq)
-		req.clean()
 		if err := req.validate(); err != nil {
 			return nil, err
 		}
