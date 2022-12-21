@@ -42,6 +42,11 @@ type User struct {
 	Status   string
 }
 
+// Clean trailing and leading whitespace.
+func (u *User) Clean() {
+	u.Email = strings.TrimSpace(u.Email)
+}
+
 // Validate returns an error if user representation is invalid.
 func (u User) Validate() error {
 	if !isEmail(u.Email) {
