@@ -5,14 +5,19 @@ package errors
 
 import (
 	"encoding/json"
-	"io"
+	"errors"
+	"fmt"
 	"net/http"
 )
 
+const err = "error"
+
 var (
-	errFailedToReadBody = New("failed to read http response body")
-	errRespBodyNotJSON  = New("response body is not a valid JSON")
-	errJSONKeyNotFound  = New("response body expected error message json key not found")
+	// ErrJSONErrKey indicates response body did not contain erorr message.
+	errJSONKey = New("response body expected error message json key not found")
+
+	// ErrUnknown indicates that an unknown error was found in the response body.
+	errUnknown = New("unknown error")
 )
 
 // SDKError is an error type for Mainflux SDK.
@@ -28,58 +33,65 @@ type sdkError struct {
 	statusCode int
 }
 
+
+func (ce *sdkError) Error() string {
+	if ce == nil {
+		return ""
+	}
+	if ce.customError == nil {
+		return http.StatusText(ce.statusCode)
+	}
+	return fmt.Sprintf("Status: %s: %s", http.StatusText(ce.statusCode), ce.customError.Error())
+}
+
 func (ce *sdkError) StatusCode() int {
 	return ce.statusCode
 }
 
 // NewSDKError returns an SDK Error that formats as the given text.
-func NewSDKError(text string) SDKError {
+func NewSDKError(err error) SDKError {
 	return &sdkError{
 		customError: &customError{
-			msg: text,
+			msg: err.Error(),
 			err: nil,
 		},
+		statusCode: 0,
 	}
 }
 
 // NewSDKErrorWithStatus returns an SDK Error setting the status code.
-func NewSDKErrorWithStatus(msg string, statusCode int) SDKError {
+func NewSDKErrorWithStatus(err error, statusCode int) SDKError {
 	return &sdkError{
 		statusCode: statusCode,
 		customError: &customError{
-			msg: msg,
+			msg: err.Error(),
 			err: nil,
 		},
 	}
 }
 
-// CheckError will check for error in http response.
-func CheckError(resp *http.Response, expectedStatusCodes ...int) error {
+
+// CheckError will check the HTTP response status code and matches it with the given status codes.
+// Since multiple status codes can be valid, we can pass multiple status codes to the function.
+// The function then checks for errors in the HTTP response.
+func CheckError(resp *http.Response, expectedStatusCodes ...int) SDKError {
 	for _, expectedStatusCode := range expectedStatusCodes {
 		if resp.StatusCode == expectedStatusCode {
 			return nil
 		}
 	}
 
-	b, bErr := io.ReadAll(resp.Body)
-	if bErr != nil {
-		e := Wrap(errFailedToReadBody, bErr)
-		return Wrap(NewSDKErrorWithStatus("", resp.StatusCode), e)
-	}
-
 	var content map[string]interface{}
-	err := json.Unmarshal(b, &content)
-	if err != nil {
-		e := Wrap(errRespBodyNotJSON, New(string(b)))
-		return Wrap(NewSDKErrorWithStatus("", resp.StatusCode), e)
+	if err := json.NewDecoder(resp.Body).Decode(&content); err != nil {
+		return NewSDKErrorWithStatus(err, resp.StatusCode)
 	}
 
-	if msg, ok := content["error"]; ok {
+	if msg, ok := content[err]; ok {
 		if v, ok := msg.(string); ok {
-			return NewSDKErrorWithStatus(v, resp.StatusCode)
+			return NewSDKErrorWithStatus(errors.New(v), resp.StatusCode)
 		}
-		return NewSDKErrorWithStatus("unknown error", resp.StatusCode)
+		return NewSDKErrorWithStatus(errUnknown, resp.StatusCode)
 	}
-	e := Wrap(errJSONKeyNotFound, New(string(b)))
-	return Wrap(NewSDKErrorWithStatus("", resp.StatusCode), e)
+
+	return NewSDKErrorWithStatus(errJSONKey, resp.StatusCode)
 }
