@@ -3,7 +3,9 @@
 
 package certs
 
-import "context"
+import (
+	"context"
+)
 
 // ConfigsPage contains page related metadata as well as list
 type Page struct {
@@ -16,20 +18,25 @@ type Page struct {
 // Repository specifies a Config persistence API.
 type Repository interface {
 	// Save  saves cert for thing into database
-	Save(ctx context.Context, cert Cert) (string, error)
+	Save(ctx context.Context, cert Cert) error
 
-	// RetrieveAll retrieve issued certificates for given owner ID
-	RetrieveAll(ctx context.Context, ownerID string, offset, limit uint64) (Page, error)
+	// Retrieve issued certificates for given owner ID with given any one of the following parameter
+	// certificate id , certificate name, thing ID and certificate serial
+	// If all the parameter given, all the condition are added in WHERE CLAUSE with AND condition
+	// Example to retrieve only certificate with ID Retrieve(ctx, ownerID, certID, "", "", "", 0, 1)
+	// Example to retrieve by Thing ID Retrieve(ctx, ownerID, "", thingID, "", "", 0, 10)
+	// Example to retrieve only certificate with serial number Retrieve(ctx, ownerID, "", "", "", serial, 0, 1)
+	Retrieve(ctx context.Context, ownerID, certID, thingID, serial, name string, offset, limit uint64) (Page, error)
 
-	// Update the certificate
-	Update(ctx context.Context, oldSerial string, cert Cert) error
+	// Update certificate from DB for a given certificate ID
+	Update(ctx context.Context, ownerID string, cert Cert) error
 
-	// Remove removes certificate from DB for a given thing ID
-	Remove(ctx context.Context, ownerID, thingID string) error
+	// Remove removes certificate from DB for a given certificate ID
+	Remove(ctx context.Context, ownerID, certID string) error
 
-	// RetrieveByThing retrieves issued certificates for a given thing ID
-	RetrieveByThing(ctx context.Context, ownerID, thingID string, offset, limit uint64) (Page, error)
+	// RetrieveThingCerts retrieves all the certificate for the given thing ID , which doesn't required owner ID, used for thing removed event stream handler
+	RetrieveThingCerts(ctx context.Context, thingID string) (Page, error)
 
-	// RetrieveBySerial retrieves a certificate for a given serial ID
-	RetrieveBySerial(ctx context.Context, ownerID, serialID string) (Cert, error)
+	// RemoveThingCerts removes all the certificate for the given thing ID , which doesn't required owner ID, used for thing removed event stream handler
+	RemoveThingCerts(ctx context.Context, thingID string) error
 }

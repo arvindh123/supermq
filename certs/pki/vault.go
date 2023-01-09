@@ -43,10 +43,10 @@ var (
 )
 
 type Cert struct {
-	ClientCert     string    `json:"client_cert" mapstructure:"certificate"`
+	Certificate    string    `json:"certificate" mapstructure:"certificate"`
 	IssuingCA      string    `json:"issuing_ca" mapstructure:"issuing_ca"`
 	CAChain        []string  `json:"ca_chain" mapstructure:"ca_chain"`
-	ClientKey      string    `json:"client_key" mapstructure:"private_key"`
+	PrivateKey     string    `json:"private_key" mapstructure:"private_key"`
 	PrivateKeyType string    `json:"private_key_type" mapstructure:"private_key_type"`
 	Serial         string    `json:"serial" mapstructure:"serial_number"`
 	Expire         time.Time `json:"expire" mapstructure:"-"`
@@ -149,7 +149,7 @@ func (p *pkiAgent) IssueCert(cn string, ttl, keyType string, keyBits int) (Cert,
 	if err = mapstructure.Decode(s.Data, &cert); err != nil {
 		return Cert{}, errors.Wrap(errFailedCertDecoding, err)
 	}
-	pubCert, err := p.parseCert(cert.ClientCert)
+	pubCert, err := p.parseCert(cert.Certificate)
 	if err != nil {
 		return Cert{}, errors.Wrap(errFailedCertDecoding, err)
 	}

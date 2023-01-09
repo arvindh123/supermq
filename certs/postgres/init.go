@@ -61,11 +61,21 @@ func migrateDB(db *sqlx.DB) error {
 				Id: "certs_1",
 				Up: []string{
 					`CREATE TABLE IF NOT EXISTS certs (
-						thing_id     TEXT NOT NULL,
-						owner_id     TEXT NOT NULL,
+						id           UUID NOT NULL,
+						name 		 VARCHAR(254) NOT NULL,
+						owner_id     VARCHAR(254) NOT NULL,
+						thing_id     UUID NOT NULL,
+						serial       VARCHAR(254) NOT NULL,
+						private_key  TEXT NOT NULL,
+						certificate  TEXT NOT NULL,
+						ca_chain     TEXT NOT NULL,
+						issuing_ca   TEXT NOT NULL,
+						key_type     TIMESTAMPTZ NOT NULL,
+						key_bits     TIMESTAMPTZ NOT NULL,
+						ttl          TIMESTAMPTZ NOT NULL,
 						expire       TIMESTAMPTZ NOT NULL,
-						serial       TEXT NOT NULL,
-						PRIMARY KEY  (thing_id, owner_id, serial)
+						revocation   TIMESTAMPTZ NULL,
+						PRIMARY KEY  (id, thing_id, owner_id)
 					);`,
 				},
 				Down: []string{

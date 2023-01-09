@@ -6,7 +6,6 @@ package mocks
 import (
 	"context"
 	"sync"
-	"time"
 
 	"github.com/mainflux/mainflux/certs"
 	"github.com/mainflux/mainflux/pkg/errors"
@@ -17,19 +16,19 @@ var _ certs.Repository = (*certsRepoMock)(nil)
 type certsRepoMock struct {
 	mu             sync.Mutex
 	counter        uint64
-	certsBySerial  map[string]certs.Cert
+	certsByID      map[string]certs.Cert
 	certsByThingID map[string]map[string][]certs.Cert
 }
 
 // NewCertsRepository creates in-memory certs repository.
 func NewCertsRepository() certs.Repository {
 	return &certsRepoMock{
-		certsBySerial:  make(map[string]certs.Cert),
+		certsByID:      make(map[string]certs.Cert),
 		certsByThingID: make(map[string]map[string][]certs.Cert),
 	}
 }
 
-func (c *certsRepoMock) Save(ctx context.Context, cert certs.Cert) (string, error) {
+func (c *certsRepoMock) Save(ctx context.Context, cert certs.Cert) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -50,12 +49,12 @@ func (c *certsRepoMock) Save(ctx context.Context, cert certs.Cert) (string, erro
 		c.certsByThingID[cert.OwnerID][cert.ThingID] = append(c.certsByThingID[cert.OwnerID][cert.ThingID], crt)
 	}
 
-	c.certsBySerial[cert.Serial] = crt
+	c.certsByID[cert.ID] = crt
 	c.counter++
-	return cert.Serial, nil
+	return nil
 }
 
-func (c *certsRepoMock) RetrieveAll(ctx context.Context, ownerID string, offset, limit uint64) (certs.Page, error) {
+func (c *certsRepoMock) Retrieve(ctx context.Context, ownerID, certID, name, thingID, serial string, offset, limit uint64) (certs.Page, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if limit <= 0 {
@@ -85,61 +84,26 @@ func (c *certsRepoMock) RetrieveAll(ctx context.Context, ownerID string, offset,
 	return page, nil
 }
 
-func (c *certsRepoMock) Remove(ctx context.Context, ownerID, serial string) error {
+func (c *certsRepoMock) Remove(ctx context.Context, ownerID, certID string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	crt, ok := c.certsBySerial[serial]
+	crt, ok := c.certsByID[certID]
 	if !ok {
 		return errors.ErrNotFound
 	}
-	delete(c.certsBySerial, crt.Serial)
+	delete(c.certsByID, crt.ID)
 	delete(c.certsByThingID, crt.ThingID)
 	return nil
 }
 
-func (c *certsRepoMock) RetrieveByThing(ctx context.Context, ownerID, thingID string, offset, limit uint64) (certs.Page, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if limit <= 0 {
-		return certs.Page{}, nil
-	}
-
-	cs, ok := c.certsByThingID[ownerID][thingID]
-	if !ok {
-		return certs.Page{}, errors.ErrNotFound
-	}
-
-	var crts []certs.Cert
-	for i, v := range cs {
-		if uint64(i) >= offset && uint64(i) < offset+limit {
-			crts = append(crts, v)
-		}
-	}
-
-	page := certs.Page{
-		Certs:  crts,
-		Total:  c.counter,
-		Offset: offset,
-		Limit:  limit,
-	}
-	return page, nil
-}
-
-func (c *certsRepoMock) RetrieveBySerial(ctx context.Context, ownerID, serialID string) (certs.Cert, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	crt, ok := c.certsBySerial[serialID]
-	if !ok {
-		return certs.Cert{}, errors.ErrNotFound
-	}
-
-	return crt, nil
-}
 func (c *certsRepoMock) Update(ctx context.Context, oldSerial string, cert certs.Cert) error {
 	return nil
 }
 
-func (c *certsRepoMock) ListExpiredCerts(ctx context.Context, timeBefore time.Duration, limit, offset uint64) (certs.Page, error) {
+func (c *certsRepoMock) RetrieveThingCerts(ctx context.Context, thingID string) (certs.Page, error) {
 	return certs.Page{}, nil
+}
+
+func (c *certsRepoMock) RemoveThingCerts(ctx context.Context, thingID string) error {
+	return nil
 }

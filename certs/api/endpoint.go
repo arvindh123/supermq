@@ -24,8 +24,8 @@ func issueCert(svc certs.Service) endpoint.Endpoint {
 		return certsRes{
 			CertSerial: res.Serial,
 			ThingID:    res.ThingID,
-			ClientCert: res.ClientCert,
-			ClientKey:  res.ClientKey,
+			ClientCert: res.Certificate,
+			ClientKey:  res.PrivateKey,
 			Expiration: res.Expire,
 			created:    true,
 		}, nil

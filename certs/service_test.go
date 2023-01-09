@@ -20,11 +20,10 @@ import (
 	"github.com/mainflux/mainflux"
 	bsmocks "github.com/mainflux/mainflux/bootstrap/mocks"
 	"github.com/mainflux/mainflux/certs"
-	certsBSClient "github.com/mainflux/mainflux/certs/bootstrap"
 	"github.com/mainflux/mainflux/certs/mocks"
 	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/pkg/errors"
-	mfsdk "github.com/mainflux/mainflux/pkg/sdk/go"
+	"github.com/mainflux/mainflux/pkg/uuid"
 	"github.com/mainflux/mainflux/things"
 	httpapi "github.com/mainflux/mainflux/things/api/things/http"
 	thmocks "github.com/mainflux/mainflux/things/mocks"
@@ -38,6 +37,8 @@ const (
 	email      = "user@example.com"
 	token      = "token"
 	thingsNum  = 1
+	certID     = "1"
+	name       = "certificate name"
 	thingKey   = "thingKey"
 	thingID    = "1"
 	ttl        = "1h"
@@ -65,17 +66,10 @@ const (
 )
 
 func newService(tokens map[string]string) (certs.Service, error) {
-	ac := bsmocks.NewAuthClient(map[string]string{token: email})
-	server := newThingsServer(newThingsService(ac))
 
 	policies := []thmocks.MockSubjectSet{{Object: "users", Relation: "member"}}
 	auth := thmocks.NewAuthService(tokens, map[string][]thmocks.MockSubjectSet{email: policies})
-	config := mfsdk.Config{
-		ThingsURL: server.URL,
-	}
 
-	sdk := mfsdk.NewSDK(config)
-	bsClient := certsBSClient.New(cfgBootStrapURL, cfgMfUser, cfgMfPass, sdk)
 	repo := mocks.NewCertsRepository()
 
 	tlsCert, caCert, err := loadCertificates(caPath, caKeyPath)
@@ -88,23 +82,10 @@ func newService(tokens map[string]string) (certs.Service, error) {
 		return nil, err
 	}
 
-	c := certs.Config{
-		LogLevel:       cfgLogLevel,
-		ClientTLS:      cfgClientTLS,
-		ServerCert:     cfgServerCert,
-		ServerKey:      cfgServerKey,
-		CertsURL:       cfgCertsURL,
-		JaegerURL:      cfgJaegerURL,
-		AuthURL:        cfgAuthURL,
-		SignTLSCert:    tlsCert,
-		SignX509Cert:   caCert,
-		SignHoursValid: cfgSignHoursValid,
-		SignRSABits:    cfgSignRSABits,
-	}
-
 	pki := mocks.NewPkiAgent(tlsCert, caCert, cfgSignRSABits, cfgSignHoursValid, authTimeout)
 
-	return certs.New(auth, repo, sdk, bsClient, c, pki), nil
+	idProvider := uuid.NewMock()
+	return certs.New(auth, repo, idProvider, pki), nil
 }
 
 func newThingsService(auth mainflux.AuthServiceClient) things.Service {
@@ -126,6 +107,7 @@ func TestIssueCert(t *testing.T) {
 	require.Nil(t, err, fmt.Sprintf("unexpected service creation error: %s\n", err))
 
 	cases := []struct {
+		name    string
 		token   string
 		desc    string
 		thingID string
@@ -136,6 +118,7 @@ func TestIssueCert(t *testing.T) {
 	}{
 		{
 			desc:    "issue new cert",
+			name:    "",
 			token:   token,
 			thingID: thingID,
 			ttl:     ttl,
@@ -145,15 +128,17 @@ func TestIssueCert(t *testing.T) {
 		},
 		{
 			desc:    "issue new cert for non existing thing id",
+			name:    "",
 			token:   token,
 			thingID: "2",
 			ttl:     ttl,
 			key:     key,
 			keyBits: 2048,
-			err:     certs.ErrFailedCertCreation,
+			err:     certs.ErrThingRetrieve,
 		},
 		{
 			desc:    "issue new cert for non existing thing id",
+			name:    "",
 			token:   wrongValue,
 			thingID: thingID,
 			ttl:     ttl,
@@ -163,28 +148,30 @@ func TestIssueCert(t *testing.T) {
 		},
 		{
 			desc:    "issue new cert for bad key bits",
+			name:    "",
 			token:   token,
 			thingID: thingID,
 			ttl:     ttl,
 			key:     key,
 			keyBits: -2,
-			err:     certs.ErrFailedCertCreation,
+			err:     certs.ErrPKIIssue,
 		},
 		{
-			desc:    "issue new cert for bad key bits",
+			desc:    "issue new cert for bad key",
+			name:    "",
 			token:   token,
 			thingID: thingID,
 			ttl:     ttl,
-			key:     key,
-			keyBits: -2,
-			err:     certs.ErrFailedCertCreation,
+			key:     "ping",
+			keyBits: 2048,
+			err:     certs.ErrPKIIssue,
 		},
 	}
 
 	for _, tc := range cases {
-		c, err := svc.IssueCert(context.Background(), tc.token, tc.thingID, tc.ttl, tc.keyBits, tc.key)
+		c, err := svc.IssueCert(context.Background(), tc.token, tc.thingID, tc.name, tc.ttl, tc.keyBits, tc.key)
 		assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s: expected %s got %s\n", tc.desc, tc.err, err))
-		cert, _ := readCert([]byte(c.ClientCert))
+		cert, _ := readCert([]byte(c.Certificate))
 		if cert != nil {
 			assert.True(t, strings.Contains(cert.Subject.CommonName, thingKey), fmt.Sprintf("%s: expected %s got %s\n", tc.desc, tc.err, err))
 		}
@@ -196,174 +183,37 @@ func TestRevokeCert(t *testing.T) {
 	svc, err := newService(map[string]string{token: email})
 	require.Nil(t, err, fmt.Sprintf("unexpected service creation error: %s\n", err))
 
-	_, err = svc.IssueCert(context.Background(), token, thingID, ttl, keyBits, key)
+	_, err = svc.IssueCert(context.Background(), token, thingID, name, ttl, keyBits, key)
 	require.Nil(t, err, fmt.Sprintf("unexpected service creation error: %s\n", err))
 
 	cases := []struct {
-		token   string
-		desc    string
-		thingID string
-		err     error
+		token string
+		desc  string
+		id    string
+		err   error
 	}{
 		{
-			desc:    "revoke cert",
-			token:   token,
-			thingID: thingID,
-			err:     nil,
+			desc:  "revoke cert",
+			token: token,
+			id:    certID,
+			err:   nil,
 		},
 		{
-			desc:    "revoke cert for invalid token",
-			token:   wrongValue,
-			thingID: thingID,
-			err:     errors.ErrAuthentication,
+			desc:  "revoke cert for invalid token",
+			token: wrongValue,
+			id:    certID,
+			err:   errors.ErrAuthentication,
 		},
 		{
-			desc:    "revoke cert for invalid thing id",
-			token:   token,
-			thingID: "2",
-			err:     certs.ErrFailedCertRevocation,
+			desc:  "revoke cert for unknown id",
+			token: token,
+			id:    "2",
+			err:   nil,
 		},
 	}
 
 	for _, tc := range cases {
-		_, err := svc.RevokeCert(context.Background(), tc.token, tc.thingID)
-		assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s: expected %s got %s\n", tc.desc, tc.err, err))
-	}
-
-}
-
-func TestListCerts(t *testing.T) {
-	svc, err := newService(map[string]string{token: email})
-	require.Nil(t, err, fmt.Sprintf("unexpected service creation error: %s\n", err))
-
-	for i := 0; i < certNum; i++ {
-		_, err = svc.IssueCert(context.Background(), token, thingID, ttl, keyBits, key)
-		require.Nil(t, err, fmt.Sprintf("unexpected cert creation error: %s\n", err))
-	}
-
-	cases := []struct {
-		token   string
-		desc    string
-		thingID string
-		offset  uint64
-		limit   uint64
-		size    uint64
-		err     error
-	}{
-		{
-			desc:    "list all certs with valid token",
-			token:   token,
-			thingID: thingID,
-			offset:  0,
-			limit:   certNum,
-			size:    certNum,
-			err:     nil,
-		},
-		{
-			desc:    "list all certs with invalid token",
-			token:   wrongValue,
-			thingID: thingID,
-			offset:  0,
-			limit:   certNum,
-			size:    0,
-			err:     errors.ErrAuthentication,
-		},
-		{
-			desc:    "list half certs with valid token",
-			token:   token,
-			thingID: thingID,
-			offset:  certNum / 2,
-			limit:   certNum,
-			size:    certNum / 2,
-			err:     nil,
-		},
-		{
-			desc:    "list last cert with valid token",
-			token:   token,
-			thingID: thingID,
-			offset:  certNum - 1,
-			limit:   certNum,
-			size:    1,
-			err:     nil,
-		},
-	}
-
-	for _, tc := range cases {
-		page, err := svc.ListCerts(context.Background(), tc.token, tc.thingID, tc.offset, tc.limit)
-		size := uint64(len(page.Certs))
-		assert.Equal(t, tc.size, size, fmt.Sprintf("%s: expected %d got %d\n", tc.desc, tc.size, size))
-		assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s: expected %s got %s\n", tc.desc, tc.err, err))
-	}
-}
-
-func TestListSerials(t *testing.T) {
-	svc, err := newService(map[string]string{token: email})
-	require.Nil(t, err, fmt.Sprintf("unexpected service creation error: %s\n", err))
-
-	var issuedCerts []certs.Cert
-	for i := 0; i < certNum; i++ {
-		cert, err := svc.IssueCert(context.Background(), token, thingID, ttl, keyBits, key)
-		require.Nil(t, err, fmt.Sprintf("unexpected cert creation error: %s\n", err))
-
-		crt := certs.Cert{
-			OwnerID: cert.OwnerID,
-			ThingID: cert.ThingID,
-			Serial:  cert.Serial,
-			Expire:  cert.Expire,
-		}
-		issuedCerts = append(issuedCerts, crt)
-	}
-
-	cases := []struct {
-		token   string
-		desc    string
-		thingID string
-		offset  uint64
-		limit   uint64
-		certs   []certs.Cert
-		err     error
-	}{
-		{
-			desc:    "list all certs with valid token",
-			token:   token,
-			thingID: thingID,
-			offset:  0,
-			limit:   certNum,
-			certs:   issuedCerts,
-			err:     nil,
-		},
-		{
-			desc:    "list all certs with invalid token",
-			token:   wrongValue,
-			thingID: thingID,
-			offset:  0,
-			limit:   certNum,
-			certs:   nil,
-			err:     errors.ErrAuthentication,
-		},
-		{
-			desc:    "list half certs with valid token",
-			token:   token,
-			thingID: thingID,
-			offset:  certNum / 2,
-			limit:   certNum,
-			certs:   issuedCerts[certNum/2:],
-			err:     nil,
-		},
-		{
-			desc:    "list last cert with valid token",
-			token:   token,
-			thingID: thingID,
-			offset:  certNum - 1,
-			limit:   certNum,
-			certs:   []certs.Cert{issuedCerts[certNum-1]},
-			err:     nil,
-		},
-	}
-
-	for _, tc := range cases {
-		page, err := svc.ListSerials(context.Background(), tc.token, tc.thingID, tc.offset, tc.limit)
-		assert.Equal(t, tc.certs, page.Certs, fmt.Sprintf("%s: expected %v got %v\n", tc.desc, tc.certs, page.Certs))
+		err := svc.RevokeCert(context.Background(), tc.token, tc.id)
 		assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s: expected %s got %s\n", tc.desc, tc.err, err))
 	}
 }
@@ -372,48 +222,49 @@ func TestViewCert(t *testing.T) {
 	svc, err := newService(map[string]string{token: email})
 	require.Nil(t, err, fmt.Sprintf("unexpected service creation error: %s\n", err))
 
-	ic, err := svc.IssueCert(context.Background(), token, thingID, ttl, keyBits, key)
+	ic, err := svc.IssueCert(context.Background(), token, thingID, name, ttl, keyBits, key)
 	require.Nil(t, err, fmt.Sprintf("unexpected cert creation error: %s\n", err))
 
 	cert := certs.Cert{
-		ThingID:    thingID,
-		ClientCert: ic.ClientCert,
-		Serial:     ic.Serial,
-		Expire:     ic.Expire,
+		ID:          ic.ID,
+		ThingID:     thingID,
+		Certificate: ic.Certificate,
+		Serial:      ic.Serial,
+		Expire:      ic.Expire,
 	}
 
 	cases := []struct {
-		token    string
-		desc     string
-		serialID string
-		cert     certs.Cert
-		err      error
+		token string
+		desc  string
+		id    string
+		cert  certs.Cert
+		err   error
 	}{
 		{
-			desc:     "list cert with valid token and serial",
-			token:    token,
-			serialID: cert.Serial,
-			cert:     cert,
-			err:      nil,
+			desc:  "list cert with valid token and id",
+			token: token,
+			id:    cert.ID,
+			cert:  cert,
+			err:   nil,
 		},
 		{
-			desc:     "list cert with invalid token",
-			token:    wrongValue,
-			serialID: cert.Serial,
-			cert:     certs.Cert{},
-			err:      errors.ErrAuthentication,
+			desc:  "list cert with invalid token and id",
+			token: wrongValue,
+			id:    cert.ID,
+			cert:  certs.Cert{},
+			err:   errors.ErrAuthentication,
 		},
 		{
-			desc:     "list cert with invalid serial",
-			token:    token,
-			serialID: wrongValue,
-			cert:     certs.Cert{},
-			err:      errors.ErrNotFound,
+			desc:  "list cert with invalid id",
+			token: token,
+			id:    cert.ID,
+			cert:  certs.Cert{},
+			err:   errors.ErrNotFound,
 		},
 	}
 
 	for _, tc := range cases {
-		cert, err := svc.ViewCert(context.Background(), tc.token, tc.serialID)
+		cert, err := svc.ViewCert(context.Background(), tc.token, tc.id)
 		assert.Equal(t, tc.cert, cert, fmt.Sprintf("%s: expected %v got %v\n", tc.desc, tc.cert, cert))
 		assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s: expected %s got %s\n", tc.desc, tc.err, err))
 	}

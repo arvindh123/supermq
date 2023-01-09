@@ -5,16 +5,13 @@ package postgres
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
-	"github.com/jackc/pgerrcode"
-	"github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib" // required for SQL access
-	"github.com/jmoiron/sqlx"
 	"github.com/mainflux/mainflux/certs"
-	"github.com/mainflux/mainflux/logger"
+	"github.com/mainflux/mainflux/internal/sqlxt"
 	"github.com/mainflux/mainflux/pkg/errors"
 )
 
@@ -28,58 +25,111 @@ type Cert struct {
 }
 
 type certsRepository struct {
-	db  *sqlx.DB
-	log logger.Logger
+	db sqlxt.Database
 }
 
 // NewRepository instantiates a PostgreSQL implementation of certs
 // repository.
-func NewRepository(db *sqlx.DB, log logger.Logger) certs.Repository {
-	return &certsRepository{db: db, log: log}
+func NewRepository(db sqlxt.Database) certs.Repository {
+	return &certsRepository{
+		db: db,
+	}
 }
 
-func (cr certsRepository) RetrieveAll(ctx context.Context, ownerID string, offset, limit uint64) (certs.Page, error) {
-	var q string
-	var queryParams []interface{}
-	switch ownerID == "" {
-	case true:
-		q = `SELECT thing_id, owner_id, serial, expire FROM certs ORDER BY expire LIMIT $1 OFFSET $2;`
-		queryParams = []interface{}{limit, offset}
-	default:
-		q = `SELECT thing_id, owner_id, serial, expire FROM certs WHERE owner_id = $1 ORDER BY expire LIMIT $2 OFFSET $3;`
-		queryParams = []interface{}{ownerID, limit, offset}
+func (cr certsRepository) Save(ctx context.Context, cert certs.Cert) error {
 
+	q := `INSERT INTO certs
+			(id, name, owner_id, thing_id, serial, private_key, certificate, ca_chain, issuing_ca, key_type, key_bits, ttl, expire)
+		VALUES
+			(:id, :name, :owner_id, :thing_id, :serial, :private_key, :certificate, :ca_chain, :issuing_ca, :key_type, :key_bits, :ttl, :expire)
+		`
+	if _, err, txErr := cr.db.NamedCUDContext(ctx, q, CertToDbCert(cert)); err != nil || txErr != nil {
+		wErr := errors.Wrap(errors.ErrCreateEntity, err)
+		return errors.Wrap(wErr, txErr)
 	}
-	rows, err := cr.db.Query(q, queryParams...)
+	return nil
+}
+
+func (cr certsRepository) Update(ctx context.Context, certID string, cert certs.Cert) error {
+	q := `
+		UPDATE
+			certs
+		SET
+			serial = :serial,
+			private_key = :private_key,
+			certificate = :certificate,
+			ca_chain = :ca_chain,
+			issuing_ca = :issuing_ca,
+			expire = :expire
+			revocation = :revocation
+		WHERE id = :id AND owner_id = :owner_id
+	`
+	if _, err, txErr := cr.db.NamedCUDContext(ctx, q, CertToDbCert(cert)); err != nil || txErr != nil {
+		wErr := errors.Wrap(errors.ErrUpdateEntity, err)
+		return errors.Wrap(wErr, txErr)
+	}
+	return nil
+}
+
+func (cr certsRepository) Remove(ctx context.Context, ownerID, certID string) error {
+	q := `DELETE FROM certs WHERE id = :id`
+	if _, err, txErr := cr.db.NamedCUDContext(ctx, q, CertToDbCert(certs.Cert{ID: certID})); err != nil || txErr != nil {
+		wErr := errors.Wrap(errors.ErrUpdateEntity, err)
+		return errors.Wrap(wErr, txErr)
+	}
+	return nil
+}
+
+func (cr certsRepository) Retrieve(ctx context.Context, ownerID, certID, thingID, serial, name string, offset, limit uint64) (certs.Page, error) {
+	q := `
+	SELECT
+		id, name, owner_id, thing_id, serial, private_key, certificate, ca_chain, issuing_ca, key_type, key_bits, ttl, expire, revocation
+	FROM
+		certs
+	WHERE ownerID = :ownerID
+		%s
+	ORDER BY expire %s;
+	`
+
+	q = fmt.Sprintf(q, whereClause(certID, thingID, serial, name), orderClause(limit))
+
+	params := map[string]interface{}{
+		"limit":   limit,
+		"offset":  offset,
+		"ownerID": ownerID,
+		"id":      certID,
+		"thingID": thingID,
+		"serial":  serial,
+		"name":    name,
+	}
+
+	rows, err := cr.db.NamedQueryContext(ctx, q, params)
 	if err != nil {
-		cr.log.Error(fmt.Sprintf("Failed to retrieve configs due to %s", err))
 		return certs.Page{}, err
 	}
 	defer rows.Close()
 
 	certificates := []certs.Cert{}
 	for rows.Next() {
-		c := certs.Cert{}
-		if err := rows.Scan(&c.ThingID, &c.OwnerID, &c.Serial, &c.Expire); err != nil {
-			cr.log.Error(fmt.Sprintf("Failed to read retrieved config due to %s", err))
+		dbc := dbCert{}
+		if err := rows.Scan(&dbc); err != nil {
 			return certs.Page{}, err
-
 		}
-		certificates = append(certificates, c)
+		certificates = append(certificates, dbc.ToCert())
 	}
 
-	q = `SELECT COUNT(*) FROM certs WHERE owner_id = $1`
-	switch ownerID == "" {
-	case true:
-		q = `SELECT COUNT(*) FROM certs;`
-		queryParams = []interface{}{}
-	default:
-		q = `SELECT COUNT(*) FROM certs WHERE owner_id = $1 ;`
-		queryParams = []interface{}{ownerID}
-	}
-	var total uint64
-	if err := cr.db.QueryRow(q, queryParams...).Scan(&total); err != nil {
-		cr.log.Error(fmt.Sprintf("Failed to count certs due to %s", err))
+	qc := `
+	SELECT
+		COUNT(*)
+	FROM
+		certs
+	WHERE ownerID = :ownerID
+		%s
+	ORDER BY expire %s;
+	`
+	qc = fmt.Sprintf(qc, whereClause(certID, thingID, serial, name), orderClause(limit))
+	total, err := cr.db.NamedTotalQueryContext(ctx, qc, params)
+	if err != nil {
 		return certs.Page{}, err
 	}
 
@@ -91,184 +141,143 @@ func (cr certsRepository) RetrieveAll(ctx context.Context, ownerID string, offse
 	}, nil
 }
 
-func (cr certsRepository) Save(ctx context.Context, cert certs.Cert) (string, error) {
-	q := `INSERT INTO certs (thing_id, owner_id, serial, expire) VALUES (:thing_id, :owner_id, :serial, :expire)`
+func (cr certsRepository) RetrieveThingCerts(ctx context.Context, thingID string) (certs.Page, error) {
+	q := `
+	SELECT
+		id, name, owner_id, thing_id, serial, private_key, certificate, ca_chain, issuing_ca, key_type, key_bits, ttl, expire, revocation
+	FROM
+		certs
+	WHERE thing_id = :thingID
+	ORDER BY expire;
+	`
 
-	tx, err := cr.db.Beginx()
+	params := certs.Cert{ThingID: thingID}
+
+	rows, err := cr.db.NamedQueryContext(ctx, q, params)
 	if err != nil {
-		return "", errors.Wrap(errors.ErrCreateEntity, err)
-	}
-
-	dbcrt := toDBCert(cert)
-
-	if _, err := tx.NamedExec(q, dbcrt); err != nil {
-		e := err
-		if pgErr, ok := err.(*pgconn.PgError); ok && pgErr.Code == pgerrcode.UniqueViolation {
-			e = errors.New("error conflict")
-		}
-
-		cr.rollback("Failed to insert a Cert", tx, err)
-
-		return "", errors.Wrap(errors.ErrCreateEntity, e)
-	}
-
-	if err := tx.Commit(); err != nil {
-		cr.rollback("Failed to commit Config save", tx, err)
-	}
-
-	return cert.Serial, nil
-}
-
-func (cr certsRepository) Update(ctx context.Context, oldSerial string, cert certs.Cert) error {
-	q := fmt.Sprintf(`UPDATE certs SET serial = :serial, expire = :expire WHERE thing_id = :thing_id AND owner_id = :owner_id AND serial = %s`, oldSerial)
-	tx, err := cr.db.Beginx()
-	if err != nil {
-		return errors.Wrap(errors.ErrUpdateEntity, err)
-	}
-	dbcrt := toDBCert(cert)
-	if _, err := tx.NamedExec(q, dbcrt); err != nil {
-		e := err
-		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code.Name() == duplicateErr {
-			e = errors.New("error conflict")
-		}
-
-		cr.rollback("Failed to update a Cert", tx, err)
-
-		return errors.Wrap(errors.ErrUpdateEntity, e)
-	}
-	if err := tx.Commit(); err != nil {
-		cr.rollback("Failed to commit Config update", tx, err)
-		return errors.Wrap(errors.ErrUpdateEntity, err)
-	}
-
-	return nil
-}
-
-func (cr certsRepository) Remove(ctx context.Context, ownerID, serial string) error {
-	if _, err := cr.RetrieveBySerial(ctx, ownerID, serial); err != nil {
-		return errors.Wrap(errors.ErrRemoveEntity, err)
-	}
-	q := `DELETE FROM certs WHERE serial = :serial`
-	var c certs.Cert
-	c.Serial = serial
-	dbcrt := toDBCert(c)
-	if _, err := cr.db.NamedExecContext(ctx, q, dbcrt); err != nil {
-		return errors.Wrap(errors.ErrRemoveEntity, err)
-	}
-	return nil
-}
-
-func (cr certsRepository) RetrieveByThing(ctx context.Context, ownerID, thingID string, offset, limit uint64) (certs.Page, error) {
-	var q string
-	var queryParams []interface{}
-	switch ownerID == "" {
-	case true:
-		q = `SELECT thing_id, owner_id, serial, expire FROM certs WHERE thing_id = $1 ORDER BY expire LIMIT $2 OFFSET $3;`
-		queryParams = []interface{}{thingID, limit, offset}
-	default:
-		q = `SELECT thing_id, owner_id, serial, expire FROM certs WHERE owner_id = $1 AND thing_id = $2 ORDER BY expire LIMIT $3 OFFSET $4;`
-		queryParams = []interface{}{ownerID, thingID, limit, offset}
-	}
-	rows, err := cr.db.Query(q, queryParams...)
-	if err != nil {
-		cr.log.Error(fmt.Sprintf("Failed to retrieve configs due to %s", err))
 		return certs.Page{}, err
 	}
 	defer rows.Close()
 
 	certificates := []certs.Cert{}
 	for rows.Next() {
-		c := certs.Cert{}
-		if err := rows.Scan(&c.ThingID, &c.OwnerID, &c.Serial, &c.Expire); err != nil {
-			cr.log.Error(fmt.Sprintf("Failed to read retrieved config due to %s", err))
+		dbc := dbCert{}
+		if err := rows.Scan(&dbc); err != nil {
 			return certs.Page{}, err
-
 		}
-		certificates = append(certificates, c)
+		certificates = append(certificates, dbc.ToCert())
 	}
 
-	switch ownerID == "" {
-	case true:
-		q = `SELECT COUNT(*) FROM certs WHERE thing_id = $1`
-		queryParams = []interface{}{thingID}
-	default:
-		q = `SELECT COUNT(*) FROM certs WHERE owner_id = $1 AND thing_id = $2`
-		queryParams = []interface{}{ownerID, thingID}
-
-	}
-
-	var total uint64
-	if err := cr.db.QueryRow(q, queryParams...).Scan(&total); err != nil {
-		cr.log.Error(fmt.Sprintf("Failed to count certs due to %s", err))
+	qc := `
+	SELECT
+		COUNT(*)
+	FROM
+		certs
+	WHERE thing_id = :thingID
+	ORDER BY expire;
+	`
+	total, err := cr.db.NamedTotalQueryContext(ctx, qc, params)
+	if err != nil {
 		return certs.Page{}, err
 	}
 
 	return certs.Page{
 		Total:  total,
-		Limit:  limit,
-		Offset: offset,
+		Limit:  0,
+		Offset: 0,
 		Certs:  certificates,
 	}, nil
 }
 
-func (cr certsRepository) RetrieveBySerial(ctx context.Context, ownerID, serialID string) (certs.Cert, error) {
-	var q string
-	var queryParams []interface{}
-	switch ownerID == "" {
-	case true:
-		q = `SELECT thing_id, owner_id, serial, expire FROM certs WHERE serial = $1`
-		queryParams = []interface{}{serialID}
-	default:
-		q = `SELECT thing_id, owner_id, serial, expire FROM certs WHERE owner_id = $1 AND serial = $2`
-		queryParams = []interface{}{ownerID, serialID}
+func (cr certsRepository) RemoveThingCerts(ctx context.Context, thingID string) error {
+	q := `DELETE FROM certs WHERE thing_id = thingID`
+	if _, err, txErr := cr.db.NamedCUDContext(ctx, q, CertToDbCert(certs.Cert{ThingID: thingID})); err != nil || txErr != nil {
+		wErr := errors.Wrap(errors.ErrUpdateEntity, err)
+		return errors.Wrap(wErr, txErr)
 	}
-
-	var dbcrt dbCert
-	var c certs.Cert
-
-	if err := cr.db.QueryRowxContext(ctx, q, queryParams...).StructScan(&dbcrt); err != nil {
-
-		pqErr, ok := err.(*pgconn.PgError)
-		if err == sql.ErrNoRows || ok && pgerrcode.InvalidTextRepresentation == pqErr.Code {
-			return c, errors.Wrap(errors.ErrNotFound, err)
-		}
-
-		return c, errors.Wrap(errors.ErrViewEntity, err)
-	}
-	c = toCert(dbcrt)
-
-	return c, nil
-}
-
-func (cr certsRepository) rollback(content string, tx *sqlx.Tx, err error) {
-	cr.log.Error(fmt.Sprintf("%s %s", content, err))
-
-	if err := tx.Rollback(); err != nil {
-		cr.log.Error(fmt.Sprintf("Failed to rollback due to %s", err))
-	}
+	return nil
 }
 
 type dbCert struct {
-	ThingID string    `db:"thing_id"`
-	Serial  string    `db:"serial"`
-	Expire  time.Time `db:"expire"`
-	OwnerID string    `db:"owner_id"`
+	id          string    `db:"id"`
+	name        string    `db:"name"`
+	ownerID     string    `db:"owner_id"`
+	thingID     string    `db:"thing_id"`
+	serial      string    `db:"serial"`
+	certificate string    `db:"certificate"`
+	privateKey  string    `db:"private_key"`
+	caChain     string    `db:"ca_chain"`
+	issuingCA   string    `db:"issuing_ca"`
+	keyType     string    `db:"key_type"`
+	keyBits     int       `db:"key_bits"`
+	ttl         string    `db:"ttl"`
+	expire      time.Time `db:"expire"`
+	revocation  time.Time `db:"revocation"`
 }
 
-func toDBCert(c certs.Cert) dbCert {
-	return dbCert{
-		ThingID: c.ThingID,
-		OwnerID: c.OwnerID,
-		Serial:  c.Serial,
-		Expire:  c.Expire,
+func (c *dbCert) ToCert() certs.Cert {
+	return certs.Cert{
+		ID:          c.id,
+		Name:        c.name,
+		OwnerID:     c.ownerID,
+		ThingID:     c.thingID,
+		Serial:      c.serial,
+		Certificate: c.certificate,
+		PrivateKey:  c.privateKey,
+		CAChain:     c.caChain,
+		IssuingCA:   c.issuingCA,
+		KeyType:     c.keyType,
+		KeyBits:     c.keyBits,
+		TTL:         c.ttl,
+		Expire:      c.expire,
+		Revocation:  c.revocation,
 	}
 }
 
-func toCert(cdb dbCert) certs.Cert {
-	var c certs.Cert
-	c.OwnerID = cdb.OwnerID
-	c.ThingID = cdb.ThingID
-	c.Serial = cdb.Serial
-	c.Expire = cdb.Expire
-	return c
+func CertToDbCert(c certs.Cert) dbCert {
+	return dbCert{
+		id:          c.ID,
+		name:        c.Name,
+		ownerID:     c.OwnerID,
+		thingID:     c.ThingID,
+		serial:      c.Serial,
+		certificate: c.Certificate,
+		privateKey:  c.PrivateKey,
+		caChain:     c.CAChain,
+		issuingCA:   c.IssuingCA,
+		keyType:     c.KeyType,
+		keyBits:     c.KeyBits,
+		ttl:         c.TTL,
+		expire:      c.Expire,
+		revocation:  c.Revocation,
+	}
+}
+
+func whereClause(certID, thingID, serial, name string) string {
+	var clause []string
+	if certID != "" {
+		clause = append(clause, " id = :id ")
+	}
+
+	if thingID != "" {
+		clause = append(clause, " thing_id = :thingID ")
+	}
+
+	if serial != "" {
+		clause = append(clause, " serial = :serial ")
+	}
+
+	if name != "" {
+		clause = append(clause, " name = :name ")
+	}
+	return strings.Join(clause, " AND ")
+}
+
+func orderClause(limit uint64) string {
+	var clause []string
+	if limit > 0 {
+		clause = append(clause, " LIMIT :limit ")
+	}
+	clause = append(clause, " OFFSET = :offset ")
+	return strings.Join(clause, "  ")
 }

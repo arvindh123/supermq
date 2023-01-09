@@ -65,19 +65,14 @@ func (es eventStore) Subscribe(ctx context.Context, subject string) error {
 		for _, msg := range streams[0].Messages {
 			event := msg.Values
 
-			var err error
 			switch event["operation"] {
 			case thingRemove:
-				rev := []certs.Revoke{}
 				rte := decodeRemoveThing(event)
-				rev, err = es.svc.ThingCertsRevokeHandler(ctx, rte.id)
-				if err == nil {
-					es.logger.Info(fmt.Sprintf("Thing remove event handled , Thing ID %s all certficates revoke at %+v", rte.id, rev))
+				err := make(chan error)
+				go es.svc.EventHandlerDeleteThing(ctx, rte.id, err)
+				for e := range err {
+					es.logger.Info(fmt.Sprintf("Error on thing remove event handled , Thing ID %s error : %v", rte.id, e))
 				}
-			}
-			if err != nil {
-				es.logger.Warn(fmt.Sprintf("Failed to handle event sourcing: %s", err.Error()))
-				break
 			}
 
 			es.client.XAck(ctx, stream, group, msg.ID)

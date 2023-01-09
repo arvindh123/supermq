@@ -131,16 +131,16 @@ func (a *agent) IssueCert(cn string, ttl, keyType string, keyBits int) (pki.Cert
 	key := keyOut.String()
 
 	a.certs[x509cert.SerialNumber.String()] = pki.Cert{
-		ClientCert: cert,
+		Certificate: cert,
 	}
 	a.counter++
 
 	return pki.Cert{
-		ClientCert: cert,
-		ClientKey:  key,
-		Serial:     x509cert.SerialNumber.String(),
-		Expire:     x509cert.NotAfter,
-		IssuingCA:  x509cert.Issuer.String(),
+		Certificate: cert,
+		PrivateKey:  key,
+		Serial:      x509cert.SerialNumber.String(),
+		Expire:      x509cert.NotAfter,
+		IssuingCA:   x509cert.Issuer.String(),
 	}, nil
 }
 
