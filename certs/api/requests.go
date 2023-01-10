@@ -9,6 +9,7 @@ const maxLimitSize = 100
 
 type addCertsReq struct {
 	token   string
+	Name    string `json:"name`
 	ThingID string `json:"thing_id"`
 	KeyBits int    `json:"key_bits"`
 	KeyType string `json:"key_type"`

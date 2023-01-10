@@ -20,12 +20,21 @@ type certsPageRes struct {
 }
 
 type certsRes struct {
-	ThingID    string    `json:"thing_id"`
-	ClientCert string    `json:"client_cert"`
-	ClientKey  string    `json:"client_key"`
-	CertSerial string    `json:"cert_serial"`
-	Expiration time.Time `json:"expiration"`
-	created    bool
+	ID          string    `json:"id"`
+	Name        string    `json:"name"`
+	OwnerID     string    `json:"owner_id"`
+	ThingID     string    `json:"thing_id"`
+	Serial      string    `json:"serial"`
+	Certificate string    `json:"certificate"`
+	PrivateKey  string    `json:"private_key"`
+	CAChain     string    `json:"ca_chain"`
+	IssuingCA   string    `json:"issuing_ca"`
+	KeyType     string    `json:"key_type"`
+	KeyBits     int       `json:"key_bits"`
+	TTL         string    `json:"ttl"`
+	Expire      time.Time `json:"expire"`
+	Revocation  time.Time `json:"revocation"`
+	created     bool
 }
 
 func (res certsPageRes) Code() int {

@@ -11,6 +11,7 @@ import (
 
 	"github.com/mainflux/mainflux"
 	"github.com/mainflux/mainflux/certs/pki"
+	"github.com/mainflux/mainflux/internal/client/events/things"
 	"github.com/mainflux/mainflux/pkg/errors"
 	mfsdk "github.com/mainflux/mainflux/pkg/sdk/go"
 )
@@ -39,6 +40,8 @@ var (
 )
 
 var _ Service = (*certsService)(nil)
+
+var _ things.EventHandler = (*thingsEventHandlers)(nil)
 
 // Service specifies an API that must be fulfilled by the domain service
 // implementation, and all of its decorators (e.g. logging & metrics).
@@ -69,27 +72,33 @@ type Service interface {
 
 	// RemoveThingCerts revoke and delete entries of all the certificate for a given thing ID with given limited count
 	RemoveThingCerts(ctx context.Context, token, certID string, limit uint64) error
-
-	// EventHandlerDeleteThing on the event of thing delete revoke and delete entries of all the certificate of the deleted thing ID
-	EventHandlerDeleteThing(ctx context.Context, thingID string, errCh chan error)
 }
 
 type certsService struct {
 	auth       mainflux.AuthServiceClient
 	idProvider mainflux.IDProvider
-	certsRepo  Repository
+	repo       Repository
 	sdk        mfsdk.SDK
 	pki        pki.Agent
 }
 
+type thingsEventHandlers struct {
+	pki  pki.Agent
+	repo Repository
+}
+
 // New returns new Certs service.
-func New(auth mainflux.AuthServiceClient, certs Repository, idp mainflux.IDProvider, pki pki.Agent) Service {
+func New(auth mainflux.AuthServiceClient, repo Repository, idp mainflux.IDProvider, pki pki.Agent) Service {
 	return &certsService{
-		certsRepo:  certs,
+		repo:       repo,
 		idProvider: idp,
 		auth:       auth,
 		pki:        pki,
 	}
+}
+
+func NewThingsEventHandlers(repo Repository, pki pki.Agent) things.EventHandler {
+	return &thingsEventHandlers{repo: repo, pki: pki}
 }
 
 // Revoke defines the conditions to revoke a certificate
@@ -151,7 +160,7 @@ func (cs *certsService) IssueCert(ctx context.Context, token, name string, thing
 		Expire:      cert.Expire,
 	}
 
-	err = cs.certsRepo.Save(context.Background(), c)
+	err = cs.repo.Save(context.Background(), c)
 	if err != nil {
 		return Cert{}, err
 	}
@@ -276,37 +285,12 @@ func (cs *certsService) RemoveThingCerts(ctx context.Context, token, thingID str
 	return nil
 }
 
-func (cs *certsService) EventHandlerDeleteThing(ctx context.Context, thingID string, errCh chan error) {
-	defer close(errCh)
-
-	cp, err := cs.certsRepo.RetrieveThingCerts(ctx, thingID)
-	if err != nil {
-		errCh <- err
-		return
-	}
-	if len(cp.Certs) < 1 {
-		return
-	}
-
-	for _, cert := range cp.Certs {
-		_, err := cs.pki.Revoke(cert.Serial)
-		if err != nil {
-			errCh <- err
-		}
-	}
-	err = cs.certsRepo.RemoveThingCerts(ctx, thingID)
-	if err != nil {
-		errCh <- err
-	}
-	return
-}
-
 func (cs *certsService) identifyAndRetrieve(ctx context.Context, token, certID, thingID, serial, name string, offset, limit uint64) (Page, *mainflux.UserIdentity, error) {
 	u, err := cs.auth.Identify(ctx, &mainflux.Token{Value: token})
 	if err != nil {
 		return Page{}, u, errors.Wrap(errors.ErrAuthentication, err)
 	}
-	cp, err := cs.certsRepo.Retrieve(ctx, u.GetId(), certID, thingID, serial, name, offset, limit)
+	cp, err := cs.repo.Retrieve(ctx, u.GetId(), certID, thingID, serial, name, offset, limit)
 
 	if err != nil {
 		return Page{}, u, errors.Wrap(errRepoRetrieve, err)
@@ -333,7 +317,7 @@ func (cs *certsService) renewAndUpdate(ctx context.Context, ownerID string, cert
 	cert.Serial = pkiCert.Serial
 	cert.Revocation = time.Time{}
 
-	if err = cs.certsRepo.Update(context.Background(), ownerID, cert); err != nil {
+	if err = cs.repo.Update(context.Background(), ownerID, cert); err != nil {
 		return Cert{}, errors.Wrap(errRepoUpdate, err)
 	}
 	return cert, nil
@@ -347,7 +331,7 @@ func (cs *certsService) revokeAndUpdate(ctx context.Context, ownerID string, c C
 		}
 
 		c.Revocation = revTime
-		if err = cs.certsRepo.Update(context.Background(), ownerID, c); err != nil {
+		if err = cs.repo.Update(context.Background(), ownerID, c); err != nil {
 			return errors.Wrap(errRepoUpdate, err)
 		}
 	}
@@ -364,7 +348,7 @@ func (cs *certsService) revokeAndRemove(ctx context.Context, ownerID string, c C
 		c.Revocation = revTime
 	}
 
-	if err := cs.certsRepo.Remove(context.Background(), ownerID, c.ID); err != nil {
+	if err := cs.repo.Remove(context.Background(), ownerID, c.ID); err != nil {
 		return errors.Wrap(errRepoRemove, err)
 	}
 	return nil
@@ -376,4 +360,49 @@ func parseCert(certificate string) (*x509.Certificate, error) {
 		return nil, err
 	}
 	return cert, nil
+}
+
+func (teh *thingsEventHandlers) ThingCreated(ctx context.Context, cte things.CreateThingEvent) error {
+	return nil
+}
+func (teh *thingsEventHandlers) ThingUpdated(ctx context.Context, ute things.UpdateThingEvent) error {
+	return nil
+}
+func (teh *thingsEventHandlers) ThingRemoved(ctx context.Context, rte things.RemoveThingEvent) error {
+	cp, err := teh.repo.RetrieveThingCerts(ctx, rte.ID)
+	if err != nil {
+		return err
+	}
+	if len(cp.Certs) < 1 {
+		return nil
+	}
+
+	// create async thing event handler with go routine and return error via channels
+	var retErr error
+	for _, cert := range cp.Certs {
+		_, err := teh.pki.Revoke(cert.Serial)
+		if err != nil {
+			errors.Wrap(retErr, err)
+		}
+	}
+	err = teh.repo.RemoveThingCerts(ctx, rte.ID)
+	if err != nil {
+		errors.Wrap(retErr, err)
+	}
+	return retErr
+}
+func (teh *thingsEventHandlers) ChannelCreated(ctx context.Context, cce things.CreateChannelEvent) error {
+	return nil
+}
+func (teh *thingsEventHandlers) ChannelUpdated(ctx context.Context, uce things.UpdateChannelEvent) error {
+	return nil
+}
+func (teh *thingsEventHandlers) ChannelRemoved(ctx context.Context, rce things.RemoveChannelEvent) error {
+	return nil
+}
+func (teh *thingsEventHandlers) ThingConnected(ctx context.Context, cte things.ConnectThingEvent) error {
+	return nil
+}
+func (teh *thingsEventHandlers) ThingDisconnected(ctx context.Context, dte things.DisconnectThingEvent) error {
+	return nil
 }

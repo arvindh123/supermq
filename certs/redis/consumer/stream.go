@@ -5,7 +5,6 @@ package consumer
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/mainflux/mainflux/certs"
@@ -67,12 +66,12 @@ func (es eventStore) Subscribe(ctx context.Context, subject string) error {
 
 			switch event["operation"] {
 			case thingRemove:
-				rte := decodeRemoveThing(event)
-				err := make(chan error)
-				go es.svc.EventHandlerDeleteThing(ctx, rte.id, err)
-				for e := range err {
-					es.logger.Info(fmt.Sprintf("Error on thing remove event handled , Thing ID %s error : %v", rte.id, e))
-				}
+				// rte := decodeRemoveThing(event)
+				// err := make(chan error)
+				// go es.svc.EventHandlerDeleteThing(ctx, rte.id, err)
+				// for e := range err {
+				// 	es.logger.Info(fmt.Sprintf("Error on thing remove event handled , Thing ID %s error : %v", rte.id, e))
+				// }
 			}
 
 			es.client.XAck(ctx, stream, group, msg.ID)
