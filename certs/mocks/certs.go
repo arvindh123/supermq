@@ -32,12 +32,7 @@ func (c *certsRepoMock) Save(ctx context.Context, cert certs.Cert) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	crt := certs.Cert{
-		OwnerID: cert.OwnerID,
-		ThingID: cert.ThingID,
-		Serial:  cert.Serial,
-		Expire:  cert.Expire,
-	}
+	crt := cert
 
 	_, ok := c.certsByThingID[cert.OwnerID][cert.ThingID]
 	switch ok {
@@ -54,7 +49,7 @@ func (c *certsRepoMock) Save(ctx context.Context, cert certs.Cert) error {
 	return nil
 }
 
-func (c *certsRepoMock) Retrieve(ctx context.Context, ownerID, certID, name, thingID, serial string, offset, limit uint64) (certs.Page, error) {
+func (c *certsRepoMock) Retrieve(ctx context.Context, ownerID, certID, name, thingID, serial string, offset uint64, limit int64) (certs.Page, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if limit <= 0 {
@@ -69,9 +64,17 @@ func (c *certsRepoMock) Retrieve(ctx context.Context, ownerID, certID, name, thi
 	var crts []certs.Cert
 	for _, tc := range oc {
 		for i, v := range tc {
-			if uint64(i) >= offset && uint64(i) < offset+limit {
+
+			switch limit >= 0 {
+			case true:
+				if uint64(i) >= offset && uint64(i) < offset+uint64(limit) {
+					crts = append(crts, v)
+				}
+			default:
 				crts = append(crts, v)
+
 			}
+
 		}
 	}
 

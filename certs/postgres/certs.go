@@ -39,9 +39,9 @@ func NewRepository(db sqlxt.Database) certs.Repository {
 func (cr certsRepository) Save(ctx context.Context, cert certs.Cert) error {
 
 	q := `INSERT INTO certs
-			(id, name, owner_id, thing_id, serial, private_key, certificate, ca_chain, issuing_ca, key_type, key_bits, ttl, expire)
+			(id, name, owner_id, thing_id, serial, private_key, certificate, ca_chain, issuing_ca, ttl, expire)
 		VALUES
-			(:id, :name, :owner_id, :thing_id, :serial, :private_key, :certificate, :ca_chain, :issuing_ca, :key_type, :key_bits, :ttl, :expire)
+			(:id, :name, :owner_id, :thing_id, :serial, :private_key, :certificate, :ca_chain, :issuing_ca, :ttl, :expire)
 		`
 	if _, err, txErr := cr.db.NamedCUDContext(ctx, q, CertToDbCert(cert)); err != nil || txErr != nil {
 		wErr := errors.Wrap(errors.ErrCreateEntity, err)
@@ -80,10 +80,10 @@ func (cr certsRepository) Remove(ctx context.Context, ownerID, certID string) er
 	return nil
 }
 
-func (cr certsRepository) Retrieve(ctx context.Context, ownerID, certID, thingID, serial, name string, offset, limit uint64) (certs.Page, error) {
+func (cr certsRepository) Retrieve(ctx context.Context, ownerID, certID, thingID, serial, name string, offset uint64, limit int64) (certs.Page, error) {
 	q := `
 	SELECT
-		id, name, owner_id, thing_id, serial, private_key, certificate, ca_chain, issuing_ca, key_type, key_bits, ttl, expire, revocation
+		id, name, owner_id, thing_id, serial, private_key, certificate, ca_chain, issuing_ca, ttl, expire, revocation
 	FROM
 		certs
 	WHERE ownerID = :ownerID
@@ -144,7 +144,7 @@ func (cr certsRepository) Retrieve(ctx context.Context, ownerID, certID, thingID
 func (cr certsRepository) RetrieveThingCerts(ctx context.Context, thingID string) (certs.Page, error) {
 	q := `
 	SELECT
-		id, name, owner_id, thing_id, serial, private_key, certificate, ca_chain, issuing_ca, key_type, key_bits, ttl, expire, revocation
+		id, name, owner_id, thing_id, serial, private_key, certificate, ca_chain, issuing_ca, ttl, expire, revocation
 	FROM
 		certs
 	WHERE thing_id = :thingID
@@ -208,8 +208,6 @@ type dbCert struct {
 	privateKey  string    `db:"private_key"`
 	caChain     string    `db:"ca_chain"`
 	issuingCA   string    `db:"issuing_ca"`
-	keyType     string    `db:"key_type"`
-	keyBits     int       `db:"key_bits"`
 	ttl         string    `db:"ttl"`
 	expire      time.Time `db:"expire"`
 	revocation  time.Time `db:"revocation"`
@@ -226,8 +224,6 @@ func (c *dbCert) ToCert() certs.Cert {
 		PrivateKey:  c.privateKey,
 		CAChain:     c.caChain,
 		IssuingCA:   c.issuingCA,
-		KeyType:     c.keyType,
-		KeyBits:     c.keyBits,
 		TTL:         c.ttl,
 		Expire:      c.expire,
 		Revocation:  c.revocation,
@@ -245,8 +241,6 @@ func CertToDbCert(c certs.Cert) dbCert {
 		privateKey:  c.PrivateKey,
 		caChain:     c.CAChain,
 		issuingCA:   c.IssuingCA,
-		keyType:     c.KeyType,
-		keyBits:     c.KeyBits,
 		ttl:         c.TTL,
 		expire:      c.Expire,
 		revocation:  c.Revocation,
@@ -273,9 +267,9 @@ func whereClause(certID, thingID, serial, name string) string {
 	return strings.Join(clause, " AND ")
 }
 
-func orderClause(limit uint64) string {
+func orderClause(limit int64) string {
 	var clause []string
-	if limit > 0 {
+	if limit >= 0 {
 		clause = append(clause, " LIMIT :limit ")
 	}
 	clause = append(clause, " OFFSET = :offset ")

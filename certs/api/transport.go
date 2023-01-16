@@ -43,21 +43,56 @@ func MakeHandler(svc certs.Service, logger logger.Logger) http.Handler {
 
 	r.Get("/certs/:certId", kithttp.NewServer(
 		viewCert(svc),
-		decodeViewCert,
+		decodeViewRevokeRenewRemoveCerts,
+		encodeResponse,
+		opts...,
+	))
+
+	r.Post("/certs/:certId/revoke", kithttp.NewServer(
+		revokeCert(svc),
+		decodeViewRevokeRenewRemoveCerts,
+		encodeResponse,
+		opts...,
+	))
+
+	r.Post("/certs/:certId/renew", kithttp.NewServer(
+		renewCert(svc),
+		decodeViewRevokeRenewRemoveCerts,
 		encodeResponse,
 		opts...,
 	))
 
 	r.Delete("/certs/:certId", kithttp.NewServer(
-		revokeCert(svc),
-		decodeRevokeCerts,
+		removeCert(svc),
+		decodeViewRevokeRenewRemoveCerts,
 		encodeResponse,
 		opts...,
 	))
 
-	r.Get("/serials/:thingId", kithttp.NewServer(
+	r.Get("/certs", kithttp.NewServer(
 		listSerials(svc),
 		decodeListCerts,
+		encodeResponse,
+		opts...,
+	))
+
+	r.Post("/things/:thingID/revoke", kithttp.NewServer(
+		revokeThingCerts(svc),
+		decodeRevokeRenewRemoveThing,
+		encodeResponse,
+		opts...,
+	))
+
+	r.Post("/things/:thingID/renew", kithttp.NewServer(
+		renewThingCerts(svc),
+		decodeRevokeRenewRemoveThing,
+		encodeResponse,
+		opts...,
+	))
+
+	r.Delete("/things/:thingID", kithttp.NewServer(
+		removeThingCerts(svc),
+		decodeRevokeRenewRemoveThing,
 		encodeResponse,
 		opts...,
 	))
@@ -98,19 +133,13 @@ func decodeListCerts(_ context.Context, r *http.Request) (interface{}, error) {
 
 	req := listReq{
 		token:   apiutil.ExtractBearerToken(r),
+		certID:  bone.GetValue(r, "certID"),
 		thingID: bone.GetValue(r, "thingId"),
+		serial:  bone.GetValue(r, "serial"),
+		name:    bone.GetValue(r, "name"),
 		limit:   l,
 		offset:  o,
 	}
-	return req, nil
-}
-
-func decodeViewCert(_ context.Context, r *http.Request) (interface{}, error) {
-	req := viewReq{
-		token:    apiutil.ExtractBearerToken(r),
-		serialID: bone.GetValue(r, "certId"),
-	}
-
 	return req, nil
 }
 
@@ -127,10 +156,25 @@ func decodeCerts(_ context.Context, r *http.Request) (interface{}, error) {
 	return req, nil
 }
 
-func decodeRevokeCerts(_ context.Context, r *http.Request) (interface{}, error) {
-	req := revokeReq{
+func decodeViewRevokeRenewRemoveCerts(_ context.Context, r *http.Request) (interface{}, error) {
+	req := viewRevokeRenewRemoveReq{
 		token:  apiutil.ExtractBearerToken(r),
 		certID: bone.GetValue(r, "certId"),
+	}
+
+	return req, nil
+}
+
+func decodeRevokeRenewRemoveThing(_ context.Context, r *http.Request) (interface{}, error) {
+	l, err := apiutil.ReadIntQuery(r, limitKey, defLimit)
+	if err != nil {
+		return nil, err
+	}
+
+	req := revokeRenewRemoveThingIDReq{
+		token:   apiutil.ExtractBearerToken(r),
+		thingID: bone.GetValue(r, "thingID"),
+		limit:   l,
 	}
 
 	return req, nil

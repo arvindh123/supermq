@@ -11,7 +11,7 @@ import (
 type Page struct {
 	Total  uint64
 	Offset uint64
-	Limit  uint64
+	Limit  int64
 	Certs  []Cert
 }
 
@@ -26,7 +26,7 @@ type Repository interface {
 	// Example to retrieve only certificate with ID Retrieve(ctx, ownerID, certID, "", "", "", 0, 1)
 	// Example to retrieve by Thing ID Retrieve(ctx, ownerID, "", thingID, "", "", 0, 10)
 	// Example to retrieve only certificate with serial number Retrieve(ctx, ownerID, "", "", "", serial, 0, 1)
-	Retrieve(ctx context.Context, ownerID, certID, thingID, serial, name string, offset, limit uint64) (Page, error)
+	Retrieve(ctx context.Context, ownerID, certID, thingID, serial, name string, offset uint64, limit int64) (Page, error)
 
 	// Update certificate from DB for a given certificate ID
 	Update(ctx context.Context, ownerID string, cert Cert) error

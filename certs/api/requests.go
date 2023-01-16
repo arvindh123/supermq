@@ -3,16 +3,16 @@
 
 package api
 
-import "github.com/mainflux/mainflux/internal/apiutil"
+import (
+	"github.com/mainflux/mainflux/internal/apiutil"
+)
 
 const maxLimitSize = 100
 
 type addCertsReq struct {
 	token   string
 	Name    string `json:"name`
-	ThingID string `json:"thing_id"`
-	KeyBits int    `json:"key_bits"`
-	KeyType string `json:"key_type"`
+	thingID string `json:"thing_id"`
 	TTL     string `json:"ttl"`
 }
 
@@ -21,11 +21,11 @@ func (req addCertsReq) validate() error {
 		return apiutil.ErrBearerToken
 	}
 
-	if req.ThingID == "" {
-		return apiutil.ErrMissingID
+	if req.thingID == "" {
+		return apiutil.ErrMissingThingID
 	}
 
-	if req.TTL == "" || req.KeyType == "" || req.KeyBits == 0 {
+	if req.TTL == "" {
 		return apiutil.ErrMissingCertData
 	}
 
@@ -33,7 +33,10 @@ func (req addCertsReq) validate() error {
 }
 
 type listReq struct {
+	certID  string
 	thingID string
+	serial  string
+	name    string
 	token   string
 	offset  uint64
 	limit   uint64
@@ -49,34 +52,34 @@ func (req *listReq) validate() error {
 	return nil
 }
 
-type viewReq struct {
-	serialID string
-	token    string
+type viewRevokeRenewRemoveReq struct {
+	certID string
+	token  string
 }
 
-func (req *viewReq) validate() error {
+func (req *viewRevokeRenewRemoveReq) validate() error {
 	if req.token == "" {
 		return apiutil.ErrBearerToken
 	}
-	if req.serialID == "" {
+	if req.certID == "" {
 		return apiutil.ErrMissingID
 	}
 
 	return nil
 }
 
-type revokeReq struct {
-	token  string
-	certID string
+type revokeRenewRemoveThingIDReq struct {
+	thingID string
+	token   string
+	limit   int64
 }
 
-func (req *revokeReq) validate() error {
+func (req *revokeRenewRemoveThingIDReq) validate() error {
 	if req.token == "" {
 		return apiutil.ErrBearerToken
 	}
-
-	if req.certID == "" {
-		return apiutil.ErrMissingID
+	if req.thingID == "" {
+		return apiutil.ErrMissingThingID
 	}
 
 	return nil

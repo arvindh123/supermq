@@ -70,8 +70,6 @@ func migrateDB(db *sqlx.DB) error {
 						certificate  TEXT NOT NULL,
 						ca_chain     TEXT NOT NULL,
 						issuing_ca   TEXT NOT NULL,
-						key_type     TIMESTAMPTZ NOT NULL,
-						key_bits     TIMESTAMPTZ NOT NULL,
 						ttl          TIMESTAMPTZ NOT NULL,
 						expire       TIMESTAMPTZ NOT NULL,
 						revocation   TIMESTAMPTZ NULL,

@@ -29,28 +29,26 @@ var (
 var _ pki.Agent = (*agent)(nil)
 
 type agent struct {
-	AuthTimeout time.Duration
-	TLSCert     tls.Certificate
-	X509Cert    *x509.Certificate
-	RSABits     int
-	TTL         string
-	mu          sync.Mutex
-	counter     uint64
-	certs       map[string]pki.Cert
+	TLSCert  tls.Certificate
+	X509Cert *x509.Certificate
+	RSABits  int
+	TTL      string
+	mu       sync.Mutex
+	counter  uint64
+	certs    map[string]pki.Cert
 }
 
-func NewPkiAgent(tlsCert tls.Certificate, caCert *x509.Certificate, keyBits int, ttl string, timeout time.Duration) pki.Agent {
+func NewPkiAgent(tlsCert tls.Certificate, caCert *x509.Certificate, keyBits int, ttl string) pki.Agent {
 	return &agent{
-		AuthTimeout: timeout,
-		TLSCert:     tlsCert,
-		X509Cert:    caCert,
-		RSABits:     keyBits,
-		TTL:         ttl,
-		certs:       make(map[string]pki.Cert),
+		TLSCert:  tlsCert,
+		X509Cert: caCert,
+		RSABits:  keyBits,
+		TTL:      ttl,
+		certs:    make(map[string]pki.Cert),
 	}
 }
 
-func (a *agent) IssueCert(cn string, ttl, keyType string, keyBits int) (pki.Cert, error) {
+func (a *agent) IssueCert(cn string, ttl string) (pki.Cert, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -59,7 +57,7 @@ func (a *agent) IssueCert(cn string, ttl, keyType string, keyBits int) (pki.Cert
 	}
 
 	var priv interface{}
-	priv, err := rsa.GenerateKey(rand.Reader, keyBits)
+	priv, err := rsa.GenerateKey(rand.Reader, a.RSABits)
 	if err != nil {
 		return pki.Cert{}, errors.Wrap(pki.ErrFailedCertCreation, err)
 	}

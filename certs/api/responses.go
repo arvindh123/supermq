@@ -6,12 +6,14 @@ package api
 import (
 	"net/http"
 	"time"
+
+	"github.com/mainflux/mainflux/certs"
 )
 
 type pageRes struct {
 	Total  uint64 `json:"total"`
 	Offset uint64 `json:"offset"`
-	Limit  uint64 `json:"limit"`
+	Limit  int64  `json:"limit"`
 }
 
 type certsPageRes struct {
@@ -63,4 +65,22 @@ func (res certsRes) Headers() map[string]string {
 
 func (res certsRes) Empty() bool {
 	return false
+}
+
+func CertToCertResponse(cert certs.Cert, created bool) certsRes {
+	return certsRes{
+		ID:          cert.ID,
+		Name:        cert.Name,
+		OwnerID:     cert.OwnerID,
+		ThingID:     cert.ThingID,
+		Serial:      cert.Serial,
+		Certificate: cert.Certificate,
+		PrivateKey:  cert.PrivateKey,
+		CAChain:     cert.CAChain,
+		IssuingCA:   cert.IssuingCA,
+		TTL:         cert.TTL,
+		Expire:      cert.Expire,
+		Revocation:  cert.Revocation,
+		created:     created,
+	}
 }

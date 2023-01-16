@@ -55,7 +55,7 @@ type Cert struct {
 // Agent represents the Vault PKI interface.
 type Agent interface {
 	// IssueCert issues certificate on PKI
-	IssueCert(cn string, ttl, keyType string, keyBits int) (Cert, error)
+	IssueCert(cn string, ttl string) (Cert, error)
 
 	// Read retrieves certificate from PKI
 	Read(serial string) (Cert, error)
@@ -78,8 +78,6 @@ type pkiAgent struct {
 type certReq struct {
 	CommonName string `json:"common_name"`
 	TTL        string `json:"ttl"`
-	KeyBits    int    `json:"key_bits"`
-	KeyType    string `json:"key_type"`
 }
 
 type certRevokeReq struct {
@@ -110,12 +108,10 @@ func NewVaultClient(token, host, path, role string) (Agent, error) {
 	return &p, nil
 }
 
-func (p *pkiAgent) IssueCert(cn string, ttl, keyType string, keyBits int) (Cert, error) {
+func (p *pkiAgent) IssueCert(cn string, ttl string) (Cert, error) {
 	cReq := certReq{
 		CommonName: cn,
 		TTL:        ttl,
-		KeyBits:    keyBits,
-		KeyType:    keyType,
 	}
 
 	r := p.client.NewRequest("POST", p.issueURL)

@@ -15,7 +15,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/mainflux/mainflux"
 	bsmocks "github.com/mainflux/mainflux/bootstrap/mocks"
@@ -77,12 +76,7 @@ func newService(tokens map[string]string) (certs.Service, error) {
 		return nil, err
 	}
 
-	authTimeout, err := time.ParseDuration(cfgAuthTimeout)
-	if err != nil {
-		return nil, err
-	}
-
-	pki := mocks.NewPkiAgent(tlsCert, caCert, cfgSignRSABits, cfgSignHoursValid, authTimeout)
+	pki := mocks.NewPkiAgent(tlsCert, caCert, cfgSignRSABits, cfgSignHoursValid)
 
 	idProvider := uuid.NewMock()
 	return certs.New(auth, repo, idProvider, pki), nil
@@ -118,58 +112,40 @@ func TestIssueCert(t *testing.T) {
 	}{
 		{
 			desc:    "issue new cert",
-			name:    "",
+			name:    name,
 			token:   token,
 			thingID: thingID,
 			ttl:     ttl,
-			key:     key,
-			keyBits: 2048,
 			err:     nil,
 		},
 		{
-			desc:    "issue new cert for non existing thing id",
-			name:    "",
-			token:   token,
-			thingID: "2",
+			desc:    "issue new cert for invalid token",
+			name:    name,
+			token:   "",
+			thingID: thingID,
 			ttl:     ttl,
-			key:     key,
-			keyBits: 2048,
 			err:     certs.ErrThingRetrieve,
 		},
 		{
 			desc:    "issue new cert for non existing thing id",
-			name:    "",
+			name:    name,
+			token:   token,
+			thingID: "2",
+			ttl:     ttl,
+			err:     certs.ErrThingRetrieve,
+		},
+		{
+			desc:    "issue new cert for non existing thing id",
+			name:    name,
 			token:   wrongValue,
 			thingID: thingID,
 			ttl:     ttl,
-			key:     key,
-			keyBits: 2048,
 			err:     errors.ErrAuthentication,
-		},
-		{
-			desc:    "issue new cert for bad key bits",
-			name:    "",
-			token:   token,
-			thingID: thingID,
-			ttl:     ttl,
-			key:     key,
-			keyBits: -2,
-			err:     certs.ErrPKIIssue,
-		},
-		{
-			desc:    "issue new cert for bad key",
-			name:    "",
-			token:   token,
-			thingID: thingID,
-			ttl:     ttl,
-			key:     "ping",
-			keyBits: 2048,
-			err:     certs.ErrPKIIssue,
 		},
 	}
 
 	for _, tc := range cases {
-		c, err := svc.IssueCert(context.Background(), tc.token, tc.thingID, tc.name, tc.ttl, tc.keyBits, tc.key)
+		c, err := svc.IssueCert(context.Background(), tc.token, tc.thingID, tc.name, tc.ttl)
 		assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s: expected %s got %s\n", tc.desc, tc.err, err))
 		cert, _ := readCert([]byte(c.Certificate))
 		if cert != nil {
@@ -183,7 +159,7 @@ func TestRevokeCert(t *testing.T) {
 	svc, err := newService(map[string]string{token: email})
 	require.Nil(t, err, fmt.Sprintf("unexpected service creation error: %s\n", err))
 
-	_, err = svc.IssueCert(context.Background(), token, thingID, name, ttl, keyBits, key)
+	_, err = svc.IssueCert(context.Background(), token, thingID, name, ttl)
 	require.Nil(t, err, fmt.Sprintf("unexpected service creation error: %s\n", err))
 
 	cases := []struct {

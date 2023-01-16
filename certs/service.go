@@ -47,7 +47,7 @@ var _ things.EventHandler = (*thingsEventHandlers)(nil)
 // implementation, and all of its decorators (e.g. logging & metrics).
 type Service interface {
 	// IssueCert issues certificate for given thing id if access is granted with token
-	IssueCert(ctx context.Context, token, thingID, name, ttl string, keyBits int, keyType string) (Cert, error)
+	IssueCert(ctx context.Context, token, thingID, name, ttl string) (Cert, error)
 
 	// ViewCert retrieves the certificate issued for a given certificate ID
 	ViewCert(ctx context.Context, token, certID string) (Cert, error)
@@ -65,13 +65,13 @@ type Service interface {
 	ListCerts(ctx context.Context, token, certID, thingID, serial, name string, offset, limit uint64) (Page, error)
 
 	// RevokeThingCerts revokes a all the certificates for a given thing ID with given limited count
-	RevokeThingCerts(ctx context.Context, token, thingID string, limit uint64) error
+	RevokeThingCerts(ctx context.Context, token, thingID string, limit int64) error
 
 	// RenewThingCerts renew all the certificates for a given thing ID with given limited count
-	RenewThingCerts(ctx context.Context, token, thingID string, limit uint64) error
+	RenewThingCerts(ctx context.Context, token, thingID string, limit int64) error
 
 	// RemoveThingCerts revoke and delete entries of all the certificate for a given thing ID with given limited count
-	RemoveThingCerts(ctx context.Context, token, certID string, limit uint64) error
+	RemoveThingCerts(ctx context.Context, token, certID string, limit int64) error
 }
 
 type certsService struct {
@@ -117,14 +117,12 @@ type Cert struct {
 	PrivateKey  string    `json:"private_key"   db:"private_key"`
 	CAChain     string    `json:"ca_chain"      db:"ca_chain"`
 	IssuingCA   string    `json:"issuing_ca"    db:"issuing_ca"`
-	KeyType     string    `json:"key_type"      db:"key_type"`
-	KeyBits     int       `json:"key_bits"      db:"key_bits"`
 	TTL         string    `json:"ttl"           db:"ttl"`
 	Expire      time.Time `json:"expire"        db:"expire"`
 	Revocation  time.Time `json:"revocation"    db:"revocation"`
 }
 
-func (cs *certsService) IssueCert(ctx context.Context, token, name string, thingID string, ttl string, keyBits int, keyType string) (Cert, error) {
+func (cs *certsService) IssueCert(ctx context.Context, token, name string, thingID string, ttl string) (Cert, error) {
 	owner, err := cs.auth.Identify(ctx, &mainflux.Token{Value: token})
 	if err != nil {
 		return Cert{}, err
@@ -140,7 +138,7 @@ func (cs *certsService) IssueCert(ctx context.Context, token, name string, thing
 		return Cert{}, err
 	}
 
-	cert, err := cs.pki.IssueCert(thing.Key, ttl, keyType, keyBits)
+	cert, err := cs.pki.IssueCert(thing.Key, ttl)
 	if err != nil {
 		return Cert{}, errors.Wrap(ErrPKIIssue, err)
 	}
@@ -154,7 +152,6 @@ func (cs *certsService) IssueCert(ctx context.Context, token, name string, thing
 		IssuingCA:   cert.IssuingCA,
 		CAChain:     strings.Join(cert.CAChain, caChainJoinSep),
 		PrivateKey:  cert.PrivateKey,
-		KeyType:     cert.PrivateKeyType,
 		Serial:      cert.Serial,
 		TTL:         ttl,
 		Expire:      cert.Expire,
@@ -168,7 +165,7 @@ func (cs *certsService) IssueCert(ctx context.Context, token, name string, thing
 }
 
 func (cs *certsService) ListCerts(ctx context.Context, token, certID, thingID, name, serial string, offset, limit uint64) (Page, error) {
-	p, _, err := cs.identifyAndRetrieve(ctx, token, certID, thingID, serial, name, offset, limit)
+	p, _, err := cs.identifyAndRetrieve(ctx, token, certID, thingID, serial, name, offset, int64(limit))
 	return p, err
 }
 
@@ -227,7 +224,7 @@ func (cs *certsService) RemoveCert(ctx context.Context, token, certID string) er
 	return cs.revokeAndRemove(ctx, u.GetId(), cp.Certs[0])
 }
 
-func (cs *certsService) RenewThingCerts(ctx context.Context, token, thingID string, limit uint64) error {
+func (cs *certsService) RenewThingCerts(ctx context.Context, token, thingID string, limit int64) error {
 	cp, u, err := cs.identifyAndRetrieve(ctx, token, "", thingID, "", "", 0, limit)
 	if err != nil {
 		return err
@@ -247,7 +244,7 @@ func (cs *certsService) RenewThingCerts(ctx context.Context, token, thingID stri
 	return nil
 }
 
-func (cs *certsService) RevokeThingCerts(ctx context.Context, token, thingID string, limit uint64) error {
+func (cs *certsService) RevokeThingCerts(ctx context.Context, token, thingID string, limit int64) error {
 	cp, u, err := cs.identifyAndRetrieve(ctx, token, "", thingID, "", "", 0, limit)
 	if err != nil {
 		return err
@@ -266,7 +263,7 @@ func (cs *certsService) RevokeThingCerts(ctx context.Context, token, thingID str
 	return nil
 }
 
-func (cs *certsService) RemoveThingCerts(ctx context.Context, token, thingID string, limit uint64) error {
+func (cs *certsService) RemoveThingCerts(ctx context.Context, token, thingID string, limit int64) error {
 	cp, u, err := cs.identifyAndRetrieve(ctx, token, "", thingID, "", "", 0, limit)
 	if err != nil {
 		return err
@@ -285,7 +282,7 @@ func (cs *certsService) RemoveThingCerts(ctx context.Context, token, thingID str
 	return nil
 }
 
-func (cs *certsService) identifyAndRetrieve(ctx context.Context, token, certID, thingID, serial, name string, offset, limit uint64) (Page, *mainflux.UserIdentity, error) {
+func (cs *certsService) identifyAndRetrieve(ctx context.Context, token, certID, thingID, serial, name string, offset uint64, limit int64) (Page, *mainflux.UserIdentity, error) {
 	u, err := cs.auth.Identify(ctx, &mainflux.Token{Value: token})
 	if err != nil {
 		return Page{}, u, errors.Wrap(errors.ErrAuthentication, err)
@@ -303,7 +300,7 @@ func (cs *certsService) renewAndUpdate(ctx context.Context, ownerID string, cert
 	if err != nil {
 		return Cert{}, errors.Wrap(errParseCert, err)
 	}
-	pkiCert, err := cs.pki.IssueCert(xCert.Subject.CommonName, cert.TTL, cert.KeyType, cert.KeyBits)
+	pkiCert, err := cs.pki.IssueCert(xCert.Subject.CommonName, cert.TTL)
 	if err != nil {
 		return Cert{}, errors.Wrap(ErrPKIIssue, err)
 	}
@@ -313,7 +310,6 @@ func (cs *certsService) renewAndUpdate(ctx context.Context, ownerID string, cert
 	cert.Expire = pkiCert.Expire
 	cert.IssuingCA = pkiCert.IssuingCA
 	cert.PrivateKey = pkiCert.PrivateKey
-	cert.KeyType = pkiCert.PrivateKeyType
 	cert.Serial = pkiCert.Serial
 	cert.Revocation = time.Time{}
 
