@@ -70,7 +70,7 @@ func MakeHandler(svc certs.Service, logger logger.Logger) http.Handler {
 	))
 
 	r.Get("/certs", kithttp.NewServer(
-		listSerials(svc),
+		listCerts(svc),
 		decodeListCerts,
 		encodeResponse,
 		opts...,

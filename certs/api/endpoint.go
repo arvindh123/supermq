@@ -16,7 +16,7 @@ func issueCert(svc certs.Service) endpoint.Endpoint {
 		if err := req.validate(); err != nil {
 			return nil, err
 		}
-		res, err := svc.IssueCert(ctx, req.token, req.thingID, req.Name, req.TTL)
+		res, err := svc.IssueCert(ctx, req.token, req.ThingID, req.Name, req.TTL)
 		if err != nil {
 			return certsRes{}, err
 		}
@@ -25,7 +25,7 @@ func issueCert(svc certs.Service) endpoint.Endpoint {
 	}
 }
 
-func listSerials(svc certs.Service) endpoint.Endpoint {
+func listCerts(svc certs.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(listReq)
 		if err := req.validate(); err != nil {

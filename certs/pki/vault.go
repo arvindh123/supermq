@@ -121,7 +121,7 @@ func (p *pkiAgent) IssueCert(cn string, ttl string) (Cert, error) {
 
 	s, err := p.client.Logical().Write(p.issueURL, certIssueReq)
 	if err != nil {
-		return Cert{}, err
+		return Cert{}, errors.Wrap(errFailedVaultCertIssue, err)
 	}
 
 	cert := Cert{}
@@ -140,7 +140,7 @@ func (p *pkiAgent) IssueCert(cn string, ttl string) (Cert, error) {
 func (p *pkiAgent) Read(serial string) (Cert, error) {
 	s, err := p.client.Logical().Read(p.readURL + serial)
 	if err != nil {
-		return Cert{}, err
+		return Cert{}, errors.Wrap(errFailedVaultRead, err)
 	}
 	cert := Cert{}
 	if err = mapstructure.Decode(s.Data, &cert); err != nil {

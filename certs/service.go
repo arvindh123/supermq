@@ -179,7 +179,7 @@ func (cs *certsService) ViewCert(ctx context.Context, token, certID string) (Cer
 	}
 
 	cert := cp.Certs[0]
-	if cert.Expire.Sub(time.Now()) < time.Duration(1*time.Hour) {
+	if time.Until(cert.Expire) < time.Duration(1*time.Hour) {
 		cert, err = cs.renewAndUpdate(ctx, u.GetId(), cert)
 		if err != nil {
 			return Cert{}, err
@@ -320,7 +320,7 @@ func (cs *certsService) renewAndUpdate(ctx context.Context, ownerID string, cert
 }
 
 func (cs *certsService) revokeAndUpdate(ctx context.Context, ownerID string, c Cert) error {
-	if c.Revocation.Sub(time.Now()) < 0 {
+	if time.Until(c.Revocation) < 0 {
 		revTime, err := cs.pki.Revoke(c.Serial)
 		if err != nil {
 			return errors.Wrap(errPKIRevoke, err)
@@ -336,7 +336,7 @@ func (cs *certsService) revokeAndUpdate(ctx context.Context, ownerID string, c C
 }
 
 func (cs *certsService) revokeAndRemove(ctx context.Context, ownerID string, c Cert) error {
-	if c.Revocation.Sub(time.Now()) < 0 {
+	if time.Until(c.Revocation) < 0 {
 		revTime, err := cs.pki.Revoke(c.Serial)
 		if err != nil {
 			return errors.Wrap(errPKIRevoke, err)
@@ -378,12 +378,12 @@ func (teh *thingsEventHandlers) ThingRemoved(ctx context.Context, rte things.Rem
 	for _, cert := range cp.Certs {
 		_, err := teh.pki.Revoke(cert.Serial)
 		if err != nil {
-			errors.Wrap(retErr, err)
+			retErr = errors.Wrap(retErr, err)
 		}
 	}
 	err = teh.repo.RemoveThingCerts(ctx, rte.ID)
 	if err != nil {
-		errors.Wrap(retErr, err)
+		retErr = errors.Wrap(retErr, err)
 	}
 	return retErr
 }

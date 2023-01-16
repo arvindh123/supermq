@@ -11,8 +11,8 @@ const maxLimitSize = 100
 
 type addCertsReq struct {
 	token   string
-	Name    string `json:"name`
-	thingID string `json:"thing_id"`
+	Name    string `json:"name"`
+	ThingID string `json:"thing_id"`
 	TTL     string `json:"ttl"`
 }
 
@@ -21,11 +21,10 @@ func (req addCertsReq) validate() error {
 		return apiutil.ErrBearerToken
 	}
 
-	if req.thingID == "" {
+	if req.ThingID == "" {
 		return apiutil.ErrMissingThingID
 	}
 
-	if req.TTL == "" {
 	if req.TTL == "" {
 		return apiutil.ErrMissingCertData
 	}

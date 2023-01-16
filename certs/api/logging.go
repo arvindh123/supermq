@@ -119,7 +119,7 @@ func (lm *loggingMiddleware) RevokeThingCerts(ctx context.Context, token, thingI
 
 func (lm *loggingMiddleware) RenewThingCerts(ctx context.Context, token, thingID string, limit int64) (err error) {
 	defer func(begin time.Time) {
-		message := fmt.Sprintf("Method renew_certs took %s for token: %s and thing: %s took %s to complete", token, thingID, time.Since(begin))
+		message := fmt.Sprintf("Method renew_certs token: %s and thing: %s took %s to complete", token, thingID, time.Since(begin))
 		if err != nil {
 			lm.logger.Warn(fmt.Sprintf("%s with error: %s.", message, err))
 			return
@@ -132,7 +132,7 @@ func (lm *loggingMiddleware) RenewThingCerts(ctx context.Context, token, thingID
 
 func (lm *loggingMiddleware) RemoveThingCerts(ctx context.Context, token, thingID string, limit int64) (err error) {
 	defer func(begin time.Time) {
-		message := fmt.Sprintf("Method renew_certs took %s for token: %s and thing: %s took %s to complete", token, thingID, time.Since(begin))
+		message := fmt.Sprintf("Method renew_certs for token: %s and thing: %s took %s to complete", token, thingID, time.Since(begin))
 		if err != nil {
 			lm.logger.Warn(fmt.Sprintf("%s with error: %s.", message, err))
 			return
