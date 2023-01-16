@@ -21,23 +21,26 @@ import (
 	"github.com/mainflux/mainflux"
 	authapi "github.com/mainflux/mainflux/auth/api/grpc"
 	rediscons "github.com/mainflux/mainflux/certs/redis/consumer"
+	"github.com/mainflux/mainflux/internal/sqlxt"
 
 	"github.com/mainflux/mainflux/certs"
 	"github.com/mainflux/mainflux/certs/api"
-	certsBSClient "github.com/mainflux/mainflux/certs/bootstrap"
 	vault "github.com/mainflux/mainflux/certs/pki"
 	"github.com/mainflux/mainflux/certs/postgres"
+	"github.com/mainflux/mainflux/certs/tracing"
 	"github.com/mainflux/mainflux/logger"
 	"github.com/opentracing/opentracing-go"
 	stdprometheus "github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/jmoiron/sqlx"
 	mflog "github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/pkg/errors"
 	mfsdk "github.com/mainflux/mainflux/pkg/sdk/go"
+	"github.com/mainflux/mainflux/pkg/uuid"
 	jconfig "github.com/uber/jaeger-client-go/config"
 )
 
@@ -210,6 +213,9 @@ func main() {
 		log.Fatalf("Failed to configure client for PKI engine")
 	}
 
+	dbTracer, dbCloser := initJaeger("certs_db", cfg.jaegerURL, logger)
+	defer dbCloser.Close()
+
 	db := connectToDB(cfg.dbConfig, logger)
 	defer db.Close()
 
@@ -224,7 +230,7 @@ func main() {
 
 	auth := authapi.NewClient(authTracer, authConn, cfg.authTimeout)
 
-	svc := newService(auth, db, logger, nil, tlsCert, caCert, cfg, pkiClient)
+	svc := newService(auth, dbTracer, db, logger, nil, tlsCert, caCert, cfg, pkiClient)
 
 	go subscribeToThingsES(svc, thingsESConn, cfg.esConsumerName, logger)
 
@@ -239,12 +245,6 @@ func main() {
 		}
 		return nil
 	})
-
-	if cfg.certsAutoRenew {
-		g.Go(func() error {
-			return autoRenewCertificate(ctx, cfg, svc, logger)
-		})
-	}
 
 	if err := g.Wait(); err != nil {
 		logger.Error(fmt.Sprintf("Certs service terminated: %s", err))
@@ -369,7 +369,7 @@ func connectToAuth(cfg config, logger logger.Logger) *grpc.ClientConn {
 			opts = append(opts, grpc.WithTransportCredentials(tpc))
 		}
 	} else {
-		opts = append(opts, grpc.WithInsecure())
+		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		logger.Info("gRPC communication is not encrypted")
 	}
 
@@ -406,41 +406,20 @@ func initJaeger(svcName, url string, logger logger.Logger) (opentracing.Tracer, 
 	return tracer, closer
 }
 
-func newService(auth mainflux.AuthServiceClient, db *sqlx.DB, logger mflog.Logger, esClient *redis.Client, tlsCert tls.Certificate, x509Cert *x509.Certificate, cfg config, pkiAgent vault.Agent) certs.Service {
-	certsRepo := postgres.NewRepository(db, logger)
+func newService(auth mainflux.AuthServiceClient, dbTracer opentracing.Tracer, db *sqlx.DB, logger mflog.Logger, esClient *redis.Client, tlsCert tls.Certificate, x509Cert *x509.Certificate, cfg config, pkiAgent vault.Agent) certs.Service {
 
-	certsConfig := certs.Config{
-		LogLevel:       cfg.logLevel,
-		ClientTLS:      cfg.clientTLS,
-		CaCerts:        cfg.caCerts,
-		HTTPPort:       cfg.httpPort,
-		ServerCert:     cfg.serverCert,
-		ServerKey:      cfg.serverKey,
-		CertsURL:       cfg.certsURL,
-		JaegerURL:      cfg.jaegerURL,
-		AuthURL:        cfg.authURL,
-		AuthTimeout:    cfg.authTimeout,
-		SignTLSCert:    tlsCert,
-		SignX509Cert:   x509Cert,
-		SignHoursValid: cfg.signHoursValid,
-		SignRSABits:    cfg.signRSABits,
-		PKIToken:       cfg.pkiToken,
-		PKIHost:        cfg.pkiHost,
-		PKIPath:        cfg.pkiPath,
-		PKIRole:        cfg.pkiRole,
-	}
+	certsRepo := postgres.NewRepository(sqlxt.NewDatabase(db))
+	certsRepo = tracing.CertsRepositoryMiddleware(dbTracer, certsRepo)
 
 	config := mfsdk.Config{
-		CertsURL:     cfg.certsURL,
-		ThingsURL:    cfg.thingsURL,
-		UsersURL:     cfg.usersUrl,
-		BootstrapURL: cfg.bootstrapURL,
+		ThingsURL: cfg.thingsURL,
 	}
 
 	sdk := mfsdk.NewSDK(config)
-	bsClient := certsBSClient.New(cfg.bootstrapURL, cfg.mfUser, cfg.mfPass, sdk)
 
-	svc := certs.New(auth, certsRepo, sdk, bsClient, certsConfig, pkiAgent)
+	idProvider := uuid.New()
+
+	svc := certs.New(auth, certsRepo, idProvider, pkiAgent, sdk)
 	svc = api.NewLoggingMiddleware(svc, logger)
 	svc = api.MetricsMiddleware(
 		svc,
@@ -551,18 +530,4 @@ func connectToRedis(redisURL, redisPass, redisDB string, logger mflog.Logger) *r
 		Password: redisPass,
 		DB:       db,
 	})
-}
-
-func autoRenewCertificate(ctx context.Context, cfg config, svc certs.Service, logger mflog.Logger) error {
-	ticker := time.NewTicker(cfg.certsAutoRenewInterval)
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-ticker.C:
-			if err := svc.RenewCerts(ctx, cfg.certsRenewThres, true); err != nil && cfg.stopSvcOnCertsAutoRenewErr {
-				return err
-			}
-		}
-	}
 }

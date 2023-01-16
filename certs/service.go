@@ -88,12 +88,13 @@ type thingsEventHandlers struct {
 }
 
 // New returns new Certs service.
-func New(auth mainflux.AuthServiceClient, repo Repository, idp mainflux.IDProvider, pki pki.Agent) Service {
+func New(auth mainflux.AuthServiceClient, repo Repository, idp mainflux.IDProvider, pki pki.Agent, sdk mfsdk.SDK) Service {
 	return &certsService{
 		repo:       repo,
 		idProvider: idp,
 		auth:       auth,
 		pki:        pki,
+		sdk:        sdk,
 	}
 }
 

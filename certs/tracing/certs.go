@@ -53,7 +53,7 @@ func (crm certsRepositoryMiddleware) Update(ctx context.Context, ownerID string,
 	return crm.repo.Update(ctx, ownerID, cert)
 }
 
-func (crm certsRepositoryMiddleware) Retrieve(ctx context.Context, ownerID, certID, name, thingID, serial string, offset, limit uint64) (certs.Page, error) {
+func (crm certsRepositoryMiddleware) Retrieve(ctx context.Context, ownerID, certID, name, thingID, serial string, offset uint64, limit int64) (certs.Page, error) {
 	span := createSpan(ctx, crm.tracer, retrieveCertsOp)
 	defer span.Finish()
 	ctx = opentracing.ContextWithSpan(ctx, span)
