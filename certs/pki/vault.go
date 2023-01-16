@@ -9,8 +9,6 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
-	"io/ioutil"
-	"net/http"
 	"regexp"
 	"time"
 
@@ -23,7 +21,6 @@ const (
 	issue  = "issue"
 	cert   = "cert"
 	revoke = "revoke"
-	apiVer = "v1"
 )
 
 var (
@@ -86,9 +83,8 @@ type certRevokeReq struct {
 
 // NewVaultClient instantiates a Vault client.
 func NewVaultClient(token, host, path, role string) (Agent, error) {
-	conf := &api.Config{
-		Address: host,
-	}
+	conf := api.DefaultConfig()
+	conf.Address = host
 
 	client, err := api.NewClient(conf)
 	if err != nil {
@@ -101,9 +97,9 @@ func NewVaultClient(token, host, path, role string) (Agent, error) {
 		role:      role,
 		path:      path,
 		client:    client,
-		issueURL:  "/" + apiVer + "/" + path + "/" + issue + "/" + role,
-		readURL:   "/" + apiVer + "/" + path + "/" + cert + "/",
-		revokeURL: "/" + apiVer + "/" + path + "/" + revoke,
+		issueURL:  "/" + path + "/" + issue + "/" + role,
+		readURL:   "/" + path + "/" + cert + "/",
+		revokeURL: "/" + path + "/" + revoke,
 	}
 	return &p, nil
 }
@@ -114,29 +110,16 @@ func (p *pkiAgent) IssueCert(cn string, ttl string) (Cert, error) {
 		TTL:        ttl,
 	}
 
-	r := p.client.NewRequest("POST", p.issueURL)
-	if err := r.SetJSONBody(cReq); err != nil {
-		return Cert{}, err
-	}
-
-	resp, err := p.client.RawRequest(r)
-	if resp != nil {
-		defer resp.Body.Close()
-	}
-
+	var certIssueReq map[string]interface{}
+	data, err := json.Marshal(cReq)
 	if err != nil {
 		return Cert{}, err
 	}
-
-	if resp.StatusCode >= http.StatusBadRequest {
-		_, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return Cert{}, err
-		}
-		return Cert{}, errors.Wrap(errFailedVaultCertIssue, err)
+	if err := json.Unmarshal(data, &certIssueReq); err != nil {
+		return Cert{}, nil
 	}
 
-	s, err := api.ParseSecret(resp.Body)
+	s, err := p.client.Logical().Write(p.issueURL, certIssueReq)
 	if err != nil {
 		return Cert{}, err
 	}
@@ -155,32 +138,14 @@ func (p *pkiAgent) IssueCert(cn string, ttl string) (Cert, error) {
 }
 
 func (p *pkiAgent) Read(serial string) (Cert, error) {
-	r := p.client.NewRequest("GET", p.readURL+"/"+serial)
-
-	resp, err := p.client.RawRequest(r)
+	s, err := p.client.Logical().Read(p.readURL + serial)
 	if err != nil {
 		return Cert{}, err
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= http.StatusBadRequest {
-		_, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return Cert{}, err
-		}
-		return Cert{}, errors.Wrap(errFailedVaultRead, err)
-	}
-
-	s, err := api.ParseSecret(resp.Body)
-	if err != nil {
-		return Cert{}, err
-	}
-
 	cert := Cert{}
 	if err = mapstructure.Decode(s.Data, &cert); err != nil {
 		return Cert{}, errors.Wrap(errFailedCertDecoding, err)
 	}
-
 	return cert, nil
 }
 
@@ -189,39 +154,28 @@ func (p *pkiAgent) Revoke(serial string) (time.Time, error) {
 		SerialNumber: serial,
 	}
 
-	r := p.client.NewRequest("POST", p.revokeURL)
-	if err := r.SetJSONBody(cReq); err != nil {
-		return time.Time{}, err
-	}
-
-	resp, err := p.client.RawRequest(r)
+	var certRevokeReq map[string]interface{}
+	data, err := json.Marshal(cReq)
 	if err != nil {
 		if expSerialNotFound.Match([]byte(err.Error())) {
 			return time.Time{}, errors.ErrNotFound
 		}
 		return time.Time{}, err
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= http.StatusBadRequest {
-		_, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return time.Time{}, err
-		}
-		return time.Time{}, errors.Wrap(errFailedVaultCertIssue, err)
+	if err := json.Unmarshal(data, &certRevokeReq); err != nil {
+		return time.Time{}, nil
 	}
 
-	s, err := api.ParseSecret(resp.Body)
+	s, err := p.client.Logical().Write(p.revokeURL, certRevokeReq)
 	if err != nil {
 		return time.Time{}, err
 	}
-
 	rev, err := s.Data["revocation_time"].(json.Number).Float64()
 	if err != nil {
 		return time.Time{}, err
 	}
 
-	return time.Unix(0, int64(rev)*int64(time.Millisecond)), nil
+	return time.Unix(0, int64(rev)*int64(time.Second)), nil
 }
 
 func (c *pkiAgent) parseCert(data string) (*x509.Certificate, error) {

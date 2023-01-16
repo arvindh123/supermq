@@ -41,8 +41,6 @@ const (
 	thingKey   = "thingKey"
 	thingID    = "1"
 	ttl        = "1h"
-	keyBits    = 2048
-	key        = "rsa"
 	certNum    = 10
 
 	cfgLogLevel    = "error"
@@ -107,7 +105,6 @@ func TestIssueCert(t *testing.T) {
 		thingID string
 		ttl     string
 		key     string
-		keyBits int
 		err     error
 	}{
 		{

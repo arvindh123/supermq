@@ -26,6 +26,7 @@ func (req addCertsReq) validate() error {
 	}
 
 	if req.TTL == "" {
+	if req.TTL == "" {
 		return apiutil.ErrMissingCertData
 	}
 

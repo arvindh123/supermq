@@ -39,6 +39,10 @@ type certsRes struct {
 	created     bool
 }
 
+type revokeCertsRes struct {
+	RevocationTime time.Time `json:"revocation_time"`
+}
+
 func (res certsPageRes) Code() int {
 	return http.StatusOK
 }
