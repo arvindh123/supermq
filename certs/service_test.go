@@ -99,30 +99,30 @@ func TestIssueCert(t *testing.T) {
 		key     string
 		err     error
 	}{
-		// {
-		// 	desc:    "issue new cert",
-		// 	token:   token,
-		// 	name:    name,
-		// 	thingID: thingID,
-		// 	ttl:     ttl,
-		// 	err:     nil,
-		// },
-		// {
-		// 	desc:    "issue new cert for non existing thing id",
-		// 	name:    name,
-		// 	token:   wrongValue,
-		// 	thingID: thingID,
-		// 	ttl:     ttl,
-		// 	err:     errors.ErrAuthentication,
-		// },
-		// {
-		// 	desc:    "issue new cert for non existing thing id",
-		// 	name:    name,
-		// 	token:   token,
-		// 	thingID: "2",
-		// 	ttl:     ttl,
-		// 	err:     certs.ErrThingRetrieve,
-		// },
+		{
+			desc:    "issue new cert",
+			token:   token,
+			name:    name,
+			thingID: thingID,
+			ttl:     ttl,
+			err:     nil,
+		},
+		{
+			desc:    "issue new cert for non existing thing id",
+			name:    name,
+			token:   wrongValue,
+			thingID: thingID,
+			ttl:     ttl,
+			err:     errors.ErrAuthentication,
+		},
+		{
+			desc:    "issue new cert for non existing thing id",
+			name:    name,
+			token:   token,
+			thingID: "2",
+			ttl:     ttl,
+			err:     certs.ErrThingRetrieve,
+		},
 	}
 
 	for _, tc := range cases {
