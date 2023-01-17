@@ -19,8 +19,6 @@ import (
 // Key types and format : https://developer.hashicorp.com/vault/api-docs/secret/pki#key_type
 const (
 	caChainJoinSep = "\n\n"
-	keyFormat      = "der"
-	certFormat     = "pem"
 )
 
 var (

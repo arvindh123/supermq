@@ -59,7 +59,7 @@ func NewEventStore(eh EventHandler, client *redis.Client, consumer string, log l
 	}
 }
 
-func (e Event) Subscribe(ctx context.Context, group, subject string) error {
+func (e Event) Subscribe(ctx context.Context, group string) error {
 	err := e.client.XGroupCreateMkStream(ctx, stream, group, "$").Err()
 	if err != nil && err.Error() != exists {
 		return err

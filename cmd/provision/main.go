@@ -23,7 +23,6 @@ import (
 
 const (
 	stopWaitTime = 5 * time.Second
-	defKeyType   = "rsa"
 
 	defLogLevel        = "error"
 	defConfigFile      = "config.toml"

@@ -16,11 +16,11 @@ import (
 	"time"
 
 	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
-	"github.com/go-redis/redis/v8"
 	r "github.com/go-redis/redis/v8"
 	"github.com/mainflux/mainflux"
 	authapi "github.com/mainflux/mainflux/auth/api/grpc"
-	rediscons "github.com/mainflux/mainflux/certs/redis/consumer"
+	"github.com/mainflux/mainflux/internal/client/events/things"
+	thingsEvent "github.com/mainflux/mainflux/internal/client/events/things"
 	"github.com/mainflux/mainflux/internal/sqlxt"
 
 	"github.com/mainflux/mainflux/certs"
@@ -46,6 +46,7 @@ import (
 
 const (
 	stopWaitTime = 5 * time.Second
+	group        = "mainflux.certs"
 
 	defLogLevel       = "error"
 	defDBHost         = "localhost"
@@ -199,7 +200,7 @@ func main() {
 		log.Fatalf(err.Error())
 	}
 
-	tlsCert, caCert, err := loadCertificates(cfg)
+	// tlsCert, caCert, err := loadCertificates(cfg)
 	if err != nil {
 		logger.Error("Failed to load CA certificates for issuing client certs")
 	}
@@ -230,9 +231,34 @@ func main() {
 
 	auth := authapi.NewClient(authTracer, authConn, cfg.authTimeout)
 
-	svc := newService(auth, dbTracer, db, logger, nil, tlsCert, caCert, cfg, pkiClient)
+	certsRepo := postgres.NewRepository(sqlxt.NewDatabase(db))
+	certsRepo = tracing.CertsRepositoryMiddleware(dbTracer, certsRepo)
 
-	go subscribeToThingsES(svc, thingsESConn, cfg.esConsumerName, logger)
+	config := mfsdk.Config{
+		ThingsURL: cfg.thingsURL,
+	}
+
+	sdk := mfsdk.NewSDK(config)
+
+	idProvider := uuid.New()
+
+	svc := certs.New(auth, certsRepo, idProvider, pkiClient, sdk)
+	svc = api.NewLoggingMiddleware(svc, logger)
+	svc = api.MetricsMiddleware(
+		svc,
+		kitprometheus.NewCounterFrom(stdprometheus.CounterOpts{
+			Namespace: "certs",
+			Subsystem: "api",
+			Name:      "request_count",
+			Help:      "Number of requests received.",
+		}, []string{"method"}),
+		kitprometheus.NewSummaryFrom(stdprometheus.SummaryOpts{
+			Namespace: "certs",
+			Subsystem: "api",
+			Name:      "request_latency_microseconds",
+			Help:      "Total duration of requests in microseconds.",
+		}, []string{"method"}),
+	)
 
 	g.Go(func() error {
 		return startHTTPServer(ctx, svc, cfg, logger)
@@ -245,6 +271,9 @@ func main() {
 		}
 		return nil
 	})
+
+	thingsEventHandler := certs.NewThingsEventHandlers(certsRepo, pkiClient)
+	go subscribeToThingsES(thingsEventHandler, thingsESConn, cfg.esConsumerName, logger)
 
 	if err := g.Wait(); err != nil {
 		logger.Error(fmt.Sprintf("Certs service terminated: %s", err))
@@ -406,39 +435,6 @@ func initJaeger(svcName, url string, logger logger.Logger) (opentracing.Tracer, 
 	return tracer, closer
 }
 
-func newService(auth mainflux.AuthServiceClient, dbTracer opentracing.Tracer, db *sqlx.DB, logger mflog.Logger, esClient *redis.Client, tlsCert tls.Certificate, x509Cert *x509.Certificate, cfg config, pkiAgent vault.Agent) certs.Service {
-
-	certsRepo := postgres.NewRepository(sqlxt.NewDatabase(db))
-	certsRepo = tracing.CertsRepositoryMiddleware(dbTracer, certsRepo)
-
-	config := mfsdk.Config{
-		ThingsURL: cfg.thingsURL,
-	}
-
-	sdk := mfsdk.NewSDK(config)
-
-	idProvider := uuid.New()
-
-	svc := certs.New(auth, certsRepo, idProvider, pkiAgent, sdk)
-	svc = api.NewLoggingMiddleware(svc, logger)
-	svc = api.MetricsMiddleware(
-		svc,
-		kitprometheus.NewCounterFrom(stdprometheus.CounterOpts{
-			Namespace: "certs",
-			Subsystem: "api",
-			Name:      "request_count",
-			Help:      "Number of requests received.",
-		}, []string{"method"}),
-		kitprometheus.NewSummaryFrom(stdprometheus.SummaryOpts{
-			Namespace: "certs",
-			Subsystem: "api",
-			Name:      "request_latency_microseconds",
-			Help:      "Total duration of requests in microseconds.",
-		}, []string{"method"}),
-	)
-	return svc
-}
-
 func startHTTPServer(ctx context.Context, svc certs.Service, cfg config, logger mflog.Logger) error {
 	p := fmt.Sprintf(":%s", cfg.httpPort)
 	errCh := make(chan error)
@@ -510,11 +506,11 @@ func loadCertificates(conf config) (tls.Certificate, *x509.Certificate, error) {
 	return tlsCert, caCert, nil
 }
 
-func subscribeToThingsES(svc certs.Service, client *r.Client, consumer string, logger mflog.Logger) {
-	eventStore := rediscons.NewEventStore(svc, client, consumer, logger)
-	logger.Info("Subscribed to Redis Event Store")
-	if err := eventStore.Subscribe(context.Background(), "mainflux.things"); err != nil {
-		logger.Warn(fmt.Sprintf("certs service failed to subscribe to event sourcing: %s", err))
+func subscribeToThingsES(teh things.EventHandler, client *r.Client, consumer string, logger mflog.Logger) {
+	eventStore := thingsEvent.NewEventStore(teh, client, consumer, logger)
+	logger.Info("Subscribed to Redis Things Event Store")
+	if err := eventStore.Subscribe(context.Background(), group); err != nil {
+		logger.Warn(fmt.Sprintf("certs service failed to subscribe to things event sourcing: %s", err))
 	}
 }
 
