@@ -5,12 +5,14 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib" // required for SQL access
 	"github.com/mainflux/mainflux/certs"
+	pgClient "github.com/mainflux/mainflux/internal/client/postgres"
 	"github.com/mainflux/mainflux/internal/sqlxt"
 	"github.com/mainflux/mainflux/pkg/errors"
 )
@@ -44,8 +46,8 @@ func (cr certsRepository) Save(ctx context.Context, cert certs.Cert) error {
 			(:id, :name, :owner_id, :thing_id, :serial, :private_key, :certificate, :ca_chain, :issuing_ca, :ttl, :expire)
 		`
 	if _, err, txErr := cr.db.NamedCUDContext(ctx, q, CertToDbCert(cert)); err != nil || txErr != nil {
-		wErr := errors.Wrap(errors.ErrCreateEntity, err)
-		return errors.Wrap(wErr, txErr)
+		err = pgClient.CheckError(err, pgClient.Create)
+		return errors.Wrap(err, txErr)
 	}
 	return nil
 }
@@ -65,8 +67,8 @@ func (cr certsRepository) Update(ctx context.Context, certID string, cert certs.
 		WHERE id = :id AND owner_id = :owner_id
 	`
 	if _, err, txErr := cr.db.NamedCUDContext(ctx, q, CertToDbCert(cert)); err != nil || txErr != nil {
-		wErr := errors.Wrap(errors.ErrUpdateEntity, err)
-		return errors.Wrap(wErr, txErr)
+		err = pgClient.CheckError(err, pgClient.Update)
+		return errors.Wrap(err, txErr)
 	}
 	return nil
 }
@@ -74,8 +76,8 @@ func (cr certsRepository) Update(ctx context.Context, certID string, cert certs.
 func (cr certsRepository) Remove(ctx context.Context, ownerID, certID string) error {
 	q := `DELETE FROM certs WHERE id = :id`
 	if _, err, txErr := cr.db.NamedCUDContext(ctx, q, CertToDbCert(certs.Cert{ID: certID})); err != nil || txErr != nil {
-		wErr := errors.Wrap(errors.ErrUpdateEntity, err)
-		return errors.Wrap(wErr, txErr)
+		err = pgClient.CheckError(err, pgClient.Remove)
+		return errors.Wrap(err, txErr)
 	}
 	return nil
 }
@@ -86,7 +88,7 @@ func (cr certsRepository) Retrieve(ctx context.Context, ownerID, certID, thingID
 		id, name, owner_id, thing_id, serial, private_key, certificate, ca_chain, issuing_ca, ttl, expire, revocation
 	FROM
 		certs
-	WHERE ownerID = :ownerID
+	WHERE owner_id = :ownerID
 		%s
 	ORDER BY expire %s;
 	`
@@ -105,15 +107,16 @@ func (cr certsRepository) Retrieve(ctx context.Context, ownerID, certID, thingID
 
 	rows, err := cr.db.NamedQueryContext(ctx, q, params)
 	if err != nil {
-		return certs.Page{}, err
+		return certs.Page{}, pgClient.CheckError(err, pgClient.View)
 	}
 	defer rows.Close()
 
 	certificates := []certs.Cert{}
 	for rows.Next() {
 		dbc := dbCert{}
-		if err := rows.Scan(&dbc); err != nil {
-			return certs.Page{}, err
+		if err := rows.StructScan(&dbc); err != nil {
+			fmt.Println("Got here 1")
+			return certs.Page{}, pgClient.CheckError(err, pgClient.View)
 		}
 		certificates = append(certificates, dbc.ToCert())
 	}
@@ -123,14 +126,15 @@ func (cr certsRepository) Retrieve(ctx context.Context, ownerID, certID, thingID
 		COUNT(*)
 	FROM
 		certs
-	WHERE ownerID = :ownerID
+	WHERE owner_id = :ownerID
 		%s
-	ORDER BY expire %s;
+	 %s;
 	`
 	qc = fmt.Sprintf(qc, whereClause(certID, thingID, serial, name), orderClause(limit))
 	total, err := cr.db.NamedTotalQueryContext(ctx, qc, params)
 	if err != nil {
-		return certs.Page{}, err
+		fmt.Println("Got here 2")
+		return certs.Page{}, pgClient.CheckError(err, pgClient.View)
 	}
 
 	return certs.Page{
@@ -155,7 +159,7 @@ func (cr certsRepository) RetrieveThingCerts(ctx context.Context, thingID string
 
 	rows, err := cr.db.NamedQueryContext(ctx, q, params)
 	if err != nil {
-		return certs.Page{}, err
+		return certs.Page{}, pgClient.CheckError(err, pgClient.View)
 	}
 	defer rows.Close()
 
@@ -163,7 +167,7 @@ func (cr certsRepository) RetrieveThingCerts(ctx context.Context, thingID string
 	for rows.Next() {
 		dbc := dbCert{}
 		if err := rows.Scan(&dbc); err != nil {
-			return certs.Page{}, err
+			return certs.Page{}, pgClient.CheckError(err, pgClient.View)
 		}
 		certificates = append(certificates, dbc.ToCert())
 	}
@@ -178,7 +182,7 @@ func (cr certsRepository) RetrieveThingCerts(ctx context.Context, thingID string
 	`
 	total, err := cr.db.NamedTotalQueryContext(ctx, qc, params)
 	if err != nil {
-		return certs.Page{}, err
+		return certs.Page{}, pgClient.CheckError(err, pgClient.View)
 	}
 
 	return certs.Page{
@@ -192,58 +196,66 @@ func (cr certsRepository) RetrieveThingCerts(ctx context.Context, thingID string
 func (cr certsRepository) RemoveThingCerts(ctx context.Context, thingID string) error {
 	q := `DELETE FROM certs WHERE thing_id = thingID`
 	if _, err, txErr := cr.db.NamedCUDContext(ctx, q, CertToDbCert(certs.Cert{ThingID: thingID})); err != nil || txErr != nil {
-		wErr := errors.Wrap(errors.ErrUpdateEntity, err)
-		return errors.Wrap(wErr, txErr)
+		err = pgClient.CheckError(err, pgClient.Remove)
+		return errors.Wrap(err, txErr)
 	}
 	return nil
 }
 
 type dbCert struct {
-	id          string    `db:"id"`
-	name        string    `db:"name"`
-	ownerID     string    `db:"owner_id"`
-	thingID     string    `db:"thing_id"`
-	serial      string    `db:"serial"`
-	certificate string    `db:"certificate"`
-	privateKey  string    `db:"private_key"`
-	caChain     string    `db:"ca_chain"`
-	issuingCA   string    `db:"issuing_ca"`
-	ttl         string    `db:"ttl"`
-	expire      time.Time `db:"expire"`
-	revocation  time.Time `db:"revocation"`
+	ID          string       `db:"id"`
+	Name        string       `db:"name"`
+	OwnerID     string       `db:"owner_id"`
+	ThingID     string       `db:"thing_id"`
+	Serial      string       `db:"serial"`
+	Certificate string       `db:"certificate"`
+	PrivateKey  string       `db:"private_key"`
+	CAChain     string       `db:"ca_chain"`
+	IssuingCA   string       `db:"issuing_ca"`
+	TTL         string       `db:"ttl"`
+	Expire      time.Time    `db:"expire"`
+	Revocation  sql.NullTime `db:"revocation"`
 }
 
 func (c *dbCert) ToCert() certs.Cert {
+	var revocation time.Time
+	if c.Revocation.Valid {
+		revocation = c.Revocation.Time
+	}
 	return certs.Cert{
-		ID:          c.id,
-		Name:        c.name,
-		OwnerID:     c.ownerID,
-		ThingID:     c.thingID,
-		Serial:      c.serial,
-		Certificate: c.certificate,
-		PrivateKey:  c.privateKey,
-		CAChain:     c.caChain,
-		IssuingCA:   c.issuingCA,
-		TTL:         c.ttl,
-		Expire:      c.expire,
-		Revocation:  c.revocation,
+		ID:          c.ID,
+		Name:        c.Name,
+		OwnerID:     c.OwnerID,
+		ThingID:     c.ThingID,
+		Serial:      c.Serial,
+		Certificate: c.Certificate,
+		PrivateKey:  c.PrivateKey,
+		CAChain:     c.CAChain,
+		IssuingCA:   c.IssuingCA,
+		TTL:         c.TTL,
+		Expire:      c.Expire,
+		Revocation:  revocation,
 	}
 }
 
 func CertToDbCert(c certs.Cert) dbCert {
+	var revocation sql.NullTime
+	if !c.Revocation.IsZero() {
+		revocation.Time = c.Revocation
+	}
 	return dbCert{
-		id:          c.ID,
-		name:        c.Name,
-		ownerID:     c.OwnerID,
-		thingID:     c.ThingID,
-		serial:      c.Serial,
-		certificate: c.Certificate,
-		privateKey:  c.PrivateKey,
-		caChain:     c.CAChain,
-		issuingCA:   c.IssuingCA,
-		ttl:         c.TTL,
-		expire:      c.Expire,
-		revocation:  c.Revocation,
+		ID:          c.ID,
+		Name:        c.Name,
+		OwnerID:     c.OwnerID,
+		ThingID:     c.ThingID,
+		Serial:      c.Serial,
+		Certificate: c.Certificate,
+		PrivateKey:  c.PrivateKey,
+		CAChain:     c.CAChain,
+		IssuingCA:   c.IssuingCA,
+		TTL:         c.TTL,
+		Expire:      c.Expire,
+		Revocation:  revocation,
 	}
 }
 
@@ -272,6 +284,6 @@ func orderClause(limit int64) string {
 	if limit >= 0 {
 		clause = append(clause, " LIMIT :limit ")
 	}
-	clause = append(clause, " OFFSET = :offset ")
+	clause = append(clause, " OFFSET :offset ")
 	return strings.Join(clause, "  ")
 }

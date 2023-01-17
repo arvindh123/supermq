@@ -79,14 +79,14 @@ func migrateDB(db *sqlx.DB) error {
 					`					
 					ALTER TABLE certs DROP CONSTRAINT certs_pkey;
 					ALTER TABLE certs ADD COLUMN id UUID NOT NULL;
-					ALTER TABLE certs ADD COLUMN name VARCHAR(256) NULL;
+					ALTER TABLE certs ADD COLUMN name VARCHAR(254) NOT NULL;
 					ALTER TABLE certs ADD COLUMN certificate TEXT NOT NULL;
 					ALTER TABLE certs ADD COLUMN private_key TEXT NOT NULL;
 					ALTER TABLE certs ADD COLUMN ca_chain TEXT NOT NULL;
 					ALTER TABLE certs ADD COLUMN issuing_ca TEXT NOT NULL;
-					ALTER TABLE certs ADD COLUMN ttl VARCHAR(256) NOT NULL;
+					ALTER TABLE certs ADD COLUMN ttl VARCHAR(254) NOT NULL;
 					ALTER TABLE certs ADD COLUMN revocation TIMESTAMPTZ NULL;
-					ALTER TABLE certs ADD PRIMARY KEY (id, thing_id, owner_id);
+					ALTER TABLE certs ADD PRIMARY KEY (name, thing_id, owner_id);
 					`,
 				},
 				Down: []string{

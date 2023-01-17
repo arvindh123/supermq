@@ -133,8 +133,8 @@ func decodeListCerts(_ context.Context, r *http.Request) (interface{}, error) {
 
 	req := listReq{
 		token:   apiutil.ExtractBearerToken(r),
-		certID:  bone.GetValue(r, "certID"),
-		thingID: bone.GetValue(r, "thingId"),
+		certID:  bone.GetValue(r, "cert_id"),
+		thingID: bone.GetValue(r, "thing_id"),
 		serial:  bone.GetValue(r, "serial"),
 		name:    bone.GetValue(r, "name"),
 		limit:   l,

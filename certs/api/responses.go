@@ -31,8 +31,6 @@ type certsRes struct {
 	PrivateKey  string    `json:"private_key"`
 	CAChain     string    `json:"ca_chain"`
 	IssuingCA   string    `json:"issuing_ca"`
-	KeyType     string    `json:"key_type"`
-	KeyBits     int       `json:"key_bits"`
 	TTL         string    `json:"ttl"`
 	Expire      time.Time `json:"expire"`
 	Revocation  time.Time `json:"revocation"`
