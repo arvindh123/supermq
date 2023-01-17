@@ -75,7 +75,7 @@ func revokeCert(svc certs.Service) endpoint.Endpoint {
 		if err := req.validate(); err != nil {
 			return nil, err
 		}
-		return nil, svc.RevokeCert(ctx, req.token, req.certID)
+		return emptyCertRes{}, svc.RevokeCert(ctx, req.token, req.certID)
 	}
 }
 
@@ -85,7 +85,11 @@ func renewCert(svc certs.Service) endpoint.Endpoint {
 		if err := req.validate(); err != nil {
 			return nil, err
 		}
-		return svc.RenewCert(ctx, req.token, req.certID)
+		cert, err := svc.RenewCert(ctx, req.token, req.certID)
+		if err != nil {
+			return certsPageRes{}, err
+		}
+		return CertToCertResponse(cert, false), nil
 	}
 }
 
@@ -95,7 +99,11 @@ func removeCert(svc certs.Service) endpoint.Endpoint {
 		if err := req.validate(); err != nil {
 			return nil, err
 		}
-		return nil, svc.RemoveCert(ctx, req.token, req.certID)
+		if err := svc.RemoveCert(ctx, req.token, req.certID); err != nil {
+			return nil, err
+		}
+		return emptyCertRes{}, nil
+
 	}
 }
 
@@ -105,7 +113,10 @@ func revokeThingCerts(svc certs.Service) endpoint.Endpoint {
 		if err := req.validate(); err != nil {
 			return nil, err
 		}
-		return nil, svc.RevokeThingCerts(ctx, req.token, req.thingID, req.limit)
+		if err := svc.RevokeThingCerts(ctx, req.token, req.thingID, req.limit); err != nil {
+			return nil, err
+		}
+		return emptyCertRes{}, nil
 	}
 }
 
@@ -115,7 +126,10 @@ func renewThingCerts(svc certs.Service) endpoint.Endpoint {
 		if err := req.validate(); err != nil {
 			return nil, err
 		}
-		return nil, svc.RenewThingCerts(ctx, req.token, req.thingID, req.limit)
+		if err := svc.RenewThingCerts(ctx, req.token, req.thingID, req.limit); err != nil {
+			return nil, err
+		}
+		return emptyCertRes{}, nil
 	}
 }
 
@@ -125,6 +139,9 @@ func removeThingCerts(svc certs.Service) endpoint.Endpoint {
 		if err := req.validate(); err != nil {
 			return nil, err
 		}
-		return nil, svc.RemoveThingCerts(ctx, req.token, req.thingID, req.limit)
+		if err := svc.RemoveThingCerts(ctx, req.token, req.thingID, req.limit); err != nil {
+			return nil, err
+		}
+		return emptyCertRes{}, nil
 	}
 }

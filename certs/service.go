@@ -6,6 +6,7 @@ package certs
 import (
 	"context"
 	"crypto/x509"
+	"encoding/pem"
 	"strings"
 	"time"
 
@@ -163,7 +164,7 @@ func (cs *certsService) IssueCert(ctx context.Context, token, thingID string, na
 	return c, nil
 }
 
-func (cs *certsService) ListCerts(ctx context.Context, token, certID, thingID, name, serial string, offset, limit uint64) (Page, error) {
+func (cs *certsService) ListCerts(ctx context.Context, token, certID, thingID, serial, name string, offset, limit uint64) (Page, error) {
 	p, _, err := cs.identifyAndRetrieve(ctx, token, certID, thingID, serial, name, offset, int64(limit))
 	return p, err
 }
@@ -192,9 +193,7 @@ func (cs *certsService) RenewCert(ctx context.Context, token, certID string) (Ce
 	if err != nil {
 		return Cert{}, err
 	}
-	if len(cp.Certs) < 1 {
-		return Cert{}, errors.ErrNotFound
-	}
+
 	// ToDo don't renew before revoke , To check revoke is zero logic should be  time.Now().Sub(revokeTime) != time.Now()
 	return cs.renewAndUpdate(ctx, u.GetId(), cp.Certs[0])
 }
@@ -203,9 +202,6 @@ func (cs *certsService) RevokeCert(ctx context.Context, token, certID string) er
 	cp, u, err := cs.identifyAndRetrieve(ctx, token, certID, "", "", "", 0, 1)
 	if err != nil {
 		return err
-	}
-	if len(cp.Certs) < 1 {
-		return errors.ErrNotFound
 	}
 
 	return cs.revokeAndUpdate(ctx, u.GetId(), cp.Certs[0])
@@ -216,10 +212,6 @@ func (cs *certsService) RemoveCert(ctx context.Context, token, certID string) er
 	if err != nil {
 		return err
 	}
-	if len(cp.Certs) < 1 {
-		return nil
-	}
-
 	return cs.revokeAndRemove(ctx, u.GetId(), cp.Certs[0])
 }
 
@@ -227,9 +219,6 @@ func (cs *certsService) RenewThingCerts(ctx context.Context, token, thingID stri
 	cp, u, err := cs.identifyAndRetrieve(ctx, token, "", thingID, "", "", 0, limit)
 	if err != nil {
 		return err
-	}
-	if len(cp.Certs) < 1 {
-		return errors.ErrNotFound
 	}
 
 	for _, cert := range cp.Certs {
@@ -248,9 +237,6 @@ func (cs *certsService) RevokeThingCerts(ctx context.Context, token, thingID str
 	if err != nil {
 		return err
 	}
-	if len(cp.Certs) < 1 {
-		return errors.ErrNotFound
-	}
 
 	for _, cert := range cp.Certs {
 		err := cs.revokeAndUpdate(ctx, u.GetId(), cert)
@@ -266,9 +252,6 @@ func (cs *certsService) RemoveThingCerts(ctx context.Context, token, thingID str
 	cp, u, err := cs.identifyAndRetrieve(ctx, token, "", thingID, "", "", 0, limit)
 	if err != nil {
 		return err
-	}
-	if len(cp.Certs) < 1 {
-		return nil
 	}
 
 	for _, cert := range cp.Certs {
@@ -350,7 +333,12 @@ func (cs *certsService) revokeAndRemove(ctx context.Context, ownerID string, c C
 }
 
 func parseCert(certificate string) (*x509.Certificate, error) {
-	cert, err := x509.ParseCertificate([]byte(certificate))
+	block, _ := pem.Decode([]byte(certificate))
+	if block == nil {
+		return nil, errParseCert
+	}
+
+	cert, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
 		return nil, err
 	}
@@ -367,9 +355,6 @@ func (teh *thingsEventHandlers) ThingRemoved(ctx context.Context, rte things.Rem
 	cp, err := teh.repo.RetrieveThingCerts(ctx, rte.ID)
 	if err != nil {
 		return err
-	}
-	if len(cp.Certs) < 1 {
-		return nil
 	}
 
 	// create async thing event handler with go routine and return error via channels

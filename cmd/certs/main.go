@@ -3,9 +3,6 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
-	"encoding/pem"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -143,10 +140,10 @@ const (
 )
 
 var (
-	errFailedCertLoading     = errors.New("failed to load certificate")
-	errFailedCertDecode      = errors.New("failed to decode certificate")
-	errCACertificateNotExist = errors.New("CA certificate does not exist")
-	errCAKeyNotExist         = errors.New("CA certificate key does not exist")
+// errFailedCertLoading     = errors.New("failed to load certificate")
+// errFailedCertDecode      = errors.New("failed to decode certificate")
+// errCACertificateNotExist = errors.New("CA certificate does not exist")
+// errCAKeyNotExist = errors.New("CA certificate key does not exist")
 )
 
 type config struct {
@@ -467,44 +464,44 @@ func startHTTPServer(ctx context.Context, svc certs.Service, cfg config, logger 
 	}
 }
 
-func loadCertificates(conf config) (tls.Certificate, *x509.Certificate, error) {
-	var tlsCert tls.Certificate
-	var caCert *x509.Certificate
+// func loadCertificates(conf config) (tls.Certificate, *x509.Certificate, error) {
+// 	var tlsCert tls.Certificate
+// 	var caCert *x509.Certificate
 
-	if conf.signCAPath == "" || conf.signCAKeyPath == "" {
-		return tlsCert, caCert, nil
-	}
+// 	if conf.signCAPath == "" || conf.signCAKeyPath == "" {
+// 		return tlsCert, caCert, nil
+// 	}
 
-	if _, err := os.Stat(conf.signCAPath); os.IsNotExist(err) {
-		return tlsCert, caCert, errCACertificateNotExist
-	}
+// 	if _, err := os.Stat(conf.signCAPath); os.IsNotExist(err) {
+// 		return tlsCert, caCert, errCACertificateNotExist
+// 	}
 
-	if _, err := os.Stat(conf.signCAKeyPath); os.IsNotExist(err) {
-		return tlsCert, caCert, errCAKeyNotExist
-	}
+// 	if _, err := os.Stat(conf.signCAKeyPath); os.IsNotExist(err) {
+// 		return tlsCert, caCert, errCAKeyNotExist
+// 	}
 
-	tlsCert, err := tls.LoadX509KeyPair(conf.signCAPath, conf.signCAKeyPath)
-	if err != nil {
-		return tlsCert, caCert, errors.Wrap(errFailedCertLoading, err)
-	}
+// 	tlsCert, err := tls.LoadX509KeyPair(conf.signCAPath, conf.signCAKeyPath)
+// 	if err != nil {
+// 		return tlsCert, caCert, errors.Wrap(errFailedCertLoading, err)
+// 	}
 
-	b, err := ioutil.ReadFile(conf.signCAPath)
-	if err != nil {
-		return tlsCert, caCert, errors.Wrap(errFailedCertLoading, err)
-	}
+// 	b, err := ioutil.ReadFile(conf.signCAPath)
+// 	if err != nil {
+// 		return tlsCert, caCert, errors.Wrap(errFailedCertLoading, err)
+// 	}
 
-	block, _ := pem.Decode(b)
-	if block == nil {
-		log.Fatalf("No PEM data found, failed to decode CA")
-	}
+// 	block, _ := pem.Decode(b)
+// 	if block == nil {
+// 		log.Fatalf("No PEM data found, failed to decode CA")
+// 	}
 
-	caCert, err = x509.ParseCertificate(block.Bytes)
-	if err != nil {
-		return tlsCert, caCert, errors.Wrap(errFailedCertDecode, err)
-	}
+// 	caCert, err = x509.ParseCertificate(block.Bytes)
+// 	if err != nil {
+// 		return tlsCert, caCert, errors.Wrap(errFailedCertDecode, err)
+// 	}
 
-	return tlsCert, caCert, nil
-}
+// 	return tlsCert, caCert, nil
+// }
 
 func subscribeToThingsES(teh things.EventHandler, client *r.Client, consumer string, logger mflog.Logger) {
 	eventStore := thingsEvent.NewEventStore(teh, client, consumer, logger)

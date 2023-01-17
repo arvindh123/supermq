@@ -62,7 +62,7 @@ func (cr certsRepository) Update(ctx context.Context, certID string, cert certs.
 			certificate = :certificate,
 			ca_chain = :ca_chain,
 			issuing_ca = :issuing_ca,
-			expire = :expire
+			expire = :expire,
 			revocation = :revocation
 		WHERE id = :id AND owner_id = :owner_id
 	`
@@ -113,12 +113,14 @@ func (cr certsRepository) Retrieve(ctx context.Context, ownerID, certID, thingID
 
 	certificates := []certs.Cert{}
 	for rows.Next() {
-		dbc := dbCert{}
-		if err := rows.StructScan(&dbc); err != nil {
-			fmt.Println("Got here 1")
+		dbcs := dbCertScan{}
+		if err := rows.StructScan(&dbcs); err != nil {
 			return certs.Page{}, pgClient.CheckError(err, pgClient.View)
 		}
-		certificates = append(certificates, dbc.ToCert())
+		certificates = append(certificates, dbcs.ToCert())
+	}
+	if len(certificates) < 1 {
+		return certs.Page{}, errors.ErrNotFound
 	}
 
 	qc := `
@@ -133,7 +135,6 @@ func (cr certsRepository) Retrieve(ctx context.Context, ownerID, certID, thingID
 	qc = fmt.Sprintf(qc, whereClause(certID, thingID, serial, name), orderClause(limit))
 	total, err := cr.db.NamedTotalQueryContext(ctx, qc, params)
 	if err != nil {
-		fmt.Println("Got here 2")
 		return certs.Page{}, pgClient.CheckError(err, pgClient.View)
 	}
 
@@ -165,11 +166,11 @@ func (cr certsRepository) RetrieveThingCerts(ctx context.Context, thingID string
 
 	certificates := []certs.Cert{}
 	for rows.Next() {
-		dbc := dbCert{}
-		if err := rows.Scan(&dbc); err != nil {
+		dbcs := dbCertScan{}
+		if err := rows.Scan(&dbcs); err != nil {
 			return certs.Page{}, pgClient.CheckError(err, pgClient.View)
 		}
-		certificates = append(certificates, dbc.ToCert())
+		certificates = append(certificates, dbcs.ToCert())
 	}
 
 	qc := `
@@ -202,7 +203,7 @@ func (cr certsRepository) RemoveThingCerts(ctx context.Context, thingID string) 
 	return nil
 }
 
-type dbCert struct {
+type dbCertScan struct {
 	ID          string       `db:"id"`
 	Name        string       `db:"name"`
 	OwnerID     string       `db:"owner_id"`
@@ -217,10 +218,10 @@ type dbCert struct {
 	Revocation  sql.NullTime `db:"revocation"`
 }
 
-func (c *dbCert) ToCert() certs.Cert {
-	var revocation time.Time
+func (c *dbCertScan) ToCert() certs.Cert {
+	var rev time.Time
 	if c.Revocation.Valid {
-		revocation = c.Revocation.Time
+		rev = c.Revocation.Time
 	}
 	return certs.Cert{
 		ID:          c.ID,
@@ -234,15 +235,26 @@ func (c *dbCert) ToCert() certs.Cert {
 		IssuingCA:   c.IssuingCA,
 		TTL:         c.TTL,
 		Expire:      c.Expire,
-		Revocation:  revocation,
+		Revocation:  rev,
 	}
 }
 
+type dbCert struct {
+	ID          string    `db:"id"`
+	Name        string    `db:"name"`
+	OwnerID     string    `db:"owner_id"`
+	ThingID     string    `db:"thing_id"`
+	Serial      string    `db:"serial"`
+	Certificate string    `db:"certificate"`
+	PrivateKey  string    `db:"private_key"`
+	CAChain     string    `db:"ca_chain"`
+	IssuingCA   string    `db:"issuing_ca"`
+	TTL         string    `db:"ttl"`
+	Expire      time.Time `db:"expire"`
+	Revocation  time.Time `db:"revocation"`
+}
+
 func CertToDbCert(c certs.Cert) dbCert {
-	var revocation sql.NullTime
-	if !c.Revocation.IsZero() {
-		revocation.Time = c.Revocation
-	}
 	return dbCert{
 		ID:          c.ID,
 		Name:        c.Name,
@@ -255,7 +267,7 @@ func CertToDbCert(c certs.Cert) dbCert {
 		IssuingCA:   c.IssuingCA,
 		TTL:         c.TTL,
 		Expire:      c.Expire,
-		Revocation:  revocation,
+		Revocation:  c.Revocation,
 	}
 }
 
@@ -276,7 +288,11 @@ func whereClause(certID, thingID, serial, name string) string {
 	if name != "" {
 		clause = append(clause, " name = :name ")
 	}
-	return strings.Join(clause, " AND ")
+	c := strings.Join(clause, " AND ")
+	if c != "" {
+		c = " AND " + c
+	}
+	return c
 }
 
 func orderClause(limit int64) string {

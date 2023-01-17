@@ -33,7 +33,7 @@ type certsRes struct {
 	IssuingCA   string    `json:"issuing_ca"`
 	TTL         string    `json:"ttl"`
 	Expire      time.Time `json:"expire"`
-	Revocation  time.Time `json:"revocation"`
+	Revocation  string    `json:"revocation"`
 	created     bool
 }
 
@@ -66,6 +66,10 @@ func (res certsRes) Empty() bool {
 }
 
 func CertToCertResponse(cert certs.Cert, created bool) certsRes {
+	rev := ""
+	if !cert.Revocation.IsZero() {
+		rev = cert.Revocation.Format(time.RFC3339)
+	}
 	return certsRes{
 		ID:          cert.ID,
 		Name:        cert.Name,
@@ -78,7 +82,21 @@ func CertToCertResponse(cert certs.Cert, created bool) certsRes {
 		IssuingCA:   cert.IssuingCA,
 		TTL:         cert.TTL,
 		Expire:      cert.Expire,
-		Revocation:  cert.Revocation,
+		Revocation:  rev,
 		created:     created,
 	}
+}
+
+type emptyCertRes struct{}
+
+func (res emptyCertRes) Code() int {
+	return http.StatusOK
+}
+
+func (res emptyCertRes) Headers() map[string]string {
+	return map[string]string{}
+}
+
+func (res emptyCertRes) Empty() bool {
+	return true
 }
