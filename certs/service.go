@@ -121,7 +121,7 @@ type Cert struct {
 	Revocation  time.Time `json:"revocation"    db:"revocation"`
 }
 
-func (cs *certsService) IssueCert(ctx context.Context, token, name string, thingID string, ttl string) (Cert, error) {
+func (cs *certsService) IssueCert(ctx context.Context, token, thingID string, name string, ttl string) (Cert, error) {
 	owner, err := cs.auth.Identify(ctx, &mainflux.Token{Value: token})
 	if err != nil {
 		return Cert{}, err
