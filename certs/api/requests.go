@@ -4,6 +4,8 @@
 package api
 
 import (
+	"time"
+
 	"github.com/mainflux/mainflux/internal/apiutil"
 )
 
@@ -27,6 +29,10 @@ func (req addCertsReq) validate() error {
 
 	if req.TTL == "" {
 		return apiutil.ErrMissingCertData
+	}
+
+	if _, err := time.ParseDuration(req.TTL); err != nil {
+		return apiutil.ErrInvalidCertData
 	}
 
 	return nil

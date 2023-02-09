@@ -9,7 +9,6 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
-	"io/ioutil"
 	"net/http/httptest"
 	"os"
 	"strconv"
@@ -45,7 +44,6 @@ const (
 	caPath            = "../docker/ssl/certs/ca.crt"
 	caKeyPath         = "../docker/ssl/certs/ca.key"
 	cfgSignHoursValid = "24h"
-	cfgSignRSABits    = 2048
 )
 
 func newService(tokens map[string]string) (certs.Service, error) {
@@ -163,7 +161,7 @@ func loadCertificates(caPath, caKeyPath string) (tls.Certificate, *x509.Certific
 		return tlsCert, caCert, errors.Wrap(err, err)
 	}
 
-	b, err := ioutil.ReadFile(caPath)
+	b, err := os.ReadFile(caPath)
 	if err != nil {
 		return tlsCert, caCert, err
 	}
