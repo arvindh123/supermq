@@ -26,7 +26,9 @@ const (
 	thingKey    = "thing_id"
 	nameKey     = "name"
 	serialKey   = "serial"
+	statusKey   = "status"
 
+	defStatus = "all"
 	defOffset = 0
 	defLimit  = 10
 )
@@ -156,11 +158,17 @@ func decodeListCerts(_ context.Context, r *http.Request) (interface{}, error) {
 		return nil, err
 	}
 
+	status, err := apiutil.ReadStringQuery(r, statusKey, defStatus)
+	if err != nil {
+		return nil, err
+	}
+
 	req := listReq{
 		token:   apiutil.ExtractBearerToken(r),
 		certID:  certID,
 		thingID: thingID,
 		serial:  serial,
+		status:  status,
 		name:    name,
 		limit:   l,
 		offset:  o,

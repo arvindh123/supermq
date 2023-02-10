@@ -9,15 +9,11 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strconv"
 
-	"github.com/go-redis/redis/v8"
-	"github.com/mainflux/mainflux"
 	"github.com/mainflux/mainflux/certs"
 	"github.com/mainflux/mainflux/certs/api"
 	vault "github.com/mainflux/mainflux/certs/pki"
 	certsPg "github.com/mainflux/mainflux/certs/postgres"
-	"github.com/mainflux/mainflux/certs/tracing"
 	"github.com/mainflux/mainflux/internal"
 	"github.com/mainflux/mainflux/internal/env"
 	"github.com/mainflux/mainflux/internal/server"
@@ -26,8 +22,8 @@ import (
 	"github.com/mainflux/mainflux/logger"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/jmoiron/sqlx"
 	authClient "github.com/mainflux/mainflux/internal/clients/grpc/auth"
+	pgClient "github.com/mainflux/mainflux/internal/clients/postgres"
 	"github.com/mainflux/mainflux/pkg/errors"
 	mfsdk "github.com/mainflux/mainflux/pkg/sdk/go"
 	"github.com/mainflux/mainflux/pkg/uuid"
@@ -42,10 +38,10 @@ const (
 )
 
 var (
-// errFailedCertLoading     = errors.New("failed to load certificate")
-// errFailedCertDecode      = errors.New("failed to decode certificate")
-// errCACertificateNotExist = errors.New("CA certificate does not exist")
-// errCAKeyNotExist = errors.New("CA certificate key does not exist")
+	errFailedCertLoading     = errors.New("failed to load certificate")
+	errFailedCertDecode      = errors.New("failed to decode certificate")
+	errCACertificateNotExist = errors.New("CA certificate does not exist")
+	errCAKeyNotExist         = errors.New("CA certificate key does not exist")
 )
 
 type config struct {
@@ -82,10 +78,12 @@ func main() {
 		log.Fatalf(err.Error())
 	}
 
-	// tlsCert, caCert, err := loadCertificates(cfg)
+	tlsCert, caCert, err := loadCertificates(cfg)
 	if err != nil {
 		logger.Error("Failed to load CA certificates for issuing client certs")
 	}
+	_ = tlsCert
+	_ = caCert
 
 	if cfg.PkiHost == "" {
 		log.Fatalf("No host specified for PKI engine")
@@ -96,39 +94,8 @@ func main() {
 		log.Fatalf("failed to configure client for PKI engine")
 	}
 
-	db := connectToDB(cfg.dbConfig, logger)
-	defer db.Close()
-
-	auth, authHandler, err := authClient.Setup(envPrefix, cfg.JaegerURL)
-	if err != nil {
-		log.Fatal(err.Error())
-	}
-	defer authHandler.Close()
-	logger.Info("Successfully connected to auth grpc server " + authHandler.Secure())
-
-	svc := newService(auth, db, logger, nil, tlsCert, caCert, cfg, pkiClient)
-
-	httpServerConfig := server.Config{Port: defSvcHttpPort}
-	if err := env.Parse(&httpServerConfig, env.Options{Prefix: envPrefixHttp, AltPrefix: envPrefix}); err != nil {
-		log.Fatalf("failed to load %s HTTP server configuration : %s", svcName, err.Error())
-	}
-	hs := httpserver.New(ctx, cancel, svcName, httpServerConfig, api.MakeHandler(svc, logger), logger)
-
-	g.Go(func() error {
-		return hs.Start()
-	})
-
-	g.Go(func() error {
-		return server.StopSignalHandler(ctx, cancel, logger, svcName, hs)
-	})
-
-	if err := g.Wait(); err != nil {
-		logger.Error(fmt.Sprintf("Certs service terminated: %s", err))
-	}
-}
-
-func loadConfig() config {
-	tls, err := strconv.ParseBool(mainflux.Env(envClientTLS, defClientTLS))
+	dbConfig := pgClient.Config{Name: defDB}
+	db, err := pgClient.SetupWithConfig(envPrefix, *certsPg.Migration(), dbConfig)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -141,34 +108,23 @@ func loadConfig() config {
 	defer authHandler.Close()
 	logger.Info("Successfully connected to auth grpc server " + authHandler.Secure())
 
-	certsRepo := postgres.NewRepository(sqlxt.NewDatabase(db))
-	certsRepo = tracing.CertsRepositoryMiddleware(dbTracer, certsRepo)
+	dbt := sqlxt.NewDatabase(db)
+
+	certsRepo := certsPg.NewRepository(dbt)
 
 	config := mfsdk.Config{
-		ThingsURL: cfg.thingsURL,
+		CertsURL:  cfg.CertsURL,
+		ThingsURL: cfg.ThingsURL,
 	}
-
 	sdk := mfsdk.NewSDK(config)
 
 	idProvider := uuid.New()
 
 	svc := certs.New(auth, certsRepo, idProvider, pkiClient, sdk)
+
 	svc = api.NewLoggingMiddleware(svc, logger)
-	svc = api.MetricsMiddleware(
-		svc,
-		kitprometheus.NewCounterFrom(stdprometheus.CounterOpts{
-			Namespace: "certs",
-			Subsystem: "api",
-			Name:      "request_count",
-			Help:      "Number of requests received.",
-		}, []string{"method"}),
-		kitprometheus.NewSummaryFrom(stdprometheus.SummaryOpts{
-			Namespace: "certs",
-			Subsystem: "api",
-			Name:      "request_latency_microseconds",
-			Help:      "Total duration of requests in microseconds.",
-		}, []string{"method"}),
-	)
+	counter, latency := internal.MakeMetrics(svcName, "api")
+	svc = api.MetricsMiddleware(svc, counter, latency)
 
 	httpServerConfig := server.Config{Port: defSvcHttpPort}
 	if err := env.Parse(&httpServerConfig, env.Options{Prefix: envPrefixHttp, AltPrefix: envPrefix}); err != nil {
@@ -184,26 +140,9 @@ func loadConfig() config {
 		return server.StopSignalHandler(ctx, cancel, logger, svcName, hs)
 	})
 
-	thingsEventHandler := certs.NewThingsEventHandlers(certsRepo, pkiClient)
-	go subscribeToThingsES(thingsEventHandler, thingsESConn, cfg.esConsumerName, logger)
-
 	if err := g.Wait(); err != nil {
 		logger.Error(fmt.Sprintf("Certs service terminated: %s", err))
 	}
-}
-
-func newService(auth mainflux.AuthServiceClient, db *sqlx.DB, logger logger.Logger, esClient *redis.Client, tlsCert tls.Certificate, x509Cert *x509.Certificate, cfg config, pkiAgent vault.Agent) certs.Service {
-	certsRepo := certsPg.NewRepository(db, logger)
-	config := mfsdk.Config{
-		CertsURL:  cfg.CertsURL,
-		ThingsURL: cfg.ThingsURL,
-	}
-	sdk := mfsdk.NewSDK(config)
-	svc := certs.New(auth, certsRepo, sdk, pkiAgent)
-	svc = api.NewLoggingMiddleware(svc, logger)
-	counter, latency := internal.MakeMetrics(svcName, "api")
-	svc = api.MetricsMiddleware(svc, counter, latency)
-	return svc
 }
 
 func loadCertificates(conf config) (tls.Certificate, *x509.Certificate, error) {
@@ -236,18 +175,11 @@ func loadCertificates(conf config) (tls.Certificate, *x509.Certificate, error) {
 	if block == nil {
 		log.Fatalf("No PEM data found, failed to decode CA")
 	}
-}
 
-func connectToRedis(redisURL, redisPass, redisDB string, logger mflog.Logger) *r.Client {
-	db, err := strconv.Atoi(redisDB)
+	caCert, err = x509.ParseCertificate(block.Bytes)
 	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to connect to redis: %s", err))
-		os.Exit(1)
+		return tlsCert, caCert, errors.Wrap(errFailedCertDecode, err)
 	}
 
-	return r.NewClient(&r.Options{
-		Addr:     redisURL,
-		Password: redisPass,
-		DB:       db,
-	})
+	return tlsCert, caCert, nil
 }

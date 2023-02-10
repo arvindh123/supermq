@@ -39,13 +39,13 @@ func (ms *metricsMiddleware) IssueCert(ctx context.Context, token, thingID, name
 	return ms.svc.IssueCert(ctx, token, thingID, name, ttl)
 }
 
-func (ms *metricsMiddleware) ListCerts(ctx context.Context, token, certID, thingID, serial, name string, offset, limit uint64) (certs.Page, error) {
+func (ms *metricsMiddleware) ListCerts(ctx context.Context, token, certID, thingID, serial, name string, status certs.Status, offset, limit uint64) (certs.Page, error) {
 	defer func(begin time.Time) {
 		ms.counter.With("method", "list_certs").Add(1)
 		ms.latency.With("method", "list_certs").Observe(time.Since(begin).Seconds())
 	}(time.Now())
 
-	return ms.svc.ListCerts(ctx, token, certID, thingID, serial, name, offset, limit)
+	return ms.svc.ListCerts(ctx, token, certID, thingID, serial, name, status, offset, limit)
 }
 
 func (ms *metricsMiddleware) ViewCert(ctx context.Context, token, serialID string) (certs.Cert, error) {
@@ -84,7 +84,7 @@ func (ms *metricsMiddleware) RemoveCert(ctx context.Context, token, certID strin
 	return ms.svc.RemoveCert(ctx, token, certID)
 }
 
-func (ms *metricsMiddleware) RevokeThingCerts(ctx context.Context, token, thingID string, limit int64) error {
+func (ms *metricsMiddleware) RevokeThingCerts(ctx context.Context, token, thingID string, limit int64) (uint64, error) {
 	defer func(begin time.Time) {
 		ms.counter.With("method", "revoke_thing_cert").Add(1)
 		ms.latency.With("method", "revoke_thing_cert").Observe(time.Since(begin).Seconds())
@@ -93,7 +93,7 @@ func (ms *metricsMiddleware) RevokeThingCerts(ctx context.Context, token, thingI
 	return ms.svc.RevokeThingCerts(ctx, token, thingID, limit)
 }
 
-func (ms *metricsMiddleware) RenewThingCerts(ctx context.Context, token, thingID string, limit int64) error {
+func (ms *metricsMiddleware) RenewThingCerts(ctx context.Context, token, thingID string, limit int64) (uint64, error) {
 	defer func(begin time.Time) {
 		ms.counter.With("method", "renew_cert").Add(1)
 		ms.latency.With("method", "renew_cert").Observe(time.Since(begin).Seconds())
@@ -102,7 +102,7 @@ func (ms *metricsMiddleware) RenewThingCerts(ctx context.Context, token, thingID
 	return ms.svc.RenewThingCerts(ctx, token, thingID, limit)
 }
 
-func (ms *metricsMiddleware) RemoveThingCerts(ctx context.Context, token, thingID string, limit int64) error {
+func (ms *metricsMiddleware) RemoveThingCerts(ctx context.Context, token, thingID string, limit int64) (uint64, error) {
 	defer func(begin time.Time) {
 		ms.counter.With("method", "remove_cert").Add(1)
 		ms.latency.With("method", "remove_cert").Observe(time.Since(begin).Seconds())

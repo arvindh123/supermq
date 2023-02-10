@@ -108,7 +108,6 @@ func (p *pkiAgent) IssueCert(cn string, ttl string) (Cert, error) {
 	cReq := certReq{
 		CommonName: cn,
 		TTL:        ttl,
-		TTL:        ttl,
 	}
 
 	var certIssueReq map[string]interface{}

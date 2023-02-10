@@ -61,16 +61,16 @@ type Service interface {
 	RemoveCert(ctx context.Context, token, certID string) error
 
 	// ListCerts lists certificates issued for a given certificate ID
-	ListCerts(ctx context.Context, token, certID, thingID, serial, name string, offset, limit uint64) (Page, error)
+	ListCerts(ctx context.Context, token, certID, thingID, serial, name string, status Status, offset, limit uint64) (Page, error)
 
 	// RevokeThingCerts revokes a all the certificates for a given thing ID with given limited count
-	RevokeThingCerts(ctx context.Context, token, thingID string, limit int64) error
+	RevokeThingCerts(ctx context.Context, token, thingID string, limit int64) (uint64, error)
 
 	// RenewThingCerts renew all the certificates for a given thing ID with given limited count
-	RenewThingCerts(ctx context.Context, token, thingID string, limit int64) error
+	RenewThingCerts(ctx context.Context, token, thingID string, limit int64) (uint64, error)
 
 	// RemoveThingCerts revoke and delete entries of all the certificate for a given thing ID with given limited count
-	RemoveThingCerts(ctx context.Context, token, certID string, limit int64) error
+	RemoveThingCerts(ctx context.Context, token, certID string, limit int64) (uint64, error)
 }
 
 type certsService struct {
@@ -164,13 +164,13 @@ func (cs *certsService) IssueCert(ctx context.Context, token, thingID string, na
 	return c, nil
 }
 
-func (cs *certsService) ListCerts(ctx context.Context, token, certID, thingID, serial, name string, offset, limit uint64) (Page, error) {
-	p, _, err := cs.identifyAndRetrieve(ctx, token, certID, thingID, serial, name, offset, int64(limit))
+func (cs *certsService) ListCerts(ctx context.Context, token, certID, thingID, serial, name string, status Status, offset, limit uint64) (Page, error) {
+	p, _, err := cs.identifyAndRetrieve(ctx, token, certID, thingID, serial, name, status, offset, int64(limit))
 	return p, err
 }
 
 func (cs *certsService) ViewCert(ctx context.Context, token, certID string) (Cert, error) {
-	cp, u, err := cs.identifyAndRetrieve(ctx, token, certID, "", "", "", 0, 1)
+	cp, u, err := cs.identifyAndRetrieve(ctx, token, certID, "", "", "", AllCerts, 0, 1)
 	if err != nil {
 		return Cert{}, err
 	}
@@ -189,7 +189,7 @@ func (cs *certsService) ViewCert(ctx context.Context, token, certID string) (Cer
 }
 
 func (cs *certsService) RenewCert(ctx context.Context, token, certID string) (Cert, error) {
-	cp, u, err := cs.identifyAndRetrieve(ctx, token, certID, "", "", "", 0, 1)
+	cp, u, err := cs.identifyAndRetrieve(ctx, token, certID, "", "", "", AllCerts, 0, 1)
 	if err != nil {
 		return Cert{}, err
 	}
@@ -199,7 +199,7 @@ func (cs *certsService) RenewCert(ctx context.Context, token, certID string) (Ce
 }
 
 func (cs *certsService) RevokeCert(ctx context.Context, token, certID string) error {
-	cp, u, err := cs.identifyAndRetrieve(ctx, token, certID, "", "", "", 0, 1)
+	cp, u, err := cs.identifyAndRetrieve(ctx, token, certID, "", "", "", AllCerts, 0, 1)
 	if err != nil {
 		return err
 	}
@@ -208,68 +208,87 @@ func (cs *certsService) RevokeCert(ctx context.Context, token, certID string) er
 }
 
 func (cs *certsService) RemoveCert(ctx context.Context, token, certID string) error {
-	cp, u, err := cs.identifyAndRetrieve(ctx, token, certID, "", "", "", 0, 1)
+	cp, u, err := cs.identifyAndRetrieve(ctx, token, certID, "", "", "", AllCerts, 0, 1)
 	if err != nil {
 		return err
 	}
 	return cs.revokeAndRemove(ctx, u.GetId(), cp.Certs[0])
 }
 
-func (cs *certsService) RenewThingCerts(ctx context.Context, token, thingID string, limit int64) error {
-	cp, u, err := cs.identifyAndRetrieve(ctx, token, "", thingID, "", "", 0, limit)
+func (cs *certsService) RenewThingCerts(ctx context.Context, token, thingID string, limit int64) (uint64, error) {
+	cp, u, err := cs.identifyAndRetrieve(ctx, token, "", thingID, "", "", RevokedCerts, 0, limit)
 	if err != nil {
-		return err
+		if errors.Contains(err, errors.ErrNotFound) {
+			return 0, nil
+		}
+		return 0, err
 	}
 
 	for _, cert := range cp.Certs {
 		// ToDo don't renew before revoke , To check revoke is zero logic should be  time.Now().Sub(revokeTime) != time.Now()
 		_, err := cs.renewAndUpdate(ctx, u.GetId(), cert)
 		if err != nil {
-			return err
+			return 0, err
 		}
 	}
+	c, err := cs.repo.RetrieveCount(ctx, u.GetId(), "", thingID, "", "", RevokedCerts)
+	if err != nil {
+		return 0, err
+	}
 
-	return nil
+	return c, nil
 }
 
-func (cs *certsService) RevokeThingCerts(ctx context.Context, token, thingID string, limit int64) error {
-	cp, u, err := cs.identifyAndRetrieve(ctx, token, "", thingID, "", "", 0, limit)
+func (cs *certsService) RevokeThingCerts(ctx context.Context, token, thingID string, limit int64) (uint64, error) {
+	cp, u, err := cs.identifyAndRetrieve(ctx, token, "", thingID, "", "", ActiveCerts, 0, limit)
 	if err != nil {
-		return err
+		if errors.Contains(err, errors.ErrNotFound) {
+			return 0, nil
+		}
+		return 0, err
 	}
 
 	for _, cert := range cp.Certs {
 		err := cs.revokeAndUpdate(ctx, u.GetId(), cert)
 		if err != nil {
-			return err
+			return 0, err
 		}
 	}
 
-	return nil
+	c, err := cs.repo.RetrieveCount(ctx, u.GetId(), "", thingID, "", "", ActiveCerts)
+	if err != nil {
+		return 0, err
+	}
+	return c, nil
 }
 
-func (cs *certsService) RemoveThingCerts(ctx context.Context, token, thingID string, limit int64) error {
-	cp, u, err := cs.identifyAndRetrieve(ctx, token, "", thingID, "", "", 0, limit)
+func (cs *certsService) RemoveThingCerts(ctx context.Context, token, thingID string, limit int64) (uint64, error) {
+	cp, u, err := cs.identifyAndRetrieve(ctx, token, "", thingID, "", "", AllCerts, 0, limit)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	for _, cert := range cp.Certs {
 		err := cs.revokeAndRemove(ctx, u.GetId(), cert)
 		if err != nil {
-			return err
+			return 0, err
 		}
 	}
 
-	return nil
+	c, err := cs.repo.RetrieveCount(ctx, u.GetId(), "", thingID, "", "", AllCerts)
+	if err != nil {
+		return 0, err
+	}
+
+	return c, nil
 }
 
-func (cs *certsService) identifyAndRetrieve(ctx context.Context, token, certID, thingID, serial, name string, offset uint64, limit int64) (Page, *mainflux.UserIdentity, error) {
+func (cs *certsService) identifyAndRetrieve(ctx context.Context, token, certID, thingID, serial, name string, status Status, offset uint64, limit int64) (Page, *mainflux.UserIdentity, error) {
 	u, err := cs.auth.Identify(ctx, &mainflux.Token{Value: token})
 	if err != nil {
 		return Page{}, u, errors.Wrap(errors.ErrAuthentication, err)
 	}
-	cp, err := cs.repo.Retrieve(ctx, u.GetId(), certID, thingID, serial, name, offset, limit)
+	cp, err := cs.repo.Retrieve(ctx, u.GetId(), certID, thingID, serial, name, status, offset, limit)
 
 	if err != nil {
 		return Page{}, u, errors.Wrap(errRepoRetrieve, err)
@@ -302,7 +321,7 @@ func (cs *certsService) renewAndUpdate(ctx context.Context, ownerID string, cert
 }
 
 func (cs *certsService) revokeAndUpdate(ctx context.Context, ownerID string, c Cert) error {
-	if time.Until(c.Revocation) < 0 {
+	if c.Revocation.IsZero() {
 		revTime, err := cs.pki.Revoke(c.Serial)
 		if err != nil {
 			return errors.Wrap(errPKIRevoke, err)

@@ -6,10 +6,14 @@ package api
 import (
 	"time"
 
+	"github.com/mainflux/mainflux/certs"
 	"github.com/mainflux/mainflux/internal/apiutil"
+	"github.com/mainflux/mainflux/pkg/errors"
 )
 
 const maxLimitSize = 100
+
+var errInvalidStatus = errors.New("invalid certificate status")
 
 type addCertsReq struct {
 	token   string
@@ -39,13 +43,15 @@ func (req addCertsReq) validate() error {
 }
 
 type listReq struct {
-	certID  string
-	thingID string
-	serial  string
-	name    string
-	token   string
-	offset  uint64
-	limit   uint64
+	certID     string
+	thingID    string
+	serial     string
+	name       string
+	status     string
+	token      string
+	offset     uint64
+	limit      uint64
+	certStatus certs.Status
 }
 
 func (req *listReq) validate() error {
@@ -55,6 +61,11 @@ func (req *listReq) validate() error {
 	if req.limit > maxLimitSize {
 		return apiutil.ErrLimitSize
 	}
+	cs, ok := certs.StringToStatus[req.status]
+	if !ok {
+		return apiutil.ErrInvalidCertData
+	}
+	req.certStatus = cs
 	return nil
 }
 

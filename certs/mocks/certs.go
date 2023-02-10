@@ -49,7 +49,7 @@ func (c *certsRepoMock) Save(ctx context.Context, cert certs.Cert) error {
 	return nil
 }
 
-func (c *certsRepoMock) Retrieve(ctx context.Context, ownerID, certID, name, thingID, serial string, offset uint64, limit int64) (certs.Page, error) {
+func (c *certsRepoMock) Retrieve(ctx context.Context, ownerID, certID, name, thingID, serial string, status certs.Status, offset uint64, limit int64) (certs.Page, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if limit <= 0 {
@@ -78,13 +78,22 @@ func (c *certsRepoMock) Retrieve(ctx context.Context, ownerID, certID, name, thi
 		}
 	}
 
+	total, err := c.RetrieveCount(ctx, ownerID, certID, name, thingID, serial, status)
+	if err != nil {
+		return certs.Page{}, err
+	}
+
 	page := certs.Page{
 		Certs:  crts,
-		Total:  c.counter,
+		Total:  total,
 		Offset: offset,
 		Limit:  limit,
 	}
 	return page, nil
+}
+
+func (c *certsRepoMock) RetrieveCount(ctx context.Context, ownerID, certID, name, thingID, serial string, status certs.Status) (uint64, error) {
+	return c.counter, nil
 }
 
 func (c *certsRepoMock) Remove(ctx context.Context, ownerID, certID string) error {
