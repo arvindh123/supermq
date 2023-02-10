@@ -12,7 +12,6 @@ import (
 
 	"github.com/mainflux/mainflux"
 	"github.com/mainflux/mainflux/certs/pki"
-	"github.com/mainflux/mainflux/internal/client/events/things"
 	"github.com/mainflux/mainflux/pkg/errors"
 	mfsdk "github.com/mainflux/mainflux/pkg/sdk/go"
 )
@@ -39,8 +38,6 @@ var (
 )
 
 var _ Service = (*certsService)(nil)
-
-var _ things.EventHandler = (*thingsEventHandlers)(nil)
 
 // Service specifies an API that must be fulfilled by the domain service
 // implementation, and all of its decorators (e.g. logging & metrics).
@@ -81,11 +78,6 @@ type certsService struct {
 	pki        pki.Agent
 }
 
-type thingsEventHandlers struct {
-	pki  pki.Agent
-	repo Repository
-}
-
 // New returns new Certs service.
 func New(auth mainflux.AuthServiceClient, repo Repository, idp mainflux.IDProvider, pki pki.Agent, sdk mfsdk.SDK) Service {
 	return &certsService{
@@ -95,10 +87,6 @@ func New(auth mainflux.AuthServiceClient, repo Repository, idp mainflux.IDProvid
 		pki:        pki,
 		sdk:        sdk,
 	}
-}
-
-func NewThingsEventHandlers(repo Repository, pki pki.Agent) things.EventHandler {
-	return &thingsEventHandlers{repo: repo, pki: pki}
 }
 
 // Revoke defines the conditions to revoke a certificate
@@ -362,46 +350,4 @@ func parseCert(certificate string) (*x509.Certificate, error) {
 		return nil, err
 	}
 	return cert, nil
-}
-
-func (teh *thingsEventHandlers) ThingCreated(ctx context.Context, cte things.CreateThingEvent) error {
-	return nil
-}
-func (teh *thingsEventHandlers) ThingUpdated(ctx context.Context, ute things.UpdateThingEvent) error {
-	return nil
-}
-func (teh *thingsEventHandlers) ThingRemoved(ctx context.Context, rte things.RemoveThingEvent) error {
-	cp, err := teh.repo.RetrieveThingCerts(ctx, rte.ID)
-	if err != nil {
-		return err
-	}
-
-	// create async thing event handler with go routine and return error via channels
-	var retErr error
-	for _, cert := range cp.Certs {
-		_, err := teh.pki.Revoke(cert.Serial)
-		if err != nil {
-			retErr = errors.Wrap(retErr, err)
-		}
-	}
-	err = teh.repo.RemoveThingCerts(ctx, rte.ID)
-	if err != nil {
-		retErr = errors.Wrap(retErr, err)
-	}
-	return retErr
-}
-func (teh *thingsEventHandlers) ChannelCreated(ctx context.Context, cce things.CreateChannelEvent) error {
-	return nil
-}
-func (teh *thingsEventHandlers) ChannelUpdated(ctx context.Context, uce things.UpdateChannelEvent) error {
-	return nil
-}
-func (teh *thingsEventHandlers) ChannelRemoved(ctx context.Context, rce things.RemoveChannelEvent) error {
-	return nil
-}
-func (teh *thingsEventHandlers) ThingConnected(ctx context.Context, cte things.ConnectThingEvent) error {
-	return nil
-}
-func (teh *thingsEventHandlers) ThingDisconnected(ctx context.Context, dte things.DisconnectThingEvent) error {
-	return nil
 }

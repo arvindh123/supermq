@@ -8,12 +8,9 @@ import (
 
 	"github.com/mainflux/mainflux/certs"
 	"github.com/mainflux/mainflux/internal/apiutil"
-	"github.com/mainflux/mainflux/pkg/errors"
 )
 
 const maxLimitSize = 100
-
-var errInvalidStatus = errors.New("invalid certificate status")
 
 type addCertsReq struct {
 	token   string

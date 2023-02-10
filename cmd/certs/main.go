@@ -12,9 +12,12 @@ import (
 
 	"github.com/mainflux/mainflux/certs"
 	"github.com/mainflux/mainflux/certs/api"
+	"github.com/mainflux/mainflux/certs/eventhandlers"
 	vault "github.com/mainflux/mainflux/certs/pki"
 	certsPg "github.com/mainflux/mainflux/certs/postgres"
 	"github.com/mainflux/mainflux/internal"
+	"github.com/mainflux/mainflux/internal/clients/events/things"
+	redisClient "github.com/mainflux/mainflux/internal/clients/redis"
 	"github.com/mainflux/mainflux/internal/env"
 	"github.com/mainflux/mainflux/internal/server"
 	httpserver "github.com/mainflux/mainflux/internal/server/http"
@@ -30,9 +33,14 @@ import (
 )
 
 const (
-	svcName        = "certs"
-	envPrefix      = "MF_CERTS_"
-	envPrefixHttp  = "MF_CERTS_HTTP_"
+	svcName    = "certs"
+	esGroup    = "mainflux.certs"
+	esConsumer = "certs"
+
+	envPrefix     = "MF_CERTS_"
+	envPrefixHttp = "MF_CERTS_HTTP_"
+	envPrefixES   = "MF_CERTS_ES_"
+
 	defDB          = "certs"
 	defSvcHttpPort = "8204"
 )
@@ -132,8 +140,21 @@ func main() {
 	}
 	hs := httpserver.New(ctx, cancel, svcName, httpServerConfig, api.MakeHandler(svc, logger), logger)
 
+	thingsESClient, err := redisClient.Setup(envPrefixES)
+	if err != nil {
+		log.Fatalf(err.Error())
+	}
+	defer thingsESClient.Close()
+
+	certsThingsHandler := eventhandlers.NewThingsEventHandlers(certsRepo, pkiClient)
+	te := things.NewEventStore(certsThingsHandler, thingsESClient, esConsumer, logger)
+
 	g.Go(func() error {
 		return hs.Start()
+	})
+
+	g.Go(func() error {
+		return te.Subscribe(ctx, esGroup)
 	})
 
 	g.Go(func() error {
