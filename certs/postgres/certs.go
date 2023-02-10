@@ -197,7 +197,7 @@ func (cr certsRepository) RetrieveThingCerts(ctx context.Context, thingID string
 	certificates := []certs.Cert{}
 	for rows.Next() {
 		dbcs := dbCert{}
-		if err := rows.Scan(&dbcs); err != nil {
+		if err := rows.StructScan(&dbcs); err != nil {
 			return certs.Page{}, pgClient.CheckError(err, pgClient.View)
 		}
 		certificates = append(certificates, dbcs.ToCert())
@@ -209,7 +209,6 @@ func (cr certsRepository) RetrieveThingCerts(ctx context.Context, thingID string
 	FROM
 		certs
 	WHERE thing_id = :thing_id
-	ORDER BY expire;
 	`
 	total, err := cr.db.NamedTotalQueryContext(ctx, qc, params)
 	if err != nil {
