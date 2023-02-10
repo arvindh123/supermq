@@ -78,18 +78,3 @@ func (es eventStore) Subscribe(ctx context.Context, subject string) error {
 		}
 	}
 }
-
-func decodeRemoveThing(event map[string]interface{}) removeEvent {
-	return removeEvent{
-		id: read(event, "id", ""),
-	}
-}
-
-func read(event map[string]interface{}, key, def string) string {
-	val, ok := event[key].(string)
-	if !ok {
-		return def
-	}
-
-	return val
-}
