@@ -11,8 +11,6 @@ paths:
       description: Adds new device to proxy
       tags:
         - provision
-      parameters:
-      - $ref: "#/components/parameters/Authorization"
       requestBody:
         $ref: "#/components/requestBodies/ProvisionReq"
       responses:
@@ -20,10 +18,10 @@ paths:
           description: Created
         '400':
           description: Failed due to malformed JSON.
-        '403':
-          description: Unauthorized.
+        "401":
+          description: Missing or invalid access token provided.
         '500':
-          description: Unexpected server-side error ocurred.
+          $ref: "#/components/responses/ServiceError"
     get:
       summary: Gets current mapping.
       description: Gets current mapping. This can be used in UI
@@ -31,28 +29,25 @@ paths:
         configuration created with provision service.
       tags:
         - provision
-      parameters:
-      - $ref: "#/components/parameters/Authorization"
       responses:
         '200':
           $ref: "#/components/responses/ProvisionRes"
-        '403':
-          description: Unauthorized.
+        "401":
+          description: Missing or invalid access token provided.
         '500':
-          description: Unexpected server-side error ocurred.
+          $ref: "#/components/responses/ServiceError"
+  /health:
+    get:
+      summary: Retrieves service health check info.
+      tags:
+        - health
+      responses:
+        '200':
+          $ref: "#/components/responses/HealthRes"
+        '500':
+          $ref: "#/components/responses/ServiceError"
 
 components:
-
-  parameters:
-    Authorization:
-      name: Authorization
-      description: User's access token. Used instead of credentials in env or config.toml.
-      in: header
-      schema:
-        type: string
-        format: jwt
-      required: false
-
   requestBodies:
     ProvisionReq:
       description: MAC address of device or other identifier
@@ -72,9 +67,28 @@ components:
                  type: string
 
   responses:
+    ServiceError:
+      description: Unexpected server-side error occurred.
     ProvisionRes:
       description: Current mapping JSON representation.
       content:
         application/json:
           schema:
             type: object
+    HealthRes:
+      description: Service Health Check.
+      content:
+        application/json:
+          schema:
+            $ref: "./schemas/HealthInfo.yml"
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        * Users access: "Authorization: Bearer <user_token>"
+
+security:
+  - bearerAuth: []

@@ -10,8 +10,6 @@ paths:
       description: Creates a new subscription give a topic and contact.
       tags:
         - notifiers
-      security:
-        - Authorization: []
       requestBody:
         $ref: "#/components/requestBodies/Create"
       responses:
@@ -30,8 +28,6 @@ paths:
       description: List subscriptions given list parameters.
       tags:
         - notifiers
-      security:
-        - Authorization: []
       parameters:
         - $ref: "#/components/parameters/Topic"
         - $ref: "#/components/parameters/Contact"
@@ -42,7 +38,7 @@ paths:
           $ref: "#/components/responses/Page"
         "400":
           description: Failed due to malformed query parameters.
-        "403":
+        "401":
           description: Missing or invalid access token provided.
         "500":
           $ref: "#/components/responses/ServiceError"
@@ -52,14 +48,12 @@ paths:
       description: Retrieves a subscription with the provided id.
       tags:
         - notifiers
-      security:
-        - Authorization: []
       parameters:
         - $ref: "#/components/parameters/Id"
       responses:
         "200":
           $ref: "#/components/responses/View"
-        "403":
+        "401":
           description: Missing or invalid access token provided.
         "500":
           $ref: "#/components/responses/ServiceError"
@@ -68,24 +62,27 @@ paths:
       description: Removes a subscription with the provided id.
       tags:
         - notifiers
-      security:
-        - Authorization: []
       parameters:
         - $ref: "#/components/parameters/Id"
       responses:
         "204":
           description: Subscription removed
-        "403":
+        "401":
           description: Missing or invalid access token provided.
         "500":
           $ref: "#/components/responses/ServiceError"
+  /health:
+    get:
+      summary: Retrieves service health check info.
+      tags:
+        - health
+      responses:
+        '200':
+          $ref: "#/components/responses/HealthRes"
+        '500':
+          $ref: "#/components/responses/ServiceError"
 
 components:
-  securitySchemes:
-    Authorization:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
   schemas:
     Subscription:
       type: object
@@ -204,3 +201,20 @@ components:
             $ref: "#/components/schemas/Page"
     ServiceError:
       description: Unexpected server-side error occurred.
+    HealthRes:
+      description: Service Health Check.
+      content:
+        application/json:
+          schema:
+            $ref: "./schemas/HealthInfo.yml"
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        * Users access: "Authorization: Bearer <user_token>"
+
+security:
+  - bearerAuth: []
