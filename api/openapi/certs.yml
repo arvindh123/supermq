@@ -15,13 +15,45 @@ paths:
         $ref: "#/components/requestBodies/CertReq"
       responses:
         '201':
-          description: Created
+          $ref: "#/components/responses/CertRes"
+        '404':
+          description: Not Found
+          $ref: "#/components/responses/Error"
         '400':
           description: Failed due to malformed JSON.
+          $ref: "#/components/responses/Error"
         "401":
           description: Missing or invalid access token provided.
+          $ref: "#/components/responses/Error"
         '500':
           description: Unexpected server-side error ocurred.
+          $ref: "#/components/responses/ServiceError"
+    get:
+      summary: Get the requested certificates
+      description: Get the requested certificates
+      tags:
+        - certs
+      parameters:
+        - $ref: "#/components/parameters/ThingID"
+        - $ref: "#/components/parameters/Name"
+        - $ref: "#/components/parameters/Serial"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+      responses:
+        '201':
+          $ref: "#/components/responses/CertRes"
+        '400':
+          description: Failed due to malformed query parameters.
+          $ref: "#/components/responses/Error"
+        "401":
+          description: Missing or invalid access token provided.
+          $ref: "#/components/responses/Error"
+        '404':
+          description: Failed to retrieve corresponding certificates.
+          $ref: "#/components/responses/Error"
+        '500':
+          $ref: "#/components/responses/ServiceError"
+
   /certs/{certID}:
     get:
       summary: Retrieves a certificate
@@ -44,16 +76,16 @@ paths:
         '500':
           $ref: "#/components/responses/ServiceError"
     delete:
-      summary: Revokes a certificate
+      summary: Delete a certificate
       description: |
-        Revokes a certificate for a given cert ID.
+        Delete a certificate for a given cert ID.
       tags:
         - certs
       parameters:
         - $ref: "#/components/parameters/CertID"
       responses:
         '200':
-          $ref: "#/components/responses/RevokeRes"
+          description: Certificate deleted successfully.
         "401":
           description: Missing or invalid access token provided.
         '404':
@@ -61,27 +93,129 @@ paths:
             Failed to revoke corresponding certificate.
         '500':
           $ref: "#/components/responses/ServiceError"
-  /serials/{thingID}:
-    get:
-      summary: Retrieves certificates' serial IDs
+
+  /certs/{certID}/revoke:
+    post:
+      summary: Revoke a certificate
       description: |
-        Retrieves a list of certificates' serial IDs for a given thing ID.
+        Revoke a certificate for a given cert ID.
       tags:
         - certs
       parameters:
-        - $ref: "#/components/parameters/ThingID"
+        - $ref: "#/components/parameters/CertID"
       responses:
         '200':
-          $ref: "#/components/responses/SerialsPageRes"
+          description: Certificate revoked successfully.
         '400':
           description: Failed due to malformed query parameters.
         "401":
           description: Missing or invalid access token provided.
         '404':
-          description: |
-            Failed to retrieve corresponding certificates.
+          description: Corresponding certificate not found.
         '500':
           $ref: "#/components/responses/ServiceError"
+
+  /certs/{certID}/renew:
+    post:
+      summary: Renew a certificate
+      description: |
+        Renew a certificate for a given cert ID.
+      tags:
+        - certs
+      parameters:
+        - $ref: "#/components/parameters/CertID"
+      responses:
+        '200':
+          $ref: "#/components/responses/CertRes"
+        '400':
+          description: Failed due to malformed query parameters.
+        "401":
+          description: Missing or invalid access token provided.
+        '404':
+          description: Corresponding certificate not found.
+        '500':
+          $ref: "#/components/responses/ServiceError"
+
+  /things/{thingID}/revoke:
+    post:
+      summary: Revoke certificates' of thing ID
+      description: |
+        Revoke a list of certificates' for a given thing ID.
+      tags:
+        - certs
+      parameters:
+        - $ref: "#/components/parameters/ThingIDPath"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        '200':
+          description: All the certificate belongs to thing_id with specified limit are revoked successfully.
+        '400':
+          description: Failed due to malformed query parameters.
+          $ref: "#/components/responses/Error"
+        "401":
+          description: Missing or invalid access token provided.
+          $ref: "#/components/responses/Error"
+        '404':
+          description: Failed to retrieve corresponding certificates.
+          $ref: "#/components/responses/Error"
+        '500':
+          $ref: "#/components/responses/ServiceError"
+
+
+  /things/{thingID}/renew:
+    post:
+      summary: Renews certificates' of thing ID
+      description: |
+        Renews a list of certificates' for a given thing ID.
+      tags:
+        - certs
+      parameters:
+        - $ref: "#/components/parameters/ThingIDPath"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        '200':
+          description: All the certificate belongs to thing_id with specified limit are renewed successfully.
+        '400':
+          description: Failed due to malformed query parameters.
+          $ref: "#/components/responses/Error"
+        "401":
+          description: Missing or invalid access token provided.
+          $ref: "#/components/responses/Error"
+        '404':
+          description: Failed to retrieve corresponding certificates.
+          $ref: "#/components/responses/Error"
+        '500':
+          $ref: "#/components/responses/ServiceError"
+
+  /things/{thingID}:
+    delete:
+      summary: Delete certificates' of a thing ID
+      description: |
+        Delete a list of certificates' for a given thing ID.
+      tags:
+        - certs
+      parameters:
+        - $ref: "#/components/parameters/ThingIDPath"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        '200':
+          description: All the certificate belongs to thing_id with specified limit are delete successfully.
+        '400':
+          description: Failed due to malformed query parameters.
+          $ref: "#/components/responses/Error"
+        "401":
+          description: Missing or invalid access token provided.
+          $ref: "#/components/responses/Error"
+        '404':
+          description: Failed to retrieve corresponding certificates.
+          $ref: "#/components/responses/Error"
+        '500':
+          $ref: "#/components/responses/ServiceError"
+
+
+
+
+
   /health:
     get:
       summary: Retrieves service health check info.
@@ -93,54 +227,123 @@ paths:
         '500':
           $ref: "#/components/responses/ServiceError"
 
+
 components:
   parameters:
-    ThingID:
-      name: thingID
-      description: Thing ID
-      in: path
-      schema:
-        type: string
-        format: uuid
-      required: true
     CertID:
-      name: certID
-      description: Serial of certificate
+      name: cert_id
+      description: Unique certificate identifier.
       in: path
       schema:
         type: string
         format: uuid
       required: true
 
+    ThingIDPath:
+      name: thing_id
+      description:  Unique thing identifier.
+      in: query
+      schema:
+        type: string
+        format: uuid
+      required: false
+
+    ThingID:
+      name: thing_id
+      description:  Unique thing identifier.
+      in: query
+      schema:
+        type: string
+        format: uuid
+      required: false
+    Serial:
+      name: serial
+      description: Unique certificate identifier provided by PKI.
+      in: query
+      schema:
+        type: string
+      required: false
+    Name:
+      name: name
+      description: Name filter. Filtering is performed as a case-insensitive partial match.
+      in: query
+      schema:
+        type: string
+        format: ulid
+      required: false
+    Limit:
+      name: limit
+      description: Size of the subset to retrieve.
+      in: query
+      schema:
+        type: integer
+        default: 10
+        maximum: 100
+        minimum: 1
+      required: false
+    Offset:
+      name: offset
+      description: Number of items to skip during retrieval.
+      in: query
+      schema:
+        type: integer
+        default: 0
+        minimum: 0
+      required: false
+
   schemas:
+    Err:
+      type: object
+      properties:
+        error:
+          type: string
+          description: contains details of the error
     Cert:
       type: object
       properties:
+        id:
+          type: string
+          format: uuid
+          description: Identification UUID of the certificate
+        name:
+          type: string
+          format: uuid
+          description: Name of the certificate.
+        owner_id:
+          type: string
+          format: uuid
+          description: ID of the corresponding Mainflux Thing owner.
         thing_id:
           type: string
           format: uuid
           description: Corresponding Mainflux Thing ID.
-        client_cert:
+        serial:
           type: string
-          description: Client Certificate.
-        client_key:
+          description: Certificate serial
+        certificate:
           type: string
-          description: Key for the client_cert.
+          description: Certificate.
+        private_key:
+          type: string
+          description: Key for the Certificate.
+        ca_chain:
+          type: string
+          description: CA Chain contains root CA certificate and all the intermediate CA certificates.
         issuing_ca:
           type: string
           description: CA Certificate that is used to issue client certs, usually intermediate.
-        serial:
+        ttl:
           type: string
-          description: Certificate serial
+          description: Certificate validity duration.
         expire:
           type: string
-          description: Certificate expiry date
-    Serial:
-      type: object
-      properties:
-        serial:
+          format: timestamp
+          description: Certificate expiry timestamp
+        revocation:
           type: string
-          description: Certificate serial
+          format: timestamp
+          description: Certificate revoked timestamp
+
     CertsPage:
       type: object
       properties:
@@ -159,31 +362,12 @@ components:
         limit:
           type: integer
           description: Maximum number of items to return in one page.
-    SerialsPage:
+    RemainingCount:
       type: object
       properties:
-        serials:
-          type: array
-          description: Certificate serials IDs.
-          minItems: 0
-          uniqueItems: true
-          items:
-            type: string
-        total:
-          type: integer
-          description: Total number of items.
-        offset:
-          type: integer
-          description: Number of items to skip during retrieval.
-        limit:
-          type: integer
-          description: Maximum number of items to return in one page.
-    Revoke:
-      type: object
-      properties:
-        revocation_time:
+        remaining:
           type: string
-          description: Certificate revocation time
+          description: remaining certificate left after the operation.
 
   requestBodies:
     CertReq:
@@ -196,17 +380,30 @@ components:
           schema:
             type: object
             required:
+              - name
               - thing_id
               - ttl
             properties:
+               name:
+                 type: string
+                 example: thing_1_cert_001
+                 description: Name of the certificate, A thing can have multiple certificate
                thing_id:
                  type: string
                  format: uuid
+                 description: ID of the thing for which certificate is required
                ttl:
                  type: string
                  example: "10h"
+                 description: Certificate validity
 
   responses:
+    Error:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Err"
     ServiceError:
       description: Unexpected server-side error occurred.
     CertRes:
@@ -221,18 +418,6 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/CertsPage"
-    SerialsPageRes:
-      description: Serials page.
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/SerialsPage"
-    RevokeRes:
-      description: Certificate revoked.
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/Revoke"
     HealthRes:
       description: Service Health Check.
       content:
