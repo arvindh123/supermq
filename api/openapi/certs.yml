@@ -7,6 +7,7 @@ info:
 paths:
   /certs:
     post:
+      operationId: createCert
       summary: Creates a certificate for thing
       description: Creates a certificate for thing
       tags:
@@ -29,6 +30,7 @@ paths:
           description: Unexpected server-side error ocurred.
           $ref: "#/components/responses/ServiceError"
     get:
+      operationId: getCerts
       summary: Get the requested certificates
       description: Get the requested certificates
       tags:
@@ -54,8 +56,9 @@ paths:
         '500':
           $ref: "#/components/responses/ServiceError"
 
-  /certs/{certID}:
+  /certs/{cert_id}:
     get:
+      operationId: getCert
       summary: Retrieves a certificate
       description: |
         Retrieves a certificate for a given cert ID.
@@ -76,6 +79,7 @@ paths:
         '500':
           $ref: "#/components/responses/ServiceError"
     delete:
+      operationId: deleteCert
       summary: Delete a certificate
       description: |
         Delete a certificate for a given cert ID.
@@ -94,8 +98,9 @@ paths:
         '500':
           $ref: "#/components/responses/ServiceError"
 
-  /certs/{certID}/revoke:
+  /certs/{cert_id}/revoke:
     post:
+      operationId: revokeCert
       summary: Revoke a certificate
       description: |
         Revoke a certificate for a given cert ID.
@@ -115,8 +120,9 @@ paths:
         '500':
           $ref: "#/components/responses/ServiceError"
 
-  /certs/{certID}/renew:
+  /certs/{cert_id}/renew:
     post:
+      operationId: renewCert
       summary: Renew a certificate
       description: |
         Renew a certificate for a given cert ID.
@@ -136,8 +142,9 @@ paths:
         '500':
           $ref: "#/components/responses/ServiceError"
 
-  /things/{thingID}/revoke:
+  /things/{thing_id}/revoke:
     post:
+      operationId: revokeThingCerts
       summary: Revoke certificates' of thing ID
       description: |
         Revoke a list of certificates' for a given thing ID.
@@ -162,8 +169,9 @@ paths:
           $ref: "#/components/responses/ServiceError"
 
 
-  /things/{thingID}/renew:
+  /things/{thing_id}/renew:
     post:
+      operationId: renewThingCerts
       summary: Renews certificates' of thing ID
       description: |
         Renews a list of certificates' for a given thing ID.
@@ -187,8 +195,9 @@ paths:
         '500':
           $ref: "#/components/responses/ServiceError"
 
-  /things/{thingID}:
+  /things/{thing_id}:
     delete:
+      operationId: deleteThingCerts
       summary: Delete certificates' of a thing ID
       description: |
         Delete a list of certificates' for a given thing ID.
@@ -242,11 +251,11 @@ components:
     ThingIDPath:
       name: thing_id
       description:  Unique thing identifier.
-      in: query
+      in: path
       schema:
         type: string
         format: uuid
-      required: false
+      required: true
 
     ThingID:
       name: thing_id
