@@ -338,7 +338,8 @@ func TestListPolicies(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		repoCall := pRepo.On("Retrieve", context.Background(), tc.page).Return(tc.response, tc.err)
+		repoCall := pRepo.On("CheckAdmin", context.Background(), mock.Anything).Return(nil)
+		repoCall1 := pRepo.On("Retrieve", context.Background(), tc.page).Return(tc.response, tc.err)
 		page, err := svc.ListPolicy(context.Background(), tc.token, tc.page)
 		assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s: expected %s got %s\n", tc.desc, tc.err, err))
 		assert.Equal(t, tc.response, page, fmt.Sprintf("%s: expected size %v got %v\n", tc.desc, tc.response, page))
@@ -346,6 +347,7 @@ func TestListPolicies(t *testing.T) {
 			ok := repoCall.Parent.AssertCalled(t, "Retrieve", context.Background(), tc.page)
 			assert.True(t, ok, fmt.Sprintf("Retrieve was not called on %s", tc.desc))
 		}
+		repoCall1.Unset()
 		repoCall.Unset()
 	}
 

@@ -345,13 +345,15 @@ func TestListPolicies(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		repoCall := pRepo.On("Retrieve", mock.Anything, mock.Anything).Return(convertPolicyPage(sdk.PolicyPage{Policies: tc.response}), tc.err)
+		repoCall := pRepo.On("CheckAdmin", mock.Anything, mock.Anything).Return(nil)
+		repoCall1 := pRepo.On("Retrieve", mock.Anything, mock.Anything).Return(convertPolicyPage(sdk.PolicyPage{Policies: tc.response}), tc.err)
 		pp, err := policySDK.ListPolicies(tc.page, tc.token)
 		assert.Equal(t, tc.err, err, fmt.Sprintf("%s: expected error %s, got %s", tc.desc, tc.err, err))
 		assert.Equal(t, tc.response, pp.Policies, fmt.Sprintf("%s: expected %v, got %v", tc.desc, tc.response, pp))
 		ok := repoCall.Parent.AssertCalled(t, "Retrieve", mock.Anything, mock.Anything)
 		assert.True(t, ok, fmt.Sprintf("Retrieve was not called on %s", tc.desc))
 		repoCall.Unset()
+		repoCall1.Unset()
 	}
 }
 
