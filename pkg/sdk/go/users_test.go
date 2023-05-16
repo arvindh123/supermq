@@ -366,6 +366,7 @@ func TestListClients(t *testing.T) {
 		}
 		repoCall1.Unset()
 		repoCall.Unset()
+		repoCall1.Unset()
 	}
 }
 

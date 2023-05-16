@@ -39,14 +39,9 @@ func (svc service) Authorize(ctx context.Context, entityType string, p Policy) e
 	if err := p.Validate(); err != nil {
 		return err
 	}
-	id, err := svc.identify(ctx, p.Subject)
-	if err != nil {
-		return err
-	}
-	if err = svc.policies.CheckAdmin(ctx, id); err == nil {
+	if err := svc.policies.CheckAdmin(ctx, p.Subject); err == nil {
 		return nil
 	}
-	p.Subject = id
 
 	return svc.policies.Evaluate(ctx, entityType, p)
 }

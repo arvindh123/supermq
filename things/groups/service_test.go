@@ -40,7 +40,7 @@ var (
 
 func newService(tokens map[string]string) (groups.Service, *gmocks.GroupRepository) {
 	adminPolicy := mocks.MockSubjectSet{Object: ID, Relation: []string{"g_add", "g_update", "g_list", "g_delete"}}
-	auth := mocks.NewAuthService(tokens, map[string][]mocks.MockSubjectSet{token: {adminPolicy}})
+	auth := mocks.NewAuthService(tokens, map[string][]mocks.MockSubjectSet{adminEmail: {adminPolicy}})
 	idProvider := uuid.NewMock()
 	gRepo := new(gmocks.GroupRepository)
 

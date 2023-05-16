@@ -37,9 +37,9 @@ func NewService(auth upolicies.AuthServiceClient, g groups.Repository, idp mainf
 }
 
 func (svc service) CreateGroups(ctx context.Context, token string, gs ...groups.Group) ([]groups.Group, error) {
-	res, err := svc.auth.Identify(ctx, &upolicies.Token{Value: token})
+	userID, err := svc.identifyUser(ctx, token)
 	if err != nil {
-		return []groups.Group{}, errors.Wrap(errors.ErrAuthentication, err)
+		return []groups.Group{}, err
 	}
 
 	var grps []groups.Group
@@ -52,7 +52,7 @@ func (svc service) CreateGroups(ctx context.Context, token string, gs ...groups.
 			g.ID = groupID
 		}
 		if g.Owner == "" {
-			g.Owner = res.GetId()
+			g.Owner = userID
 		}
 
 		if g.Status != mfclients.EnabledStatus && g.Status != mfclients.DisabledStatus {
@@ -72,16 +72,20 @@ func (svc service) CreateGroups(ctx context.Context, token string, gs ...groups.
 }
 
 func (svc service) ViewGroup(ctx context.Context, token string, id string) (groups.Group, error) {
-	if err := svc.authorize(ctx, token, id, listRelationKey); err != nil {
+	userID, err := svc.identifyUser(ctx, token)
+	if err != nil {
+		return groups.Group{}, err
+	}
+	if err := svc.authorize(ctx, userID, id, listRelationKey); err != nil {
 		return groups.Group{}, errors.Wrap(errors.ErrNotFound, err)
 	}
 	return svc.groups.RetrieveByID(ctx, id)
 }
 
 func (svc service) ListGroups(ctx context.Context, token string, gm groups.GroupsPage) (groups.GroupsPage, error) {
-	res, err := svc.auth.Identify(ctx, &upolicies.Token{Value: token})
+	userID, err := svc.identifyUser(ctx, token)
 	if err != nil {
-		return groups.GroupsPage{}, errors.Wrap(errors.ErrAuthentication, err)
+		return groups.GroupsPage{}, err
 	}
 
 	// If the user is admin, fetch all channels from the database.
@@ -93,16 +97,16 @@ func (svc service) ListGroups(ctx context.Context, token string, gm groups.Group
 		return page, err
 	}
 
-	gm.Subject = res.GetId()
-	gm.OwnerID = res.GetId()
+	gm.Subject = userID
+	gm.OwnerID = userID
 	gm.Action = "g_list"
 	return svc.groups.RetrieveAll(ctx, gm)
 }
 
 func (svc service) ListMemberships(ctx context.Context, token, clientID string, gm groups.GroupsPage) (groups.MembershipsPage, error) {
-	res, err := svc.auth.Identify(ctx, &upolicies.Token{Value: token})
+	userID, err := svc.identifyUser(ctx, token)
 	if err != nil {
-		return groups.MembershipsPage{}, errors.Wrap(errors.ErrAuthentication, err)
+		return groups.MembershipsPage{}, err
 	}
 
 	// If the user is admin, fetch all channels from the database.
@@ -110,23 +114,23 @@ func (svc service) ListMemberships(ctx context.Context, token, clientID string, 
 		return svc.groups.Memberships(ctx, clientID, gm)
 	}
 
-	gm.OwnerID = res.GetId()
+	gm.OwnerID = userID
 	return svc.groups.Memberships(ctx, clientID, gm)
 }
 
 func (svc service) UpdateGroup(ctx context.Context, token string, g groups.Group) (groups.Group, error) {
-	res, err := svc.auth.Identify(ctx, &upolicies.Token{Value: token})
+	userID, err := svc.identifyUser(ctx, token)
 	if err != nil {
-		return groups.Group{}, errors.Wrap(errors.ErrAuthentication, err)
+		return groups.Group{}, err
 	}
 
-	if err := svc.authorize(ctx, token, g.ID, updateRelationKey); err != nil {
+	if err := svc.authorize(ctx, userID, g.ID, updateRelationKey); err != nil {
 		return groups.Group{}, errors.Wrap(errors.ErrNotFound, err)
 	}
 
-	g.Owner = res.GetId()
+	g.Owner = userID
 	g.UpdatedAt = time.Now()
-	g.UpdatedBy = res.GetId()
+	g.UpdatedBy = userID
 
 	return svc.groups.Update(ctx, g)
 }
@@ -158,11 +162,11 @@ func (svc service) DisableGroup(ctx context.Context, token, id string) (groups.G
 }
 
 func (svc service) changeGroupStatus(ctx context.Context, token string, group groups.Group) (groups.Group, error) {
-	res, err := svc.auth.Identify(ctx, &upolicies.Token{Value: token})
+	userID, err := svc.identifyUser(ctx, token)
 	if err != nil {
-		return groups.Group{}, errors.Wrap(errors.ErrAuthentication, err)
+		return groups.Group{}, err
 	}
-	if err := svc.authorize(ctx, token, group.ID, deleteRelationKey); err != nil {
+	if err := svc.authorize(ctx, userID, group.ID, deleteRelationKey); err != nil {
 		return groups.Group{}, errors.Wrap(errors.ErrNotFound, err)
 	}
 	dbGroup, err := svc.groups.RetrieveByID(ctx, group.ID)
@@ -173,7 +177,7 @@ func (svc service) changeGroupStatus(ctx context.Context, token string, group gr
 	if dbGroup.Status == group.Status {
 		return groups.Group{}, mfclients.ErrStatusAlreadyAssigned
 	}
-	group.UpdatedBy = res.GetId()
+	group.UpdatedBy = userID
 	return svc.groups.ChangeStatus(ctx, group)
 }
 
@@ -188,15 +192,11 @@ func (svc service) identifyUser(ctx context.Context, token string) (string, erro
 
 func (svc service) authorize(ctx context.Context, subject, object string, relation string) error {
 	// Check if the client is the owner of the group.
-	userID, err := svc.identifyUser(ctx, subject)
-	if err != nil {
-		return err
-	}
 	dbGroup, err := svc.groups.RetrieveByID(ctx, object)
 	if err != nil {
 		return err
 	}
-	if dbGroup.Owner == userID {
+	if dbGroup.Owner == subject {
 		return nil
 	}
 	req := &upolicies.AuthorizeReq{

@@ -77,20 +77,24 @@ func (svc service) CreateThings(ctx context.Context, token string, clis ...mfcli
 }
 
 func (svc service) ViewClient(ctx context.Context, token string, id string) (mfclients.Client, error) {
-	if err := svc.authorize(ctx, token, id, listRelationKey); err != nil {
+	userID, err := svc.identifyUser(ctx, token)
+	if err != nil {
+		return mfclients.Client{}, err
+	}
+	if err := svc.authorize(ctx, userID, id, listRelationKey); err != nil {
 		return mfclients.Client{}, errors.Wrap(errors.ErrNotFound, err)
 	}
 	return svc.clients.RetrieveByID(ctx, id)
 }
 
 func (svc service) ListClients(ctx context.Context, token string, pm mfclients.Page) (mfclients.ClientsPage, error) {
-	res, err := svc.auth.Identify(ctx, &policies.Token{Value: token})
+	userID, err := svc.identifyUser(ctx, token)
 	if err != nil {
-		return mfclients.ClientsPage{}, errors.Wrap(errors.ErrAuthentication, err)
+		return mfclients.ClientsPage{}, err
 	}
 
 	// If the user is admin, fetch all things from database.
-	if err := svc.authorize(ctx, token, thingsObjectKey, listRelationKey); err == nil {
+	if err := svc.authorize(ctx, userID, thingsObjectKey, listRelationKey); err == nil {
 		pm.Owner = ""
 		pm.SharedBy = ""
 		return svc.clients.RetrieveAll(ctx, pm)
@@ -100,10 +104,10 @@ func (svc service) ListClients(ctx context.Context, token string, pm mfclients.P
 	// If user provides 'sharedby' key, fetch things from policies. Otherwise,
 	// fetch things from the database based on thing's 'owner' field.
 	if pm.SharedBy == MyKey {
-		pm.SharedBy = res.GetId()
+		pm.SharedBy = userID
 	}
 	if pm.Owner == MyKey {
-		pm.Owner = res.GetId()
+		pm.Owner = userID
 	}
 	pm.Action = "c_list"
 
@@ -115,7 +119,7 @@ func (svc service) UpdateClient(ctx context.Context, token string, cli mfclients
 	if err != nil {
 		return mfclients.Client{}, err
 	}
-	if err := svc.authorize(ctx, token, cli.ID, updateRelationKey); err != nil {
+	if err := svc.authorize(ctx, userID, cli.ID, updateRelationKey); err != nil {
 		return mfclients.Client{}, err
 	}
 
@@ -135,7 +139,7 @@ func (svc service) UpdateClientTags(ctx context.Context, token string, cli mfcli
 	if err != nil {
 		return mfclients.Client{}, err
 	}
-	if err := svc.authorize(ctx, token, cli.ID, updateRelationKey); err != nil {
+	if err := svc.authorize(ctx, userID, cli.ID, updateRelationKey); err != nil {
 		return mfclients.Client{}, err
 	}
 
@@ -154,7 +158,7 @@ func (svc service) UpdateClientSecret(ctx context.Context, token, id, key string
 	if err != nil {
 		return mfclients.Client{}, err
 	}
-	if err := svc.authorize(ctx, token, id, updateRelationKey); err != nil {
+	if err := svc.authorize(ctx, userID, id, updateRelationKey); err != nil {
 		return mfclients.Client{}, err
 	}
 
@@ -175,7 +179,7 @@ func (svc service) UpdateClientOwner(ctx context.Context, token string, cli mfcl
 	if err != nil {
 		return mfclients.Client{}, err
 	}
-	if err := svc.authorize(ctx, token, cli.ID, updateRelationKey); err != nil {
+	if err := svc.authorize(ctx, userID, cli.ID, updateRelationKey); err != nil {
 		return mfclients.Client{}, err
 	}
 
@@ -251,7 +255,7 @@ func (svc service) changeClientStatus(ctx context.Context, token string, client 
 	if err != nil {
 		return mfclients.Client{}, err
 	}
-	if err := svc.authorize(ctx, token, client.ID, deleteRelationKey); err != nil {
+	if err := svc.authorize(ctx, userID, client.ID, deleteRelationKey); err != nil {
 		return mfclients.Client{}, err
 	}
 	dbClient, err := svc.clients.RetrieveByID(ctx, client.ID)
@@ -276,15 +280,11 @@ func (svc service) identifyUser(ctx context.Context, token string) (string, erro
 
 func (svc service) authorize(ctx context.Context, subject, object string, relation string) error {
 	// Check if the client is the owner of the thing.
-	userID, err := svc.identifyUser(ctx, subject)
-	if err != nil {
-		return err
-	}
 	dbThing, err := svc.clients.RetrieveByID(ctx, object)
 	if err != nil {
 		return err
 	}
-	if dbThing.Owner == userID {
+	if dbThing.Owner == subject {
 		return nil
 	}
 	req := &policies.AuthorizeReq{
