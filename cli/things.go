@@ -97,22 +97,22 @@ var cmdThings = []cobra.Command{
 		},
 	},
 	{
-		Use:   "update <JSON_string> <user_auth_token>",
+		Use:   "update <thing_id> <JSON_string> <user_auth_token>",
 		Short: "Update thing",
 		Long:  `Update thing record`,
 		Run: func(cmd *cobra.Command, args []string) {
-			if len(args) != 2 {
+			if len(args) != 3 {
 				logUsage(cmd.Use)
 				return
 			}
 
 			var thing mfxsdk.Thing
-			if err := json.Unmarshal([]byte(args[0]), &thing); err != nil {
+			if err := json.Unmarshal([]byte(args[1]), &thing); err != nil {
 				logError(err)
 				return
 			}
-
-			thing, err := sdk.UpdateThing(thing, args[1])
+			thing.ID = args[0]
+			thing, err := sdk.UpdateThing(thing, args[2])
 			if err != nil {
 				logError(err)
 				return

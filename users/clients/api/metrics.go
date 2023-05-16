@@ -123,12 +123,12 @@ func (ms *metricsMiddleware) ResetSecret(ctx context.Context, token, secret stri
 	return ms.svc.ResetSecret(ctx, token, secret)
 }
 
-func (ms *metricsMiddleware) SendPasswordReset(ctx context.Context, host, email, token string) error {
+func (ms *metricsMiddleware) SendPasswordReset(ctx context.Context, host, email, user, token string) error {
 	defer func(begin time.Time) {
 		ms.counter.With("method", "send_password_reset").Add(1)
 		ms.latency.With("method", "send_password_reset").Observe(time.Since(begin).Seconds())
 	}(time.Now())
-	return ms.svc.SendPasswordReset(ctx, email, host, token)
+	return ms.svc.SendPasswordReset(ctx, host, email, user, token)
 }
 
 func (ms *metricsMiddleware) UpdateClientOwner(ctx context.Context, token string, client mfclients.Client) (mfclients.Client, error) {

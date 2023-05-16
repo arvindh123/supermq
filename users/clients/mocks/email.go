@@ -15,6 +15,6 @@ func NewEmailer() clients.Emailer {
 	return &emailerMock{}
 }
 
-func (e *emailerMock) SendPasswordReset([]string, string, string) error {
+func (e *emailerMock) SendPasswordReset([]string, string, string, string) error {
 	return nil
 }

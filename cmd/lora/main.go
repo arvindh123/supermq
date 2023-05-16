@@ -174,7 +174,7 @@ func newService(pub messaging.Publisher, rmConn *r.Client, thingsRMPrefix, chann
 
 	svc := lora.New(pub, thingsRM, chansRM, connsRM)
 	svc = api.LoggingMiddleware(svc, logger)
-	counter, latency := internal.MakeMetrics(svcName, "api")
+	counter, latency := internal.MakeMetrics("lora_adapter", "api")
 	svc = api.MetricsMiddleware(svc, counter, latency)
 
 	return svc

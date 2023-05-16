@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"net/mail"
 	"strconv"
+	"strings"
 	"text/template"
 
 	"github.com/mainflux/mainflux/pkg/errors"
@@ -26,7 +27,9 @@ type email struct {
 	From    string
 	Subject string
 	Header  string
+	User    string
 	Content string
+	Host    string
 	Footer  string
 }
 
@@ -68,7 +71,7 @@ func New(c *Config) (*Agent, error) {
 }
 
 // Send sends e-mail
-func (a *Agent) Send(To []string, From, Subject, Header, Content, Footer string) error {
+func (a *Agent) Send(To []string, From, Subject, Header, User, Content, Footer string) error {
 	if a.tmpl == nil {
 		return errMissingEmailTemplate
 	}
@@ -79,7 +82,9 @@ func (a *Agent) Send(To []string, From, Subject, Header, Content, Footer string)
 		From:    From,
 		Subject: Subject,
 		Header:  Header,
+		User:    User,
 		Content: Content,
+		Host:    strings.Split(Content, "?")[0],
 		Footer:  Footer,
 	}
 	if From == "" {

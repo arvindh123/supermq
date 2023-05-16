@@ -2,9 +2,9 @@ package clients
 
 // Page contains page metadata that helps navigation.
 type Page struct {
-	Total        uint64
-	Offset       uint64   `json:"offset,omitempty"`
-	Limit        uint64   `json:"limit,omitempty"`
+	Total        uint64   `json:"total"`
+	Offset       uint64   `json:"offset"`
+	Limit        uint64   `json:"limit"`
 	Name         string   `json:"name,omitempty"`
 	Order        string   `json:"order,omitempty"`
 	Dir          string   `json:"dir,omitempty"`

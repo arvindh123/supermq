@@ -34,6 +34,7 @@ const (
 	DirKey           = "dir"
 	VisibilityKey    = "visibility"
 	SharedByKey      = "shared_by"
+	TokenKey         = "token"
 	DefTotal         = uint64(100)
 	DefOffset        = 0
 	DefLimit         = 10

@@ -98,11 +98,11 @@ func (tm *tracingMiddleware) ResetSecret(ctx context.Context, token, secret stri
 
 }
 
-func (tm *tracingMiddleware) SendPasswordReset(ctx context.Context, host, email, token string) error {
+func (tm *tracingMiddleware) SendPasswordReset(ctx context.Context, host, email, user, token string) error {
 	ctx, span := tm.tracer.Start(ctx, "svc_send_password_reset")
 	defer span.End()
 
-	return tm.svc.SendPasswordReset(ctx, host, email, token)
+	return tm.svc.SendPasswordReset(ctx, host, email, user, token)
 
 }
 

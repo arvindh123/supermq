@@ -50,7 +50,7 @@ type ClientService interface {
 	ResetSecret(ctx context.Context, resetToken, secret string) error
 
 	// SendPasswordReset sends reset password link to email.
-	SendPasswordReset(ctx context.Context, host, email, token string) error
+	SendPasswordReset(ctx context.Context, host, email, user, token string) error
 
 	// UpdateClientOwner updates the client's owner.
 	UpdateClientOwner(ctx context.Context, token string, client clients.Client) (clients.Client, error)

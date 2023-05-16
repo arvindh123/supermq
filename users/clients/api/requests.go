@@ -35,6 +35,17 @@ func (req viewClientReq) validate() error {
 	return nil
 }
 
+type viewProfileReq struct {
+	token string
+}
+
+func (req viewProfileReq) validate() error {
+	if req.token == "" {
+		return apiutil.ErrBearerToken
+	}
+	return nil
+}
+
 type listClientsReq struct {
 	token      string
 	status     mfclients.Status

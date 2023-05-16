@@ -5,5 +5,5 @@ package clients
 
 // Emailer wrapper around the email
 type Emailer interface {
-	SendPasswordReset(To []string, host, token string) error
+	SendPasswordReset(To []string, host, user, token string) error
 }

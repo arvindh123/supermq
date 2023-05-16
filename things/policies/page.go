@@ -7,9 +7,9 @@ type Metadata map[string]interface{}
 
 // Page contains page metadata that helps navigation.
 type Page struct {
-	Total    uint64
-	Offset   uint64
-	Limit    uint64
+	Total    uint64   `json:"total"`
+	Offset   uint64   `json:"offset"`
+	Limit    uint64   `json:"limit"`
 	OwnerID  string   `json:"owner,omitempty"`
 	Subject  string   `json:"subject,omitempty"`
 	Object   string   `json:"object,omitempty"`

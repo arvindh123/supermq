@@ -28,8 +28,8 @@ type pageRes struct {
 }
 
 type createClientRes struct {
-	mfclients.Client
-	created bool
+	mfclients.Client `json:",inline"`
+	created          bool
 }
 
 func (res createClientRes) Code() int {
@@ -73,7 +73,7 @@ func (res tokenRes) Empty() bool {
 }
 
 type updateClientRes struct {
-	mfclients.Client
+	mfclients.Client `json:",inline"`
 }
 
 func (res updateClientRes) Code() int {
@@ -89,7 +89,7 @@ func (res updateClientRes) Empty() bool {
 }
 
 type viewClientRes struct {
-	mfclients.Client
+	mfclients.Client `json:",inline"`
 }
 
 func (res viewClientRes) Code() int {
@@ -122,7 +122,7 @@ func (res clientsPageRes) Empty() bool {
 }
 
 type viewMembersRes struct {
-	mfclients.Client
+	mfclients.Client `json:",inline"`
 }
 
 func (res viewMembersRes) Code() int {
@@ -155,7 +155,7 @@ func (res memberPageRes) Empty() bool {
 }
 
 type deleteClientRes struct {
-	mfclients.Client
+	mfclients.Client `json:",inline"`
 }
 
 func (res deleteClientRes) Code() int {

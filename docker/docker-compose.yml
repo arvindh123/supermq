@@ -148,7 +148,6 @@ services:
       MF_USERS_SECRET_KEY: ${MF_USERS_SECRET_KEY}
       MF_USERS_ADMIN_EMAIL: ${MF_USERS_ADMIN_EMAIL}
       MF_USERS_ADMIN_PASSWORD: ${MF_USERS_ADMIN_PASSWORD}
-      MF_USERS_RESET_PWD_TEMPLATE: ${MF_USERS_RESET_PWD_TEMPLATE}
       MF_USERS_PASS_REGEX: ${MF_USERS_PASS_REGEX}
       MF_USERS_ACCESS_TOKEN_DURATION: ${MF_USERS_ACCESS_TOKEN_DURATION}
       MF_USERS_REFRESH_TOKEN_DURATION: ${MF_USERS_REFRESH_TOKEN_DURATION}
@@ -158,6 +157,8 @@ services:
       - ${MF_USERS_GRPC_PORT}:${MF_USERS_GRPC_PORT}
     networks:
       - mainflux-base-net
+    volumes:
+      - ./templates/${MF_USERS_RESET_PWD_TEMPLATE}:/email.tmpl     
   
   jaeger:
     image: jaegertracing/all-in-one:1.38.0

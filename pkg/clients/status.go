@@ -13,7 +13,9 @@ type Status uint8
 
 // Possible Client status values
 const (
+	// EnabledStatus represents enabled Client.
 	EnabledStatus Status = iota
+	// DisabledStatus represents disabled Client.
 	DisabledStatus
 
 	// AllStatus is used for querying purposes to list clients irrespective

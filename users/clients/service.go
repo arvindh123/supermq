@@ -259,11 +259,15 @@ func (svc service) GenerateResetToken(ctx context.Context, email, host string) e
 	if err != nil || client.Credentials.Identity == "" {
 		return errors.ErrNotFound
 	}
-	t, err := svc.IssueToken(ctx, client.Credentials.Identity, client.Credentials.Secret)
+	claims := jwt.Claims{
+		ClientID: client.ID,
+		Email:    client.Credentials.Identity,
+	}
+	t, err := svc.tokens.Issue(ctx, claims)
 	if err != nil {
 		return errors.Wrap(ErrRecoveryToken, err)
 	}
-	return svc.SendPasswordReset(ctx, host, email, t.AccessToken)
+	return svc.SendPasswordReset(ctx, host, email, client.Name, t.AccessToken)
 }
 
 func (svc service) ResetSecret(ctx context.Context, resetToken, secret string) error {
@@ -325,9 +329,9 @@ func (svc service) UpdateClientSecret(ctx context.Context, token, oldSecret, new
 	return svc.clients.UpdateSecret(ctx, dbClient)
 }
 
-func (svc service) SendPasswordReset(_ context.Context, host, email, token string) error {
+func (svc service) SendPasswordReset(_ context.Context, host, email, user, token string) error {
 	to := []string{email}
-	return svc.email.SendPasswordReset(to, host, token)
+	return svc.email.SendPasswordReset(to, host, user, token)
 }
 
 func (svc service) UpdateClientOwner(ctx context.Context, token string, cli mfclients.Client) (mfclients.Client, error) {

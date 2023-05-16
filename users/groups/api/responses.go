@@ -19,7 +19,7 @@ var (
 )
 
 type viewMembershipRes struct {
-	mfgroups.Group
+	mfgroups.Group `json:",inline"`
 }
 
 func (res viewMembershipRes) Code() int {
@@ -52,7 +52,7 @@ func (res membershipPageRes) Empty() bool {
 }
 
 type viewGroupRes struct {
-	mfgroups.Group
+	mfgroups.Group `json:",inline"`
 }
 
 func (res viewGroupRes) Code() int {
@@ -68,8 +68,8 @@ func (res viewGroupRes) Empty() bool {
 }
 
 type createGroupRes struct {
-	mfgroups.Group
-	created bool
+	mfgroups.Group `json:",inline"`
+	created        bool
 }
 
 func (res createGroupRes) Code() int {
@@ -100,8 +100,8 @@ type groupPageRes struct {
 }
 
 type pageRes struct {
-	Limit  uint64 `json:"limit,omitempty"`
-	Offset uint64 `json:"offset,omitempty"`
+	Limit  uint64 `json:"limit"`
+	Offset uint64 `json:"offset"`
 	Total  uint64 `json:"total,omitempty"`
 	Level  uint64 `json:"level,omitempty"`
 }
@@ -119,7 +119,7 @@ func (res groupPageRes) Empty() bool {
 }
 
 type updateGroupRes struct {
-	mfgroups.Group
+	mfgroups.Group `json:",inline"`
 }
 
 func (res updateGroupRes) Code() int {
@@ -135,7 +135,7 @@ func (res updateGroupRes) Empty() bool {
 }
 
 type changeStatusRes struct {
-	mfgroups.Group
+	mfgroups.Group `json:",inline"`
 }
 
 func (res changeStatusRes) Code() int {

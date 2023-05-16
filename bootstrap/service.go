@@ -376,6 +376,7 @@ func (bs bootstrapService) thing(id, token string) (mfsdk.Thing, error) {
 	var thing mfsdk.Thing
 	var err error
 
+	thing.ID = id
 	if id == "" {
 		thing, err = bs.sdk.CreateThing(mfsdk.Thing{}, token)
 		if err != nil {

@@ -82,22 +82,22 @@ var cmdChannels = []cobra.Command{
 		},
 	},
 	{
-		Use:   "update <JSON_string> <user_auth_token>",
+		Use:   "update <channel_id> <JSON_string> <user_auth_token>",
 		Short: "Update channel",
 		Long:  `Updates channel record`,
 		Run: func(cmd *cobra.Command, args []string) {
-			if len(args) != 2 {
+			if len(args) != 3 {
 				logUsage(cmd.Use)
 				return
 			}
 
 			var channel mfxsdk.Channel
-			if err := json.Unmarshal([]byte(args[0]), &channel); err != nil {
+			if err := json.Unmarshal([]byte(args[1]), &channel); err != nil {
 				logError(err)
 				return
 			}
-
-			channel, err := sdk.UpdateChannel(channel, args[1])
+			channel.ID = args[0]
+			channel, err := sdk.UpdateChannel(channel, args[2])
 			if err != nil {
 				logError(err)
 				return

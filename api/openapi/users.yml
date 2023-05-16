@@ -1,17 +1,17 @@
 openapi: 3.0.3
 info:
-  title: Ultraviolet clients service
+  title: Mainflux Users Service
   description: |
-    This is the Clients Server based on the OpenAPI 3.0 specification.  It is the HTTP API for managing platform clients. You can now help us improve the API whether it's by making changes to the definition itself or to the code.
+    This is the Users Server based on the OpenAPI 3.0 specification.  It is the HTTP API for managing platform users. You can now help us improve the API whether it's by making changes to the definition itself or to the code.
     Some useful links:
     - [The Mainflux repository](https://github.com/mainflux/mainflux)
-    - [The Mainflux Postman Collection](https://github.com/mainflux/mainflux/blob/main/postman/postman.yaml)
+    - [The Mainflux Postman Collection](https://github.com/mainflux/mainflux/blob/master/api/postman/postman.yaml)
   contact:
     email: info@mainflux.com
   license:
     name: Apache 2.0
-    url: https://github.com/mainflux/mainflux/blob/main/LICENSE
-  version: 1.0.0
+    url: https://github.com/mainflux/mainflux/blob/master/LICENSE
+  version: 0.14.0
 
 servers:
   - url: http://localhost:8180
@@ -21,33 +21,33 @@ tags:
   - name: Users
     description: Everything about your Users
     externalDocs:
-      description: Find out more
-      url: http://swagger.io
+      description: Find out more about users
+      url: http://docs.mainflux.io/
   - name: Groups
     description: Everything about your Groups
     externalDocs:
-      description: Find out more
-      url: http://swagger.io
+      description: Find out more about users groups
+      url: http://docs.mainflux.io/
   - name: Policies
     description: Access to user policies
     externalDocs:
-      description: Find out more about our store
-      url: http://swagger.io
+      description: Find out more about users policies
+      url: http://docs.mainflux.io/
 
 paths:
   /users:
     post:
       tags:
         - Users
-      summary: Registers client account
+      summary: Registers user account
       description: |
         Registers new user account given email and password. New account will
         be uniquely identified by its email address.
       requestBody:
-        $ref: "#/components/requestBodies/ClientCreateReq"
+        $ref: "#/components/requestBodies/UserCreateReq"
       responses:
         '201':
-          $ref: "#/components/responses/ClientCreateRes"
+          $ref: "#/components/responses/UserCreateRes"
         '400':
           description: Failed due to malformed JSON.
         '401':
@@ -58,10 +58,11 @@ paths:
           description: Missing or invalid content type.
         '500':
           $ref: "#/components/responses/ServiceError"
+          
     get:
       tags:
         - Users
-      summary: List clients
+      summary: List users
       description: |
         Retrieves a list of users. Due to performance concerns, data
         is retrieved in subsets. The API things must ensure that the entire
@@ -72,16 +73,16 @@ paths:
         - $ref: "#/components/parameters/Offset"
         - $ref: "#/components/parameters/Metadata"
         - $ref: "#/components/parameters/Status"
-        - $ref: "#/components/parameters/ClientName"
-        - $ref: "#/components/parameters/ClientIdentity"
+        - $ref: "#/components/parameters/UserName"
+        - $ref: "#/components/parameters/UserIdentity"
         - $ref: "#/components/parameters/Tags"
         - $ref: "#/components/parameters/Owner"        
-        - $ref: "#/components/parameters/ClientVisibility"
+        - $ref: "#/components/parameters/UserVisibility"
       security:
         - bearerAuth: []
       responses:
         '200':
-          $ref: "#/components/responses/ClientPageRes"
+          $ref: "#/components/responses/UserPageRes"
         '400':
           description: Failed due to malformed query parameters.
         '401':
@@ -94,6 +95,7 @@ paths:
           description: Database can't process request.
         '500':
           $ref: "#/components/responses/ServiceError"
+          
   /users/profile:
      get:
       summary: Gets info on currently logged in user.
@@ -106,27 +108,28 @@ paths:
         - bearerAuth: []        
       responses:
         '200':
-          $ref: "#/components/responses/ClientRes"
+          $ref: "#/components/responses/UserRes"
         '400':
           description: Failed due to malformed query parameters.
         '401':
           description: Missing or invalid access token provided.
         '500':
-          $ref: "#/components/responses/ServiceError"          
-  /users/{clientID}:
+          $ref: "#/components/responses/ServiceError"
+          
+  /users/{userID}:
     get:
-      summary: Retrieves a client
+      summary: Retrieves a user
       description: |
-        Retrieves a specific client that is identifier by the client ID.
+        Retrieves a specific user that is identifier by the user ID.
       tags:
         - Users
       parameters:
-        - $ref: "#/components/parameters/clientID"
+        - $ref: "#/components/parameters/UserID"
       security:
         - bearerAuth: []
       responses:
         '200':
-          $ref: "#/components/responses/ClientRes"
+          $ref: "#/components/responses/UserRes"
         '400':
           description: Failed due to malformed query parameters.
         '401':
@@ -137,154 +140,124 @@ paths:
           description: Database can't process request.
         '500':
           $ref: "#/components/responses/ServiceError"
+          
     patch:
-      summary: Updates name and metadata of the client.
+      summary: Updates name and metadata of the user.
       description: |
-        Updates name and metadata of the client with provided ID. Name and metadata
+        Updates name and metadata of the user with provided ID. Name and metadata
         is updated using authorization token and the new received info.
       tags:
         - Users
       parameters:
-        - $ref: "#/components/parameters/clientID"
+        - $ref: "#/components/parameters/UserID"
       requestBody:
-        $ref: "#/components/requestBodies/ClientUpdateReq"
+        $ref: "#/components/requestBodies/UserUpdateReq"
       security:
         - bearerAuth: []
       responses:
         '200':
-          description: Client updated.
+          $ref: "#/components/responses/UserRes"
         '400':
           description: Failed due to malformed JSON.
         '404':
-          description: Failed due to non existing client.
+          description: Failed due to non existing user.
         '401':
           description: Missing or invalid access token provided.
         '500':
          $ref: "#/components/responses/ServiceError"
 
-  /users/{clientID}/tags:
+  /users/{userID}/tags:
     patch:
-      summary: Updates tags the client.
+      summary: Updates tags the user.
       description: |
-        Updates tags of the client with provided ID. Tags is updated using
+        Updates tags of the user with provided ID. Tags is updated using
         authorization token and the new tags received in request.
       tags:
         - Users
       parameters:
-        - $ref: "#/components/parameters/clientID"
+        - $ref: "#/components/parameters/UserID"
       requestBody:
-        $ref: "#/components/requestBodies/ClientUpdateTagsReq"
+        $ref: "#/components/requestBodies/UserUpdateTagsReq"
       security:
         - bearerAuth: []
       responses:
         '200':
-          description: Client updated.
+          $ref: "#/components/responses/UserRes"
         '400':
           description: Failed due to malformed JSON.
         '404':
-          description: Failed due to non existing client.
+          description: Failed due to non existing user.
         '401':
           description: Missing or invalid access token provided.
         '500':
          $ref: "#/components/responses/ServiceError"
-  /users/{clientID}/identity:
+         
+  /users/{userID}/identity:
     patch:
-      summary: Updates Identity of the client.
+      summary: Updates Identity of the user.
       description: |
-        Updates identity of the client with provided ID. Identity is
+        Updates identity of the user with provided ID. Identity is
         updated using authorization token and the new received identity.
       tags:
         - Users
       parameters:
-        - $ref: "#/components/parameters/clientID"
+        - $ref: "#/components/parameters/UserID"
       requestBody:
-        $ref: "#/components/requestBodies/ClientUpdateIdentityReq"
+        $ref: "#/components/requestBodies/UserUpdateIdentityReq"
       security:
         - bearerAuth: []
       responses:
         '200':
-          description: Client updated.
+          $ref: "#/components/responses/UserRes"
         '400':
           description: Failed due to malformed JSON.
         '404':
-          description: Failed due to non existing client.
+          description: Failed due to non existing user.
         '401':
           description: Missing or invalid access token provided.
         '500':
          $ref: "#/components/responses/ServiceError"
 
-  /users/{clientID}/secret:
+  /users/{userID}/owner:
     patch:
-      summary: Updates Secret of currently logged in client.
+      summary: Updates the user owner.
       description: |
-        Updates secret of currently logged in client. Secret is updated using
-        authorization token and the new received info.
-      tags:
-        - Users
-      parameters:
-        - $ref: "#/components/parameters/clientID"
-      requestBody:
-        $ref: "#/components/requestBodies/ClientUpdateSecretReq"
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: Client updated.
-        '400':
-          description: Failed due to malformed JSON.
-        '404':
-          description: Failed due to non existing client.
-        '401':
-          description: Missing or invalid access token provided.
-        '500':
-         $ref: "#/components/responses/ServiceError"
-
-  /users/{clientID}/owner:
-    patch:
-      summary: Updates the client owner.
-      description: |
-        Updates owner for the client with provided ID. Owner is updated using
+        Updates owner for the user with provided ID. Owner is updated using
         authorization token and a new owner identifier received in request.
       tags:
         - Users
       parameters:
-        - $ref: "#/components/parameters/clientID"
+        - $ref: "#/components/parameters/UserID"
       requestBody:
-        $ref: "#/components/requestBodies/ClientUpdateOwnerReq"
+        $ref: "#/components/requestBodies/UserUpdateOwnerReq"
       security:
         - bearerAuth: []
       responses:
         '200':
-          description: Client updated.
+          $ref: "#/components/responses/UserRes"
         '400':
           description: Failed due to malformed JSON.
         '404':
-          description: Failed due to non existing client.
+          description: Failed due to non existing user.
         '401':
           description: Missing or invalid access token provided.
         '500':
          $ref: "#/components/responses/ServiceError"
 
-  /users/{clientID}/disable:
+  /users/{userID}/disable:
     post:
-      summary: Disables a client
+      summary: Disables a user
       description: |
-        Disables a specific client that is identifier by the client ID.
+        Disables a specific user that is identifier by the user ID.
       tags:
         - Users
       parameters:
-        - $ref: "#/components/parameters/clientID"
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              example: ''
+        - $ref: "#/components/parameters/UserID"
       security:
         - bearerAuth: []
       responses:
         '200':
-          description: Client updated.
+          $ref: "#/components/responses/UserRes"
         '400':
           description: Failed due to malformed query parameters.
         '401':
@@ -296,26 +269,20 @@ paths:
         '500':
           $ref: "#/components/responses/ServiceError"
 
-  /users/{clientID}/enable:
+  /users/{userID}/enable:
     post:
-      summary: Enables a client
+      summary: Enables a user
       description: |
-        Enables a specific client that is identifier by the client ID.
+        Enables a specific user that is identifier by the user ID.
       tags:
         - Users
       parameters:
-        - $ref: "#/components/parameters/clientID"
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              example: ''
+        - $ref: "#/components/parameters/UserID"
       security:
         - bearerAuth: []
       responses:
         '200':
-          description: Client updated.
+          $ref: "#/components/responses/UserRes"
         '400':
           description: Failed due to malformed query parameters.
         '401':
@@ -326,6 +293,32 @@ paths:
           description: Database can't process request.
         '500':
           $ref: "#/components/responses/ServiceError"
+
+  /users/secret:
+    patch:
+      summary: Updates Secret of currently logged in user.
+      description: |
+        Updates secret of currently logged in user. Secret is updated using
+        authorization token and the new received info.
+      tags:
+        - Users
+      parameters:
+        - $ref: "#/components/parameters/UserID"
+      requestBody:
+        $ref: "#/components/requestBodies/UserUpdateSecretReq"
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: "#/components/responses/UserRes"
+        '400':
+          description: Failed due to malformed JSON.
+        '404':
+          description: Failed due to non existing user.
+        '401':
+          description: Missing or invalid access token provided.
+        '500':
+         $ref: "#/components/responses/ServiceError"
 
   /password/reset-request:
     post:
@@ -348,6 +341,7 @@ paths:
           description: Missing or invalid content type.
         '500':
           $ref: '#/components/responses/ServiceError'
+          
   /password/reset:
     put:
       summary: User password reset endpoint
@@ -368,34 +362,16 @@ paths:
           description: Missing or invalid content type.
         '500':
           $ref: '#/components/responses/ServiceError'
-  /password:
-    patch:
-      summary: User password change endpoint
-      description: |
-        When authenticated user wants to change password.
-      tags:
-        - Users
-      requestBody:
-        $ref: '#/components/requestBodies/PasswordChange'
-      responses:
-        '201':
-          description: User link .
-        '400':
-          description: Failed due to malformed JSON.
-        '415':
-          description: Missing or invalid content type.
-        '500':
-          $ref: "#/components/responses/ServiceError"
           
-  /users/{clientID}/memberships:
+  /users/{userID}/memberships:
     get:
       tags:
         - Users
       summary: List memberships
       description: |
-        Retrieves a list of groups the client is connected to
+        Retrieves a list of groups the user is connected to
       parameters:
-        - $ref: "#/components/parameters/clientID"
+        - $ref: "#/components/parameters/UserID"
         - $ref: "#/components/parameters/Limit"
         - $ref: "#/components/parameters/Offset"
         - $ref: "#/components/parameters/Level"
@@ -422,7 +398,6 @@ paths:
         '500':
           $ref: "#/components/responses/ServiceError"
 
-
   /users/tokens/issue:
     post:
       summary: Issue Token
@@ -434,7 +409,7 @@ paths:
         $ref: "#/components/requestBodies/IssueTokenReq"
       responses:
         '200':
-          $ref: "#/components/responses/IssueTokenRes"
+          $ref: "#/components/responses/TokenRes"
         '404':
           description: A non-existent entity request.
         '422':
@@ -449,17 +424,18 @@ paths:
         Refreshes Access and Refresh Token used for authenticating into the system.
       tags:
         - Users
-      requestBody:
-        $ref: "#/components/requestBodies/RefreshTokenReq"
+      security:
+        - refreshAuth: []
       responses:
         '200':
-          $ref: "#/components/responses/RefreshTokenRes"
+          $ref: "#/components/responses/TokenRes"
         '404':
           description: A non-existent entity request.
         '422':
           description: Database can't process request.
         '500':
           $ref: "#/components/responses/ServiceError"
+          
   /groups:
     post:
       tags:
@@ -540,6 +516,7 @@ paths:
           description: Group does not exist.
         '500':
           $ref: "#/components/responses/ServiceError"
+          
     put:
       summary: Updates group data.
       description: |
@@ -554,7 +531,7 @@ paths:
         $ref: "#/components/requestBodies/GroupUpdateReq"
       responses:
         '200':
-          description: Group updated.
+          $ref: "#/components/responses/GroupRes"
         '400':
           description: Failed due to malformed query parameters.
         '401':
@@ -564,6 +541,74 @@ paths:
         '500':
           $ref: "#/components/responses/ServiceError"
 
+  /groups/{groupId}/children:
+    get:
+      summary: List children of a certain group
+      description: |
+        Lists groups up to a max level of hierarchy that can be fetched in one
+        request ( max level = 5). Result can be filtered by metadata. Groups will
+        be returned as JSON array or JSON tree. Due to performance concerns, result
+        is returned in subsets.
+      tags:
+        - Groups
+      security:
+        - bearerAuth: []        
+      parameters:
+        - $ref: "#/components/parameters/GroupId"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+        - $ref: "#/components/parameters/Level"
+        - $ref: "#/components/parameters/Tree"
+        - $ref: "#/components/parameters/Metadata"
+        - $ref: "#/components/parameters/GroupName"
+        - $ref: "#/components/parameters/ParentId"
+        - $ref: "#/components/parameters/OwnerId"
+      responses:
+        '200':
+          $ref: "#/components/responses/GroupPageRes"
+        '400':
+          description: Failed due to malformed query parameters.
+        '401':
+          description: Missing or invalid access token provided.
+        '404':
+          description: Group does not exist.
+        '500':
+          $ref: "#/components/responses/ServiceError"        
+
+  /groups/{groupId}/parents:
+    get:
+      summary: List parents of a certain group
+      description: |
+        Lists groups up to a max level of hierarchy that can be fetched in one
+        request ( max level = 5). Result can be filtered by metadata. Groups will
+        be returned as JSON array or JSON tree. Due to performance concerns, result
+        is returned in subsets.
+      tags:
+        - Groups
+      security:
+        - bearerAuth: []        
+      parameters:
+        - $ref: "#/components/parameters/GroupId"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+        - $ref: "#/components/parameters/Level"
+        - $ref: "#/components/parameters/Tree"
+        - $ref: "#/components/parameters/Metadata"
+        - $ref: "#/components/parameters/GroupName"
+        - $ref: "#/components/parameters/ParentId"
+        - $ref: "#/components/parameters/OwnerId"
+      responses:
+        '200':
+          $ref: "#/components/responses/GroupPageRes"
+        '400':
+          description: Failed due to malformed query parameters.
+        '401':
+          description: Missing or invalid access token provided.
+        '404':
+          description: Group does not exist.
+        '500':
+          $ref: "#/components/responses/ServiceError"   
+          
   /groups/{groupId}/enable:
     post:
       summary: Enables a group
@@ -573,17 +618,11 @@ paths:
         - Groups
       parameters:
         - $ref: "#/components/parameters/GroupId"
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              example: ''
       security:
         - bearerAuth: []
       responses:
         '200':
-          description: Group updated.
+          $ref: "#/components/responses/GroupRes"
         '400':
           description: Failed due to malformed query parameters.
         '401':
@@ -594,6 +633,7 @@ paths:
           description: Database can't process request.
         '500':
           $ref: "#/components/responses/ServiceError"
+          
   /groups/{groupId}/disable:
     post:
       summary: Disables a group
@@ -603,17 +643,11 @@ paths:
         - Groups
       parameters:
         - $ref: "#/components/parameters/GroupId"
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              example: ''
       security:
         - bearerAuth: []
       responses:
         '200':
-          description: Group updated.
+          $ref: "#/components/responses/GroupRes"
         '400':
           description: Failed due to malformed query parameters.
         '401':
@@ -624,6 +658,7 @@ paths:
           description: Database can't process request.
         '500':
           $ref: "#/components/responses/ServiceError"
+          
   /groups/{groupId}/members:
     get:
       summary: Get group members.
@@ -637,9 +672,8 @@ paths:
         - $ref: "#/components/parameters/Offset"
         - $ref: "#/components/parameters/Metadata"
         - $ref: "#/components/parameters/Status"
-        - $ref: "#/components/parameters/ClientName"
-        - $ref: "#/components/parameters/ClientOwner"
-        - $ref: "#/components/parameters/ClientIdentity"
+        - $ref: "#/components/parameters/UserName"
+        - $ref: "#/components/parameters/UserIdentity"
         - $ref: "#/components/parameters/Tags"
       security:
         - bearerAuth: []
@@ -654,7 +688,34 @@ paths:
           description: Group does not exist.
         '500':
           $ref: "#/components/responses/ServiceError"
+          
   /policies:
+    get:
+      summary: Fetches policy data.
+      description: |
+        List available policies.
+      tags:
+        - Policies
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"      
+        - $ref: "#/components/parameters/Subject"
+        - $ref: "#/components/parameters/Object"
+        - $ref: "#/components/parameters/Actions"
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: "#/components/responses/PolicyPageRes"
+        '400':
+          description: Failed due to malformed query parameters.
+        '401':
+          description: Missing or invalid access token provided.
+        '404':
+          description: Group does not exist.
+        '500':
+          $ref: "#/components/responses/ServiceError"  
+          
     post:
       tags:
         - Policies
@@ -741,27 +802,27 @@ paths:
 
 components:
   schemas:
-    ClientReqObj:
+    UserReqObj:
       type: object
       properties:
         name:
           type: string
-          example: clientName
-          description: Client name.
+          example: userName
+          description: User name.
         tags:
           type: array
           minItems: 0
           items:
             type: string
           example: ['tag1', 'tag2']
-          description: Client tags.
+          description: User tags.
         credentials:
           type: object
           properties:
             identity:
               type: string
-              example: "clientName@example.com"
-              description: Client's identity for example email address will be used as its unique identifier
+              example: "admin@example.com"
+              description: User's identity for example email address will be used as its unique identifier
             secret:
               type: string
               format: password
@@ -772,14 +833,14 @@ components:
           type: string
           format: uuid
           example: bb7edb32-2eac-4aad-aebe-ed96fe073879
-          description: Client owner must be exsiting in the databse.
+          description: User owner must be exsiting in the databse.
         metadata:
           type: object
           example: {"domain": "example.com"}
-          description: Arbitrary, object-encoded client's data.
+          description: Arbitrary, object-encoded user's data.
         status:
           type: string
-          description: Client Status
+          description: User Status
           format: string
           example: enabled
       required:
@@ -796,7 +857,7 @@ components:
           type: string
           example: long group description
           description: Group description, free form text.
-        parentId:
+        parent_id:
           type: string
           example: bb7edb32-2eac-4aad-aebe-ed96fe073879
           description: Id of parent group, it must be existing group.
@@ -804,18 +865,29 @@ components:
           type: object
           example: {"domain": "example.com"}
           description: Arbitrary, object-encoded groups's data.
+        status:
+          type: string
+          description: Group Status
+          format: string
+          example: enabled          
+        owner_id:
+          type: string
+          format: uuid
+          example: bb7edb32-2eac-4aad-aebe-ed96fe073879
+          description: Group owner ID must be exsiting in the databse.
       required:
         - name
+        
     PolicyReqObj:
       type: object
       properties:
         subject:
           type: string
-          description: Policy subject refers to the client id
+          description: Policy subject refers to the user id
           example: 'bb7edb32-2eac-4aad-aebe-ed96fe073879'
         object:
           type: string
-          description: Policy object refers to either the client id, group id, computation id or dataset id
+          description: Policy object refers to either the user id, group id, computation id or dataset id
           example: 'bb7edb32-2eac-4aad-aebe-ed96fe073879'
         actions:
           type: array
@@ -828,48 +900,49 @@ components:
         - subject
         - object
         - actions
-    Client:
+        
+    User:
       type: object
       properties:
         id:
           type: string
           format: uuid
           example: bb7edb32-2eac-4aad-aebe-ed96fe073879
-          description: Client unique identifier.
+          description: User unique identifier.
         name:
           type: string
-          example: clientName
-          description: Client name.
+          example: userName
+          description: User name.
         tags:
           type: array
           minItems: 0
           items:
             type: string
           example: ['tag1', 'tag2']
-          description: Client tags.
+          description: User tags.
         owner:
           type: string
           format: uuid
           example: bb7edb32-2eac-4aad-aebe-ed96fe073879
-          description: Client owner identifier.
+          description: User owner identifier.
         credentials:
           type: object
           properties:
             identity:
               type: string
               example: admin@mainflux.com
-              description: Client Identity for example email address.
+              description: User Identity for example email address.
             secret:
               type: string
               example: password
-              description: Client secret password.
+              description: User secret password.
         metadata:
           type: object
-          example: {"role": "general"}
-          description: Arbitrary, object-encoded client's data.
+          example: {"domain": "example.com"}
+          description: Arbitrary, object-encoded user's data.
         status:
           type: string
-          description: Client Status
+          description: User Status
           format: string
           example: enabled
         created_at:
@@ -883,7 +956,7 @@ components:
           example: "2019-11-26 13:31:52"
           description: Time when the group was created.
       xml:
-        name: client
+        name: user
 
     Group:
       type: object
@@ -935,6 +1008,11 @@ components:
           format: date-time
           example: "2019-11-26 13:31:52"
           description: Datetime when the group was created.
+        status:
+          type: string
+          description: Group Status
+          format: string
+          example: enabled          
       xml:
         name: group
 
@@ -997,41 +1075,41 @@ components:
           type: string
           format: uuid
           example: bb7edb32-2eac-4aad-aebe-ed96fe073879
-          description: Client unique identifier.
+          description: User unique identifier.
         name:
           type: string
-          example: clientName
-          description: Client name.
+          example: userName
+          description: User name.
         tags:
           type: array
           minItems: 0
           items:
             type: string
           example: ['computations', 'datasets']
-          description: Client tags.
+          description: User tags.
         owner:
           type: string
           format: uuid
           example: bb7edb32-2eac-4aad-aebe-ed96fe073879
-          description: Client owner identifier.
+          description: User owner identifier.
         credentials:
           type: object
           properties:
             identity:
               type: string
-              example: client@mainflux.com
-              description: Client Identity for example email address.
+              example: user@mainflux.com
+              description: User Identity for example email address.
             secret:
               type: string
               example: password
-              description: Client secret password.
+              description: User secret password.
         metadata:
           type: object
           example: {"role": "general"}
-          description: Arbitrary, object-encoded client's data.
+          description: Arbitrary, object-encoded user's data.
         status:
           type: string
-          description: Client Status
+          description: User Status
           format: string
           example: enabled
         created_at:
@@ -1046,6 +1124,7 @@ components:
           description: Time when the group was created.
       xml:
         name: members
+        
     Policy:
       type: object
       properties:
@@ -1083,26 +1162,29 @@ components:
           description: Time when the policy was updated.
       xml:
         name: policy
-    ClientsPage:
+        
+    UsersPage:
       type: object
       properties:
-        clients:
+        users:
           type: array
           minItems: 0
           uniqueItems: true
           items:
-            $ref: "#/components/schemas/Client"
+            $ref: "#/components/schemas/User"
         total:
           type: integer
+          example: 1
           description: Total number of items.
         offset:
           type: integer
           description: Number of items to skip during retrieval.
         limit:
           type: integer
+          example: 10
           description: Maximum number of items to return in one page.
       required:
-        - clients
+        - users
         - total
         - offset
 
@@ -1117,12 +1199,14 @@ components:
             $ref: "#/components/schemas/Group"
         total:
           type: integer
+          example: 1
           description: Total number of items.
         offset:
           type: integer
           description: Number of items to skip during retrieval.
         limit:
           type: integer
+          example: 10
           description: Maximum number of items to return in one page.
       required:
         - groups
@@ -1140,12 +1224,14 @@ components:
             $ref: "#/components/schemas/Memberships"
         total:
           type: integer
+          example: 1
           description: Total number of items.
         offset:
           type: integer
           description: Number of items to skip during retrieval.
         limit:
           type: integer
+          example: 10
           description: Maximum number of items to return in one page.
       required:
         - memberships
@@ -1163,17 +1249,20 @@ components:
             $ref: "#/components/schemas/Members"
         total:
           type: integer
+          example: 1
           description: Total number of items.
         offset:
           type: integer
           description: Number of items to skip during retrieval.
         limit:
           type: integer
+          example: 10
           description: Maximum number of items to return in one page.
       required:
         - members
         - total
         - level
+        
     PoliciesPage:
       type: object
       properties:
@@ -1185,75 +1274,79 @@ components:
             $ref: "#/components/schemas/Policy"
         total:
           type: integer
+          example: 1
           description: Total number of items.
         offset:
           type: integer
           description: Number of items to skip during retrieval.
         limit:
           type: integer
+          example: 10
           description: Maximum number of items to return in one page.
       required:
         - policies
         - total
         - offset
-    ClientUpdate:
+        
+    UserUpdate:
       type: object
       properties:
         name:
           type: string
-          example: clientName
-          description: Client name.
+          example: userName
+          description: User name.
         metadata:
           type: object
           example: {"role": "general"}
-          description: Arbitrary, object-encoded client's data.
+          description: Arbitrary, object-encoded user's data.
       required:
         - name
         - metadata
-    ClientTags:
+        
+    UserTags:
       type: object
       properties:
         tags:
           type: array
           example: ['yello', 'orange']
-          description: Client tags.
+          description: User tags.
           minItems: 0
           uniqueItems: true
           items:
             type: string
 
-    ClientIdentity:
+    UserIdentity:
       type: object
       properties:
         identity:
           type: string
-          example: client@mainflux.com
-          description: Client Identity for example email address.
+          example: user@mainflux.com
+          description: User Identity for example email address.
       required:
         - identity
 
-    ClientSecret:
+    UserSecret:
       type: object
       properties:
         old_secret:
           type: string
           example: oldpassword
-          description: Old client secret password.
+          description: Old user secret password.
         new_secret:
           type: string
           example: newpassword
-          description: New client secret password.
+          description: New user secret password.
       required:
         - old_secret
         - new_secret
 
-    ClientOwner:
+    UserOwner:
       type: object
       properties:
         owner:
           type: string
-          example: client@mainflux.com
-          description: Client owner for example email address.
+          example: user@mainflux.com
+          description: User owner for example email address.
       required:
         - owner
 
@@ -1276,6 +1369,7 @@ components:
         - name
         - metadata
         - description
+        
     PolicyUpdate:
       type: object
       properties:
@@ -1293,25 +1387,15 @@ components:
       properties:
         identity:
           type: string
-          example: client@mainflux.com
-          description: Client Identity for example email address.
+          example: user@mainflux.com
+          description: User Identity for example email address.
         secret:
           type: string
           example: password
-          description: Client secret password.
+          description: User secret password.
       required:
         - identity
         - secret
-
-    RefreshToken:
-      type: object
-      properties:
-        refresh_token:
-          type: string
-          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2NjU3OTMwNjksImlhdCI6MTY2NTc1NzA2OSwiaXNzIjoibWFpbmZsdXguYXV0aCIsInN1YiI6ImFkbWluQGV4YW1wbGUuY29tIiwiaXNzdWVyX2lkIjoiZmRjZWVhNWYtNjYxNy00MjY1LWJhZDUtMzYxOTNhOTQ0NjMwIiwidHlwZSI6MH0.3gNd_x01QEiZfQxuQoEyqCqTrcxRkXHO7A4iG_gzu3c
-          description: Client refresh token.
-      required:
-        - refresh_token
 
     Error:
       type: object
@@ -1345,6 +1429,7 @@ components:
           type: string
           description: Service build time.
           example: 1970-01-01_00:00:00
+          
   parameters:
       Referrer:
         name: Referrer
@@ -1353,9 +1438,10 @@ components:
         schema:
           type: string
         required: true
-      clientID:
-        name: clientID
-        description: Unique client identifier.
+        
+      UserID:
+        name: userID
+        description: Unique user identifier.
         in: path
         schema:
           type: string
@@ -1365,41 +1451,44 @@ components:
       
       Visibility:
         name: visibility
-        description: The visibility specifier when listing clients. Either all, shared or mine.
+        description: The visibility specifier when listing users. Either all, shared or mine.
         in: path
         schema:
           type: string
         required: true
         example: all
 
-      ClientName:
+      UserName:
         name: name
-        description: Client's name.
+        description: User's name.
         in: query
         schema:
           type: string
         required: false
-        example: 'clientName'
-      ClientIdentity:
+        example: 'userName'
+        
+      UserIdentity:
         name: identity
-        description: Client's identity.
+        description: User's identity.
         in: query
         schema:
           type: string
         required: false
         example: 'admin@example.com'
+        
       Owner:
         name: owner
-        description: Client's owner.
+        description: User's owner.
         in: query
         schema:
           type: string
           format: uuid
         required: false
         example: bb7edb32-2eac-4aad-aebe-ed96fe073879   
-      ClientOwner:
+        
+      UserOwner:
         name: owner
-        description: Unique owner identifier for a client.
+        description: Unique owner identifier for a user.
         in: query
         schema:
           type: string
@@ -1407,9 +1496,9 @@ components:
         required: false
         example: bb7edb32-2eac-4aad-aebe-ed96fe073879
 
-      ClientVisibility:
+      UserVisibility:
         name: visibility
-        description: visibility to list either clients I own or clients that are shared with me or both clients I own and shared with me
+        description: visibility to list either users I own or users that are shared with me or both users I own and shared with me
         in: query
         schema:
           type: string
@@ -1418,7 +1507,7 @@ components:
         
       Status:
         name: status
-        description: Client account status.
+        description: User account status.
         in: query
         schema:
           type: string
@@ -1428,7 +1517,7 @@ components:
 
       Tags:
         name: tags
-        description: Client tags.
+        description: User tags.
         in: query
         schema:
           type: array
@@ -1438,6 +1527,7 @@ components:
             type: string
         required: false
         example: ['yello', 'orange']
+        
       GroupName:
         name: name
         description: Group's name.
@@ -1465,6 +1555,7 @@ components:
           format: uuid
         required: true
         example: bb7edb32-2eac-4aad-aebe-ed96fe073879
+        
       ParentId:
         name: parentId
         description: Unique parent identifier for a group.
@@ -1474,6 +1565,7 @@ components:
           format: uuid
         required: false
         example: bb7edb32-2eac-4aad-aebe-ed96fe073879
+        
       Level:
         name: level
         description: Level of hierarchy up to which to retrieve groups from given group id.
@@ -1493,7 +1585,6 @@ components:
           type: boolean
           default: false
 
-
       OwnerId:
         name: ownerId
         description: Unique owner identifier for a group.
@@ -1503,6 +1594,7 @@ components:
           format: uuid
         required: false
         example: bb7edb32-2eac-4aad-aebe-ed96fe073879
+        
       Subject:
         name: subject
         description: Unique subject identifier for a policy.
@@ -1512,7 +1604,6 @@ components:
           format: uuid
         required: false
         example: bb7edb32-2eac-4aad-aebe-ed96fe073879
-
 
       Object:
         name: object
@@ -1536,6 +1627,7 @@ components:
             type: string
         required: false
         example: ['m_write', 'g_add']
+        
       Sub:
         name: sub
         description: Unique subject identifier for a policy.
@@ -1545,6 +1637,7 @@ components:
           format: uuid
         required: true
         example: bb7edb32-2eac-4aad-aebe-ed96fe073879
+        
       Obj:
         name: obj
         description: Unique object identifier for a policy.
@@ -1554,6 +1647,7 @@ components:
           format: uuid
         required: true
         example: bb7edb32-2eac-4aad-aebe-ed96fe073879
+        
       Metadata:
         name: metadata
         description: Metadata filter. Filtering is performed matching the parameter with metadata on top level. Parameter is json.
@@ -1562,6 +1656,7 @@ components:
           type: string
           minimum: 0
         required: false
+        
       Limit:
         name: limit
         description: Size of the subset to retrieve.
@@ -1585,54 +1680,54 @@ components:
         required: false
         example: '0'
 
-
-
-
   requestBodies:
-    ClientCreateReq:
-      description: JSON-formatted document describing the new client to be registered
+    UserCreateReq:
+      description: JSON-formatted document describing the new user to be registered
       required: true
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ClientReqObj'
-    ClientUpdateReq:
-      description: JSON-formated document describing the metadata and name of client to be update
+            $ref: '#/components/schemas/UserReqObj'
+            
+    UserUpdateReq:
+      description: JSON-formated document describing the metadata and name of user to be update
       required: true
       content:
         application/json:
           schema:
-            $ref: "#/components/schemas/ClientUpdate"
-    ClientUpdateTagsReq:
-      description: JSON-formated document describing the tags of client to be update
+            $ref: "#/components/schemas/UserUpdate"
+    
+    UserUpdateTagsReq:
+      description: JSON-formated document describing the tags of user to be update
       required: true
       content:
         application/json:
           schema:
-            $ref: "#/components/schemas/ClientTags"
-    ClientUpdateIdentityReq:
-      description: Identity change data. Client can change its identity.
+            $ref: "#/components/schemas/UserTags"
+            
+    UserUpdateIdentityReq:
+      description: Identity change data. User can change its identity.
       required: true
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ClientIdentity'
+            $ref: '#/components/schemas/UserIdentity'
 
-    ClientUpdateSecretReq:
-      description: Secret change data. Client can change its secret.
+    UserUpdateSecretReq:
+      description: Secret change data. User can change its secret.
       required: true
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ClientSecret'
+            $ref: '#/components/schemas/UserSecret'
 
-    ClientUpdateOwnerReq:
-      description: JSON-formated document describing the owner of client to be update
+    UserUpdateOwnerReq:
+      description: JSON-formated document describing the owner of user to be update
       required: true
       content:
         application/json:
           schema:
-            $ref: "#/components/schemas/ClientOwner"
+            $ref: "#/components/schemas/UserOwner"
 
     GroupCreateReq:
       description: JSON-formatted document describing the new group to be registered
@@ -1641,6 +1736,7 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/GroupReqObj'
+      
     GroupUpdateReq:
       description: JSON-formated document describing the metadata and name of group to be update
       required: true
@@ -1648,6 +1744,7 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/GroupUpdate"
+            
     PolicyCreateReq:
       description: JSON-formatted document describing the new group to be registered
       required: true
@@ -1655,6 +1752,7 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/PolicyReqObj'
+            
     PolicyUpdateReq:
       description: JSON-formated document describing the actions of a policy to be update
       required: true
@@ -1664,54 +1762,12 @@ components:
             $ref: "#/components/schemas/PolicyUpdate"
 
     IssueTokenReq:
-      description: JSON-formated document describing the client identity and secret to be used for issuing token
+      description: Login credentials.
       required: true
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              access_token:
-                type: string
-                example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2NjU3OTMwNjksImlhdCI6MTY2NTc1NzA2OSwiaXNzIjoibWFpbmZsdXguYXV0aCIsInN1YiI6ImFkbWluQGV4YW1wbGUuY29tIiwiaXNzdWVyX2lkIjoiZmRjZWVhNWYtNjYxNy00MjY1LWJhZDUtMzYxOTNhOTQ0NjMwIiwidHlwZSI6MH0.3gNd_x01QEiZfQxuQoEyqCqTrcxRkXHO7A4iG_gzu3c
-                description: Client access token.
-              refresh_token:
-                type: string
-                example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2NjU3OTMwNjksImlhdCI6MTY2NTc1NzA2OSwiaXNzIjoibWFpbmZsdXguYXV0aCIsInN1YiI6ImFkbWluQGV4YW1wbGUuY29tIiwiaXNzdWVyX2lkIjoiZmRjZWVhNWYtNjYxNy00MjY1LWJhZDUtMzYxOTNhOTQ0NjMwIiwidHlwZSI6MH0.3gNd_x01QEiZfQxuQoEyqCqTrcxRkXHO7A4iG_gzu3c
-                description: Client refresh token.
-              access_type:
-                type: string
-                example: access
-                description: Client access token type.
-              expiry:
-                type: string
-                example:  "2019-11-26 13:31:52"
-                description: Access token expiry.
-
-    RefreshTokenReq:
-      description: JSON-formated document describing the client refresh token used for issuing another token
-      required: true
-      content:
-        application/json:
-          schema:
-            type: object
-            properties:
-              access_token:
-                type: string
-                example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2NjU3OTMwNjksImlhdCI6MTY2NTc1NzA2OSwiaXNzIjoibWFpbmZsdXguYXV0aCIsInN1YiI6ImFkbWluQGV4YW1wbGUuY29tIiwiaXNzdWVyX2lkIjoiZmRjZWVhNWYtNjYxNy00MjY1LWJhZDUtMzYxOTNhOTQ0NjMwIiwidHlwZSI6MH0.3gNd_x01QEiZfQxuQoEyqCqTrcxRkXHO7A4iG_gzu3c
-                description: Client access token.
-              refresh_token:
-                type: string
-                example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2NjU3OTMwNjksImlhdCI6MTY2NTc1NzA2OSwiaXNzIjoibWFpbmZsdXguYXV0aCIsInN1YiI6ImFkbWluQGV4YW1wbGUuY29tIiwiaXNzdWVyX2lkIjoiZmRjZWVhNWYtNjYxNy00MjY1LWJhZDUtMzYxOTNhOTQ0NjMwIiwidHlwZSI6MH0.3gNd_x01QEiZfQxuQoEyqCqTrcxRkXHO7A4iG_gzu3c
-                description: Client refresh token.
-              access_type:
-                type: string
-                example: access
-                description: Client access token type.
-              expiry:
-                type: string
-                example:  "2019-11-26 13:31:52"
-                description: Access token expiry.
+            $ref: "#/components/schemas/IssueToken"
                 
     RequestPasswordReset:
       description: Initiate password request procedure.
@@ -1725,6 +1781,7 @@ components:
                 type: string
                 format: email
                 description: User email.
+                
     PasswordReset:
       description: Password reset request data, new password and token that is appended on password reset link received in email.
       content:
@@ -1746,6 +1803,7 @@ components:
                 type: string
                 format: jwt
                 description: Reset token generated and sent in email.
+                
     PasswordChange:
       description: Password change data. User can change its password.
       required: true
@@ -1764,53 +1822,60 @@ components:
                 description: Old password.
 
   responses:
-    ClientCreateRes:
-      description: Registered new client.
+    UserCreateRes:
+      description: Registered new user.
       headers:
         Location:
-          content:
-            text/plain:
-              schema:
-                type: string
-                format: url
-                description: Registered client relative URL.
-                example: /clients/{clientID}
-    ClientRes:
+          schema:
+            type: string
+            format: url
+          description: Registered user relative URL in the format `/users/<user_id>`
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/User"
+
+    UserRes:
       description: Data retrieved.
       content:
         application/json:
           schema:
-            $ref: "#/components/schemas/Client"
-    ClientPageRes:
+            $ref: "#/components/schemas/User"
+            
+    UserPageRes:
       description: Data retrieved.
       content:
         application/json:
           schema:
-            $ref: "#/components/schemas/ClientsPage"
+            $ref: "#/components/schemas/UsersPage"
 
     MembershipsPageRes:
-      description: Memberships associated with the client.
+      description: Memberships associated with the user.
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/MembershipsPage"
+    
     GroupCreateRes:
       description: Registered new group.
       headers:
         Location:
-          content:
-            text/plain:
-              schema:
-                type: string
-                format: url
-                description: Registered group relative URL.
-                example: /clients/{groupId}
+          schema:
+            type: string
+            format: url
+          description: Registered group relative URL in the format `/groups/<group_id>`
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Group"
+            
     GroupRes:
       description: Data retrieved.
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/Group"
+    
     GroupPageRes:
       description: Data retrieved.
       content:
@@ -1824,6 +1889,7 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/MembersPage"
+            
     PolicyCreateRes:
       description: Registered new policy.
       headers:
@@ -1835,12 +1901,14 @@ components:
                 format: url
                 description: Registered policy relative URL.
                 example: /policy/{subject}/{object}
+                
     PolicyRes:
       description: Data retrieved.
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/Policy"
+            
     PolicyPageRes:
       description: Data retrieved.
       content:
@@ -1848,37 +1916,55 @@ components:
           schema:
             $ref: "#/components/schemas/PoliciesPage"
 
-    IssueTokenRes:
-      description: Data retrieved.
+    TokenRes:
+      description: JSON-formated document describing the user access token used for authenticating into the syetem and refresh token used for generating another access token
       content:
         application/json:
           schema:
-            $ref: "#/components/schemas/IssueToken"
-    RefreshTokenRes:
-      description: Data retrieved.
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/RefreshToken"
+            type: object
+            properties:
+              access_token:
+                type: string
+                example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2NjU3OTMwNjksImlhdCI6MTY2NTc1NzA2OSwiaXNzIjoibWFpbmZsdXguYXV0aCIsInN1YiI6ImFkbWluQGV4YW1wbGUuY29tIiwiaXNzdWVyX2lkIjoiZmRjZWVhNWYtNjYxNy00MjY1LWJhZDUtMzYxOTNhOTQ0NjMwIiwidHlwZSI6MH0.3gNd_x01QEiZfQxuQoEyqCqTrcxRkXHO7A4iG_gzu3c
+                description: User access token.
+              refresh_token:
+                type: string
+                example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2NjU3OTMwNjksImlhdCI6MTY2NTc1NzA2OSwiaXNzIjoibWFpbmZsdXguYXV0aCIsInN1YiI6ImFkbWluQGV4YW1wbGUuY29tIiwiaXNzdWVyX2lkIjoiZmRjZWVhNWYtNjYxNy00MjY1LWJhZDUtMzYxOTNhOTQ0NjMwIiwidHlwZSI6MH0.3gNd_x01QEiZfQxuQoEyqCqTrcxRkXHO7A4iG_gzu3c
+                description: User refresh token.
+              access_type:
+                type: string
+                example: access
+                description: User access token type.
+                
     HealthRes:
       description: Service Health Check.
       content:
         application/health+json:
           schema:
             $ref: "#/components/schemas/HealthRes"
+  
     ServiceError:
       description: Unexpected server-side error occurred.
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/Error"
+  
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
       description: |
-        * Client access: "Authorization: Bearer <client_token>"
-
+        * User access: "Authorization: Bearer <user_access_token>"
+        
+    refreshAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        * User refresh token used to get another access token: "Authorization: Bearer <user_refresh_token>"
 security:
   - bearerAuth: []
+  - refreshAuth: []
+  

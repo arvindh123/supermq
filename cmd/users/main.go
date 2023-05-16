@@ -81,7 +81,7 @@ func main() {
 	}
 	passRegex, err := regexp.Compile(cfg.PassRegexText)
 	if err != nil {
-		log.Fatalf("Invalid password validation rules %s\n", cfg.PassRegexText)
+		log.Fatalf("invalid password validation rules %s\n", cfg.PassRegexText)
 	}
 	cfg.PassRegex = passRegex
 
@@ -108,7 +108,7 @@ func main() {
 	}
 	defer func() {
 		if err := tp.Shutdown(context.Background()); err != nil {
-			logger.Error(fmt.Sprintf("Error shutting down tracer provider: %v", err))
+			logger.Error(fmt.Sprintf("error shutting down tracer provider: %v", err))
 		}
 	}()
 	tracer := tp.Tracer(svcName)
@@ -147,7 +147,7 @@ func main() {
 	})
 
 	if err := g.Wait(); err != nil {
-		logger.Error(fmt.Sprintf("Users service terminated: %s", err))
+		logger.Error(fmt.Sprintf("users service terminated: %s", err))
 	}
 }
 
@@ -162,18 +162,18 @@ func newService(db *sqlx.DB, tracer trace.Tracer, c config, ec email.Config, log
 
 	aDuration, err := time.ParseDuration(c.AccessDuration)
 	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to parse access token duration: %s", err.Error()))
+		logger.Error(fmt.Sprintf("failed to parse access token duration: %s", err.Error()))
 	}
 	rDuration, err := time.ParseDuration(c.RefreshDuration)
 	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to parse refresh token duration: %s", err.Error()))
+		logger.Error(fmt.Sprintf("failed to parse refresh token duration: %s", err.Error()))
 	}
 	tokenizer := jwt.NewTokenRepo([]byte(c.SecretKey), aDuration, rDuration)
 	tokenizer = jwt.NewTokenRepoMiddleware(tokenizer, tracer)
 
 	emailer, err := emailer.New(c.ResetURL, &ec)
 	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to configure e-mailing util: %s", err.Error()))
+		logger.Error(fmt.Sprintf("failed to configure e-mailing util: %s", err.Error()))
 	}
 	csvc := clients.NewService(cRepo, pRepo, tokenizer, emailer, hsr, idp, c.PassRegex)
 	gsvc := groups.NewService(gRepo, pRepo, tokenizer, idp)
@@ -195,7 +195,7 @@ func newService(db *sqlx.DB, tracer trace.Tracer, c config, ec email.Config, log
 	psvc = papi.MetricsMiddleware(psvc, counter, latency)
 
 	if err := createAdmin(c, cRepo, hsr, csvc); err != nil {
-		logger.Error(fmt.Sprintf("Failed to create admin client: %s", err))
+		logger.Error(fmt.Sprintf("failed to create admin client: %s", err))
 	}
 	return csvc, gsvc, psvc
 }

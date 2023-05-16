@@ -99,6 +99,7 @@ var cmdProvision = []cobra.Command{
 				logError(err)
 				return
 			}
+			logOK()
 		},
 	},
 	{

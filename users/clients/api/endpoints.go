@@ -44,7 +44,7 @@ func viewClientEndpoint(svc clients.Service) endpoint.Endpoint {
 
 func viewProfileEndpoint(svc clients.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
-		req := request.(viewClientReq)
+		req := request.(viewProfileReq)
 		if err := req.validate(); err != nil {
 			return nil, err
 		}
@@ -75,6 +75,7 @@ func listClientsEndpoint(svc clients.Service) endpoint.Endpoint {
 			Name:     req.name,
 			Tag:      req.tag,
 			Metadata: req.metadata,
+			Identity: req.identity,
 		}
 		page, err := svc.ListClients(ctx, req.token, pm)
 		if err != nil {
@@ -180,14 +181,11 @@ func passwordResetRequestEndpoint(svc clients.Service) endpoint.Endpoint {
 		if err := req.validate(); err != nil {
 			return nil, err
 		}
-		res := passwResetReqRes{}
-		email := req.Email
-		if err := svc.GenerateResetToken(ctx, email, req.Host); err != nil {
+		if err := svc.GenerateResetToken(ctx, req.Email, req.Host); err != nil {
 			return nil, err
 		}
-		res.Msg = MailSent
 
-		return res, nil
+		return passwResetReqRes{Msg: MailSent}, nil
 	}
 }
 
@@ -200,11 +198,10 @@ func passwordResetEndpoint(svc clients.Service) endpoint.Endpoint {
 		if err := req.validate(); err != nil {
 			return nil, err
 		}
-		res := passwChangeRes{}
 		if err := svc.ResetSecret(ctx, req.Token, req.Password); err != nil {
 			return nil, err
 		}
-		return res, nil
+		return passwChangeRes{}, nil
 	}
 }
 

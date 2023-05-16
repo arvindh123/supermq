@@ -130,22 +130,22 @@ var cmdUsers = []cobra.Command{
 		},
 	},
 	{
-		Use:   "update <JSON_string> <user_auth_token>",
+		Use:   "update <user_id> <JSON_string> <user_auth_token>",
 		Short: "Update user",
 		Long:  `Update user metadata`,
 		Run: func(cmd *cobra.Command, args []string) {
-			if len(args) != 2 {
+			if len(args) != 3 {
 				logUsage(cmd.Use)
 				return
 			}
 
 			var user mfxsdk.User
-			if err := json.Unmarshal([]byte(args[0]), &user.Metadata); err != nil {
+			if err := json.Unmarshal([]byte(args[1]), &user); err != nil {
 				logError(err)
 				return
 			}
-
-			user, err := sdk.UpdateUser(user, args[1])
+			user.ID = args[0]
+			user, err := sdk.UpdateUser(user, args[2])
 			if err != nil {
 				logError(err)
 				return
