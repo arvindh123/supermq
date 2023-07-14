@@ -187,6 +187,9 @@ func (trm *thingRepositoryMock) RetrieveByIDs(_ context.Context, thingIDs []stri
 
 	return page, nil
 }
+func (trm *thingRepositoryMock) RetrieveByBulkChannels(_ context.Context, owner string, chID []string, pm things.PageMetadata) (things.PageChannelsThings, error) {
+	return things.PageChannelsThings{}, nil
+}
 
 func (trm *thingRepositoryMock) RetrieveByChannel(_ context.Context, owner, chID string, pm things.PageMetadata) (things.Page, error) {
 	trm.mu.Lock()

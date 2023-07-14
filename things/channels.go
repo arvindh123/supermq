@@ -10,10 +10,10 @@ import (
 // Channel represents a Mainflux "communication group". This group contains the
 // things that can exchange messages between each other.
 type Channel struct {
-	ID       string
-	Owner    string
-	Name     string
-	Metadata map[string]interface{}
+	ID       string                 `json:"id"`
+	Owner    string                 `json:"owner"`
+	Name     string                 `json:"name"`
+	Metadata map[string]interface{} `json:"metadata"`
 }
 
 // ChannelsPage contains page related metadata as well as list of channels that

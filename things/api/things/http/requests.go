@@ -274,6 +274,34 @@ func (req listByConnectionReq) validate() error {
 	return nil
 }
 
+type listThingsByBulkChannelsReq struct {
+	token string   `json:"-"`
+	Ids   []string `json:"channel_ids"`
+	things.PageMetadata
+}
+
+func (req listThingsByBulkChannelsReq) validate() error {
+	if req.token == "" {
+		return things.ErrUnauthorizedAccess
+	}
+
+	if req.Limit == 0 || req.Limit > maxLimitSize {
+		return things.ErrMalformedEntity
+	}
+
+	if req.Order != "" &&
+		req.Order != nameOrder && req.Order != idOrder {
+		return things.ErrMalformedEntity
+	}
+
+	if req.Dir != "" &&
+		req.Dir != ascDir && req.Dir != descDir {
+		return things.ErrMalformedEntity
+	}
+
+	return nil
+}
+
 type connectThingReq struct {
 	token   string
 	chanID  string

@@ -40,11 +40,11 @@ type Metadata map[string]interface{}
 // Thing represents a Mainflux thing. Each thing is owned by one user, and
 // it is assigned with the unique identifier and (temporary) access key.
 type Thing struct {
-	ID       string
-	Owner    string
-	Name     string
-	Key      string
-	Metadata Metadata
+	ID       string   `json:"id"`
+	Owner    string   `json:"owner"`
+	Name     string   `json:"name"`
+	Key      string   `json:"key"`
+	Metadata Metadata `json:"metadata"`
 }
 
 // Page contains page related metadata as well as list of things that
@@ -52,6 +52,18 @@ type Thing struct {
 type Page struct {
 	PageMetadata
 	Things []Thing
+}
+
+// ChannelThings represents Mainflux Channels and its related things
+type ChannelThings struct {
+	Channel
+	Things []Thing `json:"things"`
+}
+
+// PageChannelsThings contains page of ChannelThings
+type PageChannelsThings struct {
+	PageMetadata
+	ChannelsThings map[string]ChannelThings
 }
 
 // ThingRepository specifies a thing persistence API.
@@ -89,6 +101,9 @@ type ThingRepository interface {
 	// user and connected or not connected to specified channel.
 	RetrieveByChannel(ctx context.Context, owner, chID string, pm PageMetadata) (Page, error)
 
+	// RetrieveByBulkChannels retrieves the subset of things owned by the specified
+	// user and connected or not connected to specified channels.
+	RetrieveByBulkChannels(ctx context.Context, owner string, chID []string, pm PageMetadata) (PageChannelsThings, error)
 	// Remove removes the thing having the provided identifier, that is owned
 	// by the specified user.
 	Remove(ctx context.Context, owner, id string) error

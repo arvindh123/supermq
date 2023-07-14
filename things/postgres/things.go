@@ -477,6 +477,123 @@ func (tr thingRepository) searchMeters(ctx context.Context, devices []string) (t
 
 	return page, nil
 }
+func (tr thingRepository) RetrieveByBulkChannels(ctx context.Context, owner string, chIDs []string, pm things.PageMetadata) (things.PageChannelsThings, error) {
+	oq := getConnOrderQuery(pm.Order, "th")
+	dq := getDirQuery(pm.Dir)
+	ownerQuery := getOwnerQuery(pm.FetchSharedThings)
+
+	var query []string
+	if ownerQuery != "" {
+		query = append(query, fmt.Sprintf("th.%s", ownerQuery))
+	}
+	var ids string
+	if len(pm.SharedThings) > 0 {
+		ids = fmt.Sprintf("th.id IN ('%s')", strings.Join(pm.SharedThings, "', '"))
+		query = append(query, ids)
+	}
+	var thingWhereClause string
+	if len(query) > 0 {
+		thingWhereClause = fmt.Sprintf(" WHERE %s", strings.Join(query, " AND "))
+	}
+
+	// Verify if UUID format is valid to avoid internal Postgres error
+	for _, chID := range chIDs {
+		if _, err := uuid.FromString(chID); err != nil {
+			return things.PageChannelsThings{}, errors.Wrap(things.ErrNotFound, err)
+		}
+	}
+
+	var channelIDs string
+	if len(chIDs) > 0 {
+		channelIDs = "AND conn.channel_id IN ('" + strings.Join(chIDs, "', '") + "')"
+	}
+
+	var q, qc string
+	switch pm.Disconnected {
+	case true:
+		if thingWhereClause == "" {
+			thingWhereClause = " WHERE "
+		}
+		q = fmt.Sprintf(`SELECT id, name, key, metadata
+		        FROM things th
+		        %s AND th.id NOT IN
+		        (SELECT id FROM things th
+		          INNER JOIN connections conn
+		          ON th.id = conn.thing_id
+		          WHERE conn.channel_owner = :owner %s)
+		        ORDER BY %s %s
+		        LIMIT :limit
+		        OFFSET :offset;`, thingWhereClause, channelIDs, oq, dq)
+
+		qc = fmt.Sprintf(`SELECT COUNT(*)
+		        FROM things th
+		        %s AND th.id NOT IN
+		        (SELECT id FROM things th
+		          INNER JOIN connections conn
+		          ON th.id = conn.thing_id
+		          WHERE conn.channel_owner = $1 %s);`, thingWhereClause, channelIDs)
+		qc = strings.Replace(qc, ":owner", "$1", 1)
+	default:
+		q = fmt.Sprintf(`SELECT th.id as thing_id, th.name as thing_name, th.key as thing_key, th.metadata as thing_metadata,
+					ch.id as channel_id, ch."name" as channel_name, ch.metadata as channel_metadata
+		        FROM things th
+		        INNER JOIN connections conn
+		        ON th.id = conn.thing_id
+				INNER JOIN channels ch
+                ON conn.channel_id = ch.id
+		        WHERE conn.channel_owner = :owner %s
+		        ORDER BY %s %s
+		        LIMIT :limit
+		        OFFSET :offset;`, channelIDs, oq, dq)
+
+		qc = fmt.Sprintf(`SELECT COUNT(*)
+		        FROM things th
+		        INNER JOIN connections conn
+		        ON th.id = conn.thing_id
+				INNER JOIN channels ch
+                ON conn.channel_id = ch.id
+		        WHERE conn.channel_owner = $1 %s ; `, channelIDs)
+	}
+
+	params := map[string]interface{}{
+		"owner":  owner,
+		"limit":  pm.Limit,
+		"offset": pm.Offset,
+	}
+
+	rows, err := tr.db.NamedQueryContext(ctx, q, params)
+	if err != nil {
+		return things.PageChannelsThings{}, errors.Wrap(things.ErrSelectEntity, err)
+	}
+	defer rows.Close()
+
+	items := map[string]things.ChannelThings{}
+	for rows.Next() {
+		dbChth := dbChannelThing{ThingOwner: owner, ChannelOwner: owner}
+		if err := rows.StructScan(&dbChth); err != nil {
+			return things.PageChannelsThings{}, errors.Wrap(things.ErrSelectEntity, err)
+		}
+
+		items, err = toChannelThing(dbChth, items)
+		if err != nil {
+			return things.PageChannelsThings{}, errors.Wrap(things.ErrViewEntity, err)
+		}
+	}
+
+	var total uint64
+	if err := tr.db.GetContext(ctx, &total, qc, owner); err != nil {
+		return things.PageChannelsThings{}, errors.Wrap(things.ErrSelectEntity, err)
+	}
+
+	return things.PageChannelsThings{
+		ChannelsThings: items,
+		PageMetadata: things.PageMetadata{
+			Total:  total,
+			Offset: pm.Offset,
+			Limit:  pm.Limit,
+		},
+	}, nil
+}
 
 func (tr thingRepository) RetrieveByChannel(ctx context.Context, owner, chID string, pm things.PageMetadata) (things.Page, error) {
 	oq := getConnOrderQuery(pm.Order, "th")
@@ -607,6 +724,18 @@ type dbThing struct {
 	Metadata []byte `db:"metadata"`
 }
 
+type dbChannelThing struct {
+	ThingID         string `db:"thing_id"`
+	ThingOwner      string `db:"thing_owner"`
+	ThingName       string `db:"thing_name"`
+	ThingKey        string `db:"thing_key"`
+	ThingMetadata   []byte `db:"thing_metadata"`
+	ChannelID       string `db:"channel_id"`
+	ChannelOwner    string `db:"channel_owner"`
+	ChannelName     string `db:"channel_name"`
+	ChannelMetadata []byte `db:"channel_metadata"`
+}
+
 func toDBThing(th things.Thing) (dbThing, error) {
 	data := []byte("{}")
 	if len(th.Metadata) > 0 {
@@ -639,6 +768,38 @@ func toThing(dbth dbThing) (things.Thing, error) {
 		Key:      dbth.Key,
 		Metadata: metadata,
 	}, nil
+}
+
+func toChannelThing(dbchth dbChannelThing, items map[string]things.ChannelThings) (map[string]things.ChannelThings, error) {
+	thing, err := toThing(dbThing{
+		ID:       dbchth.ThingID,
+		Name:     dbchth.ThingName,
+		Key:      dbchth.ThingKey,
+		Metadata: dbchth.ThingMetadata,
+	})
+	if err != nil {
+		return items, err
+	}
+	if chth, ok := items[dbchth.ChannelID]; ok {
+		chth.Things = append(chth.Things, thing)
+		items[dbchth.ChannelID] = chth
+		return items, nil
+	}
+	var metadata map[string]interface{}
+	if err := json.Unmarshal(dbchth.ChannelMetadata, &metadata); err != nil {
+		return items, errors.Wrap(things.ErrMalformedEntity, err)
+	}
+	channel := toChannel(dbChannel{
+		ID:       dbchth.ChannelID,
+		Owner:    dbchth.ChannelOwner,
+		Name:     dbchth.ChannelName,
+		Metadata: metadata,
+	})
+	items[dbchth.ChannelID] = things.ChannelThings{
+		Channel: channel,
+		Things:  []things.Thing{thing},
+	}
+	return items, nil
 }
 
 type locationMeta struct {

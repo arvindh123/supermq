@@ -140,6 +140,11 @@ type thingsPageRes struct {
 	Things []viewThingRes `json:"things"`
 }
 
+type channelsThingsPageRes struct {
+	pageRes
+	ChannelsThings interface{} `json:"channels_things"`
+}
+
 func (res thingsPageRes) Code() int {
 	return http.StatusOK
 }

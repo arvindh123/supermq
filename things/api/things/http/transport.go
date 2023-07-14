@@ -128,6 +128,13 @@ func MakeHandler(tracer opentracing.Tracer, svc things.Service, username, pass s
 		opts...,
 	))
 
+	r.Post("/channels/things", kithttp.NewServer(
+		kitot.TraceServer(tracer, "list_things_by_channels")(listThingsByBulkChannelsEndpoint(svc)),
+		decodeListThingsByBulChannels,
+		encodeResponse,
+		opts...,
+	))
+
 	r.Put("/channels/:id", kithttp.NewServer(
 		kitot.TraceServer(tracer, "update_channel")(updateChannelEndpoint(svc)),
 		decodeChannelUpdate,
@@ -445,6 +452,23 @@ func decodeListByConnection(_ context.Context, r *http.Request) (interface{}, er
 		},
 	}
 
+	return req, nil
+}
+
+func decodeListThingsByBulChannels(_ context.Context, r *http.Request) (interface{}, error) {
+	req := listThingsByBulkChannelsReq{token: r.Header.Get("Authorization")}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return nil, errors.Wrap(things.ErrMalformedEntity, err)
+	}
+	if req.Dir == "" {
+		req.Dir = descDir
+	}
+	if req.Limit == 0 {
+		req.Limit = defLimit
+	}
+	if req.Order == "" {
+		req.Order = nameOrder
+	}
 	return req, nil
 }
 

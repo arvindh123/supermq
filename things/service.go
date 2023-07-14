@@ -91,6 +91,11 @@ type Service interface {
 	// the provided key.
 	ListThingsByChannel(ctx context.Context, token, chID string, pm PageMetadata) (Page, error)
 
+	// ListThingsByBulkChannels retrieves data about subset of things that are
+	// connected specified channels and belong to the user identified by
+	// the provided key.
+	ListThingsByBulkChannels(ctx context.Context, token string, chIDs []string, pm PageMetadata) (PageChannelsThings, error)
+
 	// RemoveThing removes the thing identified with the provided ID, that
 	// belongs to the user identified by the provided key.
 	RemoveThing(ctx context.Context, token, id string) error
@@ -159,7 +164,7 @@ type PageMetadata struct {
 	Dir               string                 `json:"dir,omitempty"`
 	Metadata          map[string]interface{} `json:"metadata,omitempty"`
 	Disconnected      bool                   // Used for connected or disconnected lists
-	FetchSharedThings bool                   // Used for identifying fetching either all or shared things.
+	FetchSharedThings bool                   `json:"shared"` // Used for identifying fetching either all or shared things.
 	SharedThings      []string
 }
 
@@ -368,6 +373,25 @@ func (ts *thingsService) ListThings(ctx context.Context, token string, pm PageMe
 	}
 
 	return page, nil
+}
+
+func (ts *thingsService) ListThingsByBulkChannels(ctx context.Context, token string, chIDs []string, pm PageMetadata) (PageChannelsThings, error) {
+	res, err := ts.auth.Identify(ctx, &mainflux.Token{Value: token})
+	if err != nil {
+		return PageChannelsThings{}, errors.Wrap(ErrUnauthorizedAccess, err)
+	}
+	res = changeUserIdentity(res)
+
+	subject := res.GetId()
+	if pm.FetchSharedThings && pm.Disconnected {
+		req := &mainflux.ListPoliciesReq{Act: "read", Sub: subject}
+		lpr, err := ts.auth.ListPolicies(ctx, req)
+		if err != nil {
+			return PageChannelsThings{}, err
+		}
+		pm.SharedThings = append(pm.SharedThings, lpr.Policies...)
+	}
+	return ts.things.RetrieveByBulkChannels(ctx, res.GetEmail(), chIDs, pm)
 }
 
 func (ts *thingsService) ListThingsByChannel(ctx context.Context, token, chID string, pm PageMetadata) (Page, error) {

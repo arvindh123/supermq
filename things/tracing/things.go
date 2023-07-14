@@ -110,8 +110,15 @@ func (trm thingRepositoryMiddleware) RetrieveByChannel(ctx context.Context, owne
 	span := createSpan(ctx, trm.tracer, retrieveThingsByChannelOp)
 	defer span.Finish()
 	ctx = opentracing.ContextWithSpan(ctx, span)
-
 	return trm.repo.RetrieveByChannel(ctx, owner, chID, pm)
+}
+
+func (trm thingRepositoryMiddleware) RetrieveByBulkChannels(ctx context.Context, owner string, chID []string, pm things.PageMetadata) (things.PageChannelsThings, error) {
+	span := createSpan(ctx, trm.tracer, retrieveThingsByChannelOp)
+	defer span.Finish()
+	ctx = opentracing.ContextWithSpan(ctx, span)
+
+	return trm.repo.RetrieveByBulkChannels(ctx, owner, chID, pm)
 }
 
 func (trm thingRepositoryMiddleware) Remove(ctx context.Context, owner, id string) error {

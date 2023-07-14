@@ -105,7 +105,9 @@ func (es eventStore) ListByIds(ctx context.Context, token string, ids []string) 
 func (es eventStore) ListThingsByChannel(ctx context.Context, token, chID string, pm things.PageMetadata) (things.Page, error) {
 	return es.svc.ListThingsByChannel(ctx, token, chID, pm)
 }
-
+func (es eventStore) ListThingsByBulkChannels(ctx context.Context, token string, chID []string, pm things.PageMetadata) (things.PageChannelsThings, error) {
+	return es.svc.ListThingsByBulkChannels(ctx, token, chID, pm)
+}
 func (es eventStore) RemoveThing(ctx context.Context, token, id string) error {
 	if err := es.svc.RemoveThing(ctx, token, id); err != nil {
 		return err

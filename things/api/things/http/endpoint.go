@@ -162,6 +162,30 @@ func viewThingEndpoint(svc things.Service) endpoint.Endpoint {
 	}
 }
 
+func listThingsByBulkChannelsEndpoint(svc things.Service) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		req := request.(listThingsByBulkChannelsReq)
+		if err := req.validate(); err != nil {
+			return nil, err
+		}
+
+		page, err := svc.ListThingsByBulkChannels(ctx, req.token, req.Ids, req.PageMetadata)
+		if err != nil {
+			return nil, err
+		}
+
+		res := channelsThingsPageRes{
+			pageRes: pageRes{
+				Total:  page.Total,
+				Offset: page.Offset,
+				Limit:  page.Limit,
+			},
+			ChannelsThings: page.ChannelsThings,
+		}
+		return res, nil
+	}
+}
+
 func listThingsByChannelEndpoint(svc things.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(listByConnectionReq)
