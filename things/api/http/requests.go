@@ -1,17 +1,17 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package http
 
 import (
-	"github.com/mainflux/mainflux/internal/api"
-	"github.com/mainflux/mainflux/internal/apiutil"
-	mfclients "github.com/mainflux/mainflux/pkg/clients"
-	"github.com/mainflux/mainflux/pkg/errors"
+	"github.com/absmach/magistrala/internal/api"
+	"github.com/absmach/magistrala/internal/apiutil"
+	mgclients "github.com/absmach/magistrala/pkg/clients"
+	"github.com/absmach/magistrala/pkg/errors"
 )
 
 type createClientReq struct {
-	client mfclients.Client
+	client mgclients.Client
 	token  string
 }
 
@@ -31,7 +31,7 @@ func (req createClientReq) validate() error {
 
 type createClientsReq struct {
 	token   string
-	Clients []mfclients.Client
+	Clients []mgclients.Client
 }
 
 func (req createClientsReq) validate() error {
@@ -61,12 +61,33 @@ type viewClientReq struct {
 }
 
 func (req viewClientReq) validate() error {
+	if req.token == "" {
+		return apiutil.ErrBearerToken
+	}
+	if req.id == "" {
+		return apiutil.ErrMissingID
+	}
+	return nil
+}
+
+type viewClientPermsReq struct {
+	token string
+	id    string
+}
+
+func (req viewClientPermsReq) validate() error {
+	if req.token == "" {
+		return apiutil.ErrBearerToken
+	}
+	if req.id == "" {
+		return apiutil.ErrMissingID
+	}
 	return nil
 }
 
 type listClientsReq struct {
 	token      string
-	status     mfclients.Status
+	status     mgclients.Status
 	offset     uint64
 	limit      uint64
 	name       string
@@ -75,7 +96,8 @@ type listClientsReq struct {
 	permission string
 	visibility string
 	userID     string
-	metadata   mfclients.Metadata
+	listPerms  bool
+	metadata   mgclients.Metadata
 }
 
 func (req listClientsReq) validate() error {
@@ -99,7 +121,7 @@ func (req listClientsReq) validate() error {
 }
 
 type listMembersReq struct {
-	mfclients.Page
+	mgclients.Page
 	token   string
 	groupID string
 }
@@ -149,26 +171,6 @@ func (req updateClientTagsReq) validate() error {
 	}
 	if req.id == "" {
 		return apiutil.ErrMissingID
-	}
-
-	return nil
-}
-
-type updateClientOwnerReq struct {
-	id    string
-	token string
-	Owner string `json:"owner,omitempty"`
-}
-
-func (req updateClientOwnerReq) validate() error {
-	if req.token == "" {
-		return apiutil.ErrBearerToken
-	}
-	if req.id == "" {
-		return apiutil.ErrMissingID
-	}
-	if req.Owner == "" {
-		return apiutil.ErrMissingOwner
 	}
 
 	return nil
@@ -360,6 +362,21 @@ func (req *thingUnshareRequest) validate() error {
 	}
 	if req.Relation == "" || len(req.UserIDs) <= 0 {
 		return errors.ErrCreateEntity
+	}
+	return nil
+}
+
+type deleteClientReq struct {
+	token string
+	id    string
+}
+
+func (req deleteClientReq) validate() error {
+	if req.token == "" {
+		return apiutil.ErrBearerToken
+	}
+	if req.id == "" {
+		return apiutil.ErrMissingID
 	}
 	return nil
 }

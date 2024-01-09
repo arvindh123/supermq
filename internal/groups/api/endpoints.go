@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package api
@@ -6,20 +6,20 @@ package api
 import (
 	"context"
 
+	"github.com/absmach/magistrala/internal/apiutil"
+	"github.com/absmach/magistrala/pkg/errors"
+	"github.com/absmach/magistrala/pkg/groups"
 	"github.com/go-kit/kit/endpoint"
-	"github.com/mainflux/mainflux/internal/apiutil"
-	"github.com/mainflux/mainflux/pkg/errors"
-	"github.com/mainflux/mainflux/pkg/groups"
 )
 
-func CreateGroupEndpoint(svc groups.Service) endpoint.Endpoint {
+func CreateGroupEndpoint(svc groups.Service, kind string) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(createGroupReq)
 		if err := req.validate(); err != nil {
 			return nil, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		group, err := svc.CreateGroup(ctx, req.token, req.Group)
+		group, err := svc.CreateGroup(ctx, req.token, kind, req.Group)
 		if err != nil {
 			return nil, err
 		}
@@ -41,6 +41,22 @@ func ViewGroupEndpoint(svc groups.Service) endpoint.Endpoint {
 		}
 
 		return viewGroupRes{Group: group}, nil
+	}
+}
+
+func ViewGroupPermsEndpoint(svc groups.Service) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		req := request.(groupPermsReq)
+		if err := req.validate(); err != nil {
+			return nil, errors.Wrap(apiutil.ErrValidation, err)
+		}
+
+		p, err := svc.ViewGroupPerms(ctx, req.token, req.id)
+		if err != nil {
+			return nil, err
+		}
+
+		return viewGroupPermsRes{Permissions: p}, nil
 	}
 }
 
@@ -143,7 +159,7 @@ func ListMembersEndpoint(svc groups.Service, memberKind string) endpoint.Endpoin
 	}
 }
 
-func AssignMembersEndpoint(svc groups.Service, relation string, memberKind string) endpoint.Endpoint {
+func AssignMembersEndpoint(svc groups.Service, relation, memberKind string) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(assignReq)
 		if relation != "" {
@@ -162,7 +178,7 @@ func AssignMembersEndpoint(svc groups.Service, relation string, memberKind strin
 	}
 }
 
-func UnassignMembersEndpoint(svc groups.Service, relation string, memberKind string) endpoint.Endpoint {
+func UnassignMembersEndpoint(svc groups.Service, relation, memberKind string) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(unassignReq)
 		if relation != "" {
@@ -179,6 +195,19 @@ func UnassignMembersEndpoint(svc groups.Service, relation string, memberKind str
 			return nil, err
 		}
 		return unassignRes{}, nil
+	}
+}
+
+func DeleteGroupEndpoint(svc groups.Service) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		req := request.(groupReq)
+		if err := req.validate(); err != nil {
+			return nil, errors.Wrap(apiutil.ErrValidation, err)
+		}
+		if err := svc.DeleteGroup(ctx, req.token, req.id); err != nil {
+			return nil, err
+		}
+		return deleteGroupRes{}, nil
 	}
 }
 

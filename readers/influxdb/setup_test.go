@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package influxdb_test
@@ -13,13 +13,13 @@ import (
 	"testing"
 	"time"
 
+	mglog "github.com/absmach/magistrala/logger"
 	influxdata "github.com/influxdata/influxdb-client-go/v2"
-	mflog "github.com/mainflux/mainflux/logger"
 	"github.com/ory/dockertest/v3"
 )
 
 var (
-	testLog, _ = mflog.New(os.Stdout, mflog.Info.String())
+	testLog, _ = mglog.New(os.Stdout, mglog.Info.String())
 	address    string
 )
 

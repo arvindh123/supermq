@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package lora
@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/mainflux/mainflux/pkg/messaging"
+	"github.com/absmach/magistrala/pkg/messaging"
 )
 
 const protocol = "lora"
@@ -34,19 +34,19 @@ var (
 // implementation, and all of its decorators (e.g. logging & metrics).
 type Service interface {
 	// CreateThing creates thingID:devEUI route-map
-	CreateThing(ctx context.Context, thingID string, devEUI string) error
+	CreateThing(ctx context.Context, thingID, devEUI string) error
 
 	// UpdateThing updates thingID:devEUI route-map
-	UpdateThing(ctx context.Context, thingID string, devEUI string) error
+	UpdateThing(ctx context.Context, thingID, devEUI string) error
 
 	// RemoveThing removes thingID:devEUI route-map
 	RemoveThing(ctx context.Context, thingID string) error
 
 	// CreateChannel creates channelID:appID route-map
-	CreateChannel(ctx context.Context, chanID string, appID string) error
+	CreateChannel(ctx context.Context, chanID, appID string) error
 
 	// UpdateChannel updates channelID:appID route-map
-	UpdateChannel(ctx context.Context, chanID string, appID string) error
+	UpdateChannel(ctx context.Context, chanID, appID string) error
 
 	// RemoveChannel removes channelID:appID route-map
 	RemoveChannel(ctx context.Context, chanID string) error
@@ -57,7 +57,7 @@ type Service interface {
 	// DisconnectThing removes thingID:channelID route-map
 	DisconnectThing(ctx context.Context, chanID, thingID string) error
 
-	// Publish forwards messages from the LoRa MQTT broker to Mainflux Message Broker
+	// Publish forwards messages from the LoRa MQTT broker to Magistrala Message Broker
 	Publish(ctx context.Context, msg *Message) error
 }
 
@@ -80,7 +80,7 @@ func New(publisher messaging.Publisher, thingsRM, channelsRM, connectRM RouteMap
 	}
 }
 
-// Publish forwards messages from Lora MQTT broker to Mainflux Message broker.
+// Publish forwards messages from Lora MQTT broker to Magistrala Message broker.
 func (as *adapterService) Publish(ctx context.Context, m *Message) error {
 	// Get route map of lora application
 	thingID, err := as.thingsRM.Get(ctx, m.DevEUI)
@@ -116,7 +116,7 @@ func (as *adapterService) Publish(ctx context.Context, m *Message) error {
 		payload = jo
 	}
 
-	// Publish on Mainflux Message broker
+	// Publish on Magistrala Message broker
 	msg := messaging.Message{
 		Publisher: thingID,
 		Protocol:  protocol,
@@ -128,11 +128,11 @@ func (as *adapterService) Publish(ctx context.Context, m *Message) error {
 	return as.publisher.Publish(ctx, msg.Channel, &msg)
 }
 
-func (as *adapterService) CreateThing(ctx context.Context, thingID string, devEUI string) error {
+func (as *adapterService) CreateThing(ctx context.Context, thingID, devEUI string) error {
 	return as.thingsRM.Save(ctx, thingID, devEUI)
 }
 
-func (as *adapterService) UpdateThing(ctx context.Context, thingID string, devEUI string) error {
+func (as *adapterService) UpdateThing(ctx context.Context, thingID, devEUI string) error {
 	return as.thingsRM.Save(ctx, thingID, devEUI)
 }
 
@@ -140,11 +140,11 @@ func (as *adapterService) RemoveThing(ctx context.Context, thingID string) error
 	return as.thingsRM.Remove(ctx, thingID)
 }
 
-func (as *adapterService) CreateChannel(ctx context.Context, chanID string, appID string) error {
+func (as *adapterService) CreateChannel(ctx context.Context, chanID, appID string) error {
 	return as.channelsRM.Save(ctx, chanID, appID)
 }
 
-func (as *adapterService) UpdateChannel(ctx context.Context, chanID string, appID string) error {
+func (as *adapterService) UpdateChannel(ctx context.Context, chanID, appID string) error {
 	return as.channelsRM.Save(ctx, chanID, appID)
 }
 

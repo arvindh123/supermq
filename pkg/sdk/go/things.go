@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package sdk
@@ -9,21 +9,22 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/mainflux/mainflux/pkg/errors"
+	"github.com/absmach/magistrala/pkg/errors"
 )
 
 const (
-	thingsEndpoint     = "things"
-	connectEndpoint    = "connect"
-	disconnectEndpoint = "disconnect"
-	identifyEndpoint   = "identify"
-	shareEndpoint      = "share"
-	unshareEndpoint    = "unshare"
+	permissionsEndpoint = "permissions"
+	thingsEndpoint      = "things"
+	connectEndpoint     = "connect"
+	disconnectEndpoint  = "disconnect"
+	identifyEndpoint    = "identify"
+	shareEndpoint       = "share"
+	unshareEndpoint     = "unshare"
 )
 
-// Thing represents mainflux thing.
+// Thing represents magistrala thing.
 type Thing struct {
-	ID          string                 `json:"id"`
+	ID          string                 `json:"id,omitempty"`
 	Name        string                 `json:"name,omitempty"`
 	Credentials Credentials            `json:"credentials"`
 	Tags        []string               `json:"tags,omitempty"`
@@ -32,9 +33,10 @@ type Thing struct {
 	CreatedAt   time.Time              `json:"created_at,omitempty"`
 	UpdatedAt   time.Time              `json:"updated_at,omitempty"`
 	Status      string                 `json:"status,omitempty"`
+	Permissions []string               `json:"permissions,omitempty"`
 }
 
-func (sdk mfSDK) CreateThing(thing Thing, token string) (Thing, errors.SDKError) {
+func (sdk mgSDK) CreateThing(thing Thing, token string) (Thing, errors.SDKError) {
 	data, err := json.Marshal(thing)
 	if err != nil {
 		return Thing{}, errors.NewSDKError(err)
@@ -55,7 +57,7 @@ func (sdk mfSDK) CreateThing(thing Thing, token string) (Thing, errors.SDKError)
 	return thing, nil
 }
 
-func (sdk mfSDK) CreateThings(things []Thing, token string) ([]Thing, errors.SDKError) {
+func (sdk mgSDK) CreateThings(things []Thing, token string) ([]Thing, errors.SDKError) {
 	data, err := json.Marshal(things)
 	if err != nil {
 		return []Thing{}, errors.NewSDKError(err)
@@ -76,7 +78,7 @@ func (sdk mfSDK) CreateThings(things []Thing, token string) ([]Thing, errors.SDK
 	return ctr.Things, nil
 }
 
-func (sdk mfSDK) Things(pm PageMetadata, token string) (ThingsPage, errors.SDKError) {
+func (sdk mgSDK) Things(pm PageMetadata, token string) (ThingsPage, errors.SDKError) {
 	url, err := sdk.withQueryParams(sdk.thingsURL, thingsEndpoint, pm)
 	if err != nil {
 		return ThingsPage{}, errors.NewSDKError(err)
@@ -95,7 +97,7 @@ func (sdk mfSDK) Things(pm PageMetadata, token string) (ThingsPage, errors.SDKEr
 	return cp, nil
 }
 
-func (sdk mfSDK) ThingsByChannel(chanID string, pm PageMetadata, token string) (ThingsPage, errors.SDKError) {
+func (sdk mgSDK) ThingsByChannel(chanID string, pm PageMetadata, token string) (ThingsPage, errors.SDKError) {
 	url, err := sdk.withQueryParams(sdk.thingsURL, fmt.Sprintf("channels/%s/%s", chanID, thingsEndpoint), pm)
 	if err != nil {
 		return ThingsPage{}, errors.NewSDKError(err)
@@ -114,7 +116,7 @@ func (sdk mfSDK) ThingsByChannel(chanID string, pm PageMetadata, token string) (
 	return tp, nil
 }
 
-func (sdk mfSDK) Thing(id, token string) (Thing, errors.SDKError) {
+func (sdk mgSDK) Thing(id, token string) (Thing, errors.SDKError) {
 	url := fmt.Sprintf("%s/%s/%s", sdk.thingsURL, thingsEndpoint, id)
 
 	_, body, sdkerr := sdk.processRequest(http.MethodGet, url, token, nil, nil, http.StatusOK)
@@ -130,7 +132,23 @@ func (sdk mfSDK) Thing(id, token string) (Thing, errors.SDKError) {
 	return t, nil
 }
 
-func (sdk mfSDK) UpdateThing(t Thing, token string) (Thing, errors.SDKError) {
+func (sdk mgSDK) ThingPermissions(id, token string) (Thing, errors.SDKError) {
+	url := fmt.Sprintf("%s/%s/%s/%s", sdk.thingsURL, thingsEndpoint, id, permissionsEndpoint)
+
+	_, body, sdkerr := sdk.processRequest(http.MethodGet, url, token, nil, nil, http.StatusOK)
+	if sdkerr != nil {
+		return Thing{}, sdkerr
+	}
+
+	var t Thing
+	if err := json.Unmarshal(body, &t); err != nil {
+		return Thing{}, errors.NewSDKError(err)
+	}
+
+	return t, nil
+}
+
+func (sdk mgSDK) UpdateThing(t Thing, token string) (Thing, errors.SDKError) {
 	data, err := json.Marshal(t)
 	if err != nil {
 		return Thing{}, errors.NewSDKError(err)
@@ -151,7 +169,7 @@ func (sdk mfSDK) UpdateThing(t Thing, token string) (Thing, errors.SDKError) {
 	return t, nil
 }
 
-func (sdk mfSDK) UpdateThingTags(t Thing, token string) (Thing, errors.SDKError) {
+func (sdk mgSDK) UpdateThingTags(t Thing, token string) (Thing, errors.SDKError) {
 	data, err := json.Marshal(t)
 	if err != nil {
 		return Thing{}, errors.NewSDKError(err)
@@ -172,7 +190,7 @@ func (sdk mfSDK) UpdateThingTags(t Thing, token string) (Thing, errors.SDKError)
 	return t, nil
 }
 
-func (sdk mfSDK) UpdateThingSecret(id, secret, token string) (Thing, errors.SDKError) {
+func (sdk mgSDK) UpdateThingSecret(id, secret, token string) (Thing, errors.SDKError) {
 	ucsr := updateThingSecretReq{Secret: secret}
 
 	data, err := json.Marshal(ucsr)
@@ -195,36 +213,15 @@ func (sdk mfSDK) UpdateThingSecret(id, secret, token string) (Thing, errors.SDKE
 	return t, nil
 }
 
-func (sdk mfSDK) UpdateThingOwner(t Thing, token string) (Thing, errors.SDKError) {
-	data, err := json.Marshal(t)
-	if err != nil {
-		return Thing{}, errors.NewSDKError(err)
-	}
-
-	url := fmt.Sprintf("%s/%s/%s/owner", sdk.thingsURL, thingsEndpoint, t.ID)
-
-	_, body, sdkerr := sdk.processRequest(http.MethodPatch, url, token, data, nil, http.StatusOK)
-	if sdkerr != nil {
-		return Thing{}, sdkerr
-	}
-
-	t = Thing{}
-	if err = json.Unmarshal(body, &t); err != nil {
-		return Thing{}, errors.NewSDKError(err)
-	}
-
-	return t, nil
-}
-
-func (sdk mfSDK) EnableThing(id, token string) (Thing, errors.SDKError) {
+func (sdk mgSDK) EnableThing(id, token string) (Thing, errors.SDKError) {
 	return sdk.changeThingStatus(id, enableEndpoint, token)
 }
 
-func (sdk mfSDK) DisableThing(id, token string) (Thing, errors.SDKError) {
+func (sdk mgSDK) DisableThing(id, token string) (Thing, errors.SDKError) {
 	return sdk.changeThingStatus(id, disableEndpoint, token)
 }
 
-func (sdk mfSDK) changeThingStatus(id, status, token string) (Thing, errors.SDKError) {
+func (sdk mgSDK) changeThingStatus(id, status, token string) (Thing, errors.SDKError) {
 	url := fmt.Sprintf("%s/%s/%s/%s", sdk.thingsURL, thingsEndpoint, id, status)
 
 	_, body, sdkerr := sdk.processRequest(http.MethodPost, url, token, nil, nil, http.StatusOK)
@@ -240,7 +237,7 @@ func (sdk mfSDK) changeThingStatus(id, status, token string) (Thing, errors.SDKE
 	return t, nil
 }
 
-func (sdk mfSDK) IdentifyThing(key string) (string, errors.SDKError) {
+func (sdk mgSDK) IdentifyThing(key string) (string, errors.SDKError) {
 	url := fmt.Sprintf("%s/%s", sdk.thingsURL, identifyEndpoint)
 
 	_, body, sdkerr := sdk.processRequest(http.MethodPost, url, ThingPrefix+key, nil, nil, http.StatusOK)
@@ -256,7 +253,7 @@ func (sdk mfSDK) IdentifyThing(key string) (string, errors.SDKError) {
 	return i.ID, nil
 }
 
-func (sdk mfSDK) ShareThing(thingID string, req UsersRelationRequest, token string) errors.SDKError {
+func (sdk mgSDK) ShareThing(thingID string, req UsersRelationRequest, token string) errors.SDKError {
 	data, err := json.Marshal(req)
 	if err != nil {
 		return errors.NewSDKError(err)
@@ -264,11 +261,11 @@ func (sdk mfSDK) ShareThing(thingID string, req UsersRelationRequest, token stri
 
 	url := fmt.Sprintf("%s/%s/%s/%s", sdk.thingsURL, thingsEndpoint, thingID, shareEndpoint)
 
-	_, _, sdkerr := sdk.processRequest(http.MethodPost, url, token, data, nil, http.StatusOK)
+	_, _, sdkerr := sdk.processRequest(http.MethodPost, url, token, data, nil, http.StatusCreated)
 	return sdkerr
 }
 
-func (sdk mfSDK) UnshareThing(thingID string, req UsersRelationRequest, token string) errors.SDKError {
+func (sdk mgSDK) UnshareThing(thingID string, req UsersRelationRequest, token string) errors.SDKError {
 	data, err := json.Marshal(req)
 	if err != nil {
 		return errors.NewSDKError(err)
@@ -276,11 +273,11 @@ func (sdk mfSDK) UnshareThing(thingID string, req UsersRelationRequest, token st
 
 	url := fmt.Sprintf("%s/%s/%s/%s", sdk.thingsURL, thingsEndpoint, thingID, unshareEndpoint)
 
-	_, _, sdkerr := sdk.processRequest(http.MethodPost, url, token, data, nil, http.StatusOK)
+	_, _, sdkerr := sdk.processRequest(http.MethodPost, url, token, data, nil, http.StatusNoContent)
 	return sdkerr
 }
 
-func (sdk mfSDK) ListThingUsers(thingID string, pm PageMetadata, token string) (UsersPage, errors.SDKError) {
+func (sdk mgSDK) ListThingUsers(thingID string, pm PageMetadata, token string) (UsersPage, errors.SDKError) {
 	url, err := sdk.withQueryParams(sdk.usersURL, fmt.Sprintf("%s/%s/%s", thingsEndpoint, thingID, usersEndpoint), pm)
 	if err != nil {
 		return UsersPage{}, errors.NewSDKError(err)
@@ -296,4 +293,10 @@ func (sdk mfSDK) ListThingUsers(thingID string, pm PageMetadata, token string) (
 	}
 
 	return up, nil
+}
+
+func (sdk mgSDK) DeleteThing(id, token string) errors.SDKError {
+	url := fmt.Sprintf("%s/%s/%s", sdk.thingsURL, thingsEndpoint, id)
+	_, _, sdkerr := sdk.processRequest(http.MethodDelete, url, token, nil, nil, http.StatusNoContent)
+	return sdkerr
 }

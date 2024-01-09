@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package postgres_test
@@ -9,23 +9,21 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mainflux/mainflux/internal/testsutil"
-	mfclients "github.com/mainflux/mainflux/pkg/clients"
-	"github.com/mainflux/mainflux/pkg/errors"
-	cpostgres "github.com/mainflux/mainflux/users/postgres"
+	"github.com/0x6flab/namegenerator"
+	"github.com/absmach/magistrala/internal/testsutil"
+	mgclients "github.com/absmach/magistrala/pkg/clients"
+	"github.com/absmach/magistrala/pkg/errors"
+	cpostgres "github.com/absmach/magistrala/users/postgres"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-const (
-	maxNameSize = 254
-)
+const maxNameSize = 254
 
 var (
-	invalidName    = strings.Repeat("m", maxNameSize+10)
-	password       = "$tr0ngPassw0rd"
-	clientIdentity = "client-identity@example.com"
-	clientName     = "client name"
+	invalidName = strings.Repeat("m", maxNameSize+10)
+	password    = "$tr0ngPassw0rd"
+	namesgen    = namegenerator.NewNameGenerator()
 )
 
 func TestClientsSave(t *testing.T) {
@@ -37,131 +35,160 @@ func TestClientsSave(t *testing.T) {
 
 	uid := testsutil.GenerateUUID(t)
 
+	name := namesgen.Generate()
+	clientIdentity := name + "@example.com"
+
 	cases := []struct {
 		desc   string
-		client mfclients.Client
+		client mgclients.Client
 		err    error
 	}{
 		{
 			desc: "add new client successfully",
-			client: mfclients.Client{
+			client: mgclients.Client{
 				ID:   uid,
-				Name: clientName,
-				Credentials: mfclients.Credentials{
+				Name: name,
+				Credentials: mgclients.Credentials{
 					Identity: clientIdentity,
 					Secret:   password,
 				},
-				Metadata: mfclients.Metadata{},
-				Status:   mfclients.EnabledStatus,
+				Metadata: mgclients.Metadata{},
+				Status:   mgclients.EnabledStatus,
 			},
 			err: nil,
 		},
 		{
 			desc: "add new client with an owner",
-			client: mfclients.Client{
+			client: mgclients.Client{
 				ID:    testsutil.GenerateUUID(t),
 				Owner: uid,
-				Name:  clientName,
-				Credentials: mfclients.Credentials{
-					Identity: "withowner-client@example.com",
+				Name:  namesgen.Generate(),
+				Credentials: mgclients.Credentials{
+					Identity: fmt.Sprintf("%s@example.com", namesgen.Generate()),
 					Secret:   password,
 				},
-				Metadata: mfclients.Metadata{},
-				Status:   mfclients.EnabledStatus,
+				Metadata: mgclients.Metadata{},
+				Status:   mgclients.EnabledStatus,
 			},
 			err: nil,
 		},
 		{
 			desc: "add client with duplicate client identity",
-			client: mfclients.Client{
+			client: mgclients.Client{
 				ID:   testsutil.GenerateUUID(t),
-				Name: clientName,
-				Credentials: mfclients.Credentials{
+				Name: namesgen.Generate(),
+				Credentials: mgclients.Credentials{
 					Identity: clientIdentity,
 					Secret:   password,
 				},
-				Metadata: mfclients.Metadata{},
-				Status:   mfclients.EnabledStatus,
+				Metadata: mgclients.Metadata{},
+				Status:   mgclients.EnabledStatus,
+			},
+			err: errors.ErrConflict,
+		},
+		{
+			desc: "add client with duplicate client name",
+			client: mgclients.Client{
+				ID:   testsutil.GenerateUUID(t),
+				Name: name,
+				Credentials: mgclients.Credentials{
+					Identity: clientIdentity,
+					Secret:   password,
+				},
+				Metadata: mgclients.Metadata{},
+				Status:   mgclients.EnabledStatus,
 			},
 			err: errors.ErrConflict,
 		},
 		{
 			desc: "add client with invalid client id",
-			client: mfclients.Client{
+			client: mgclients.Client{
 				ID:   invalidName,
-				Name: clientName,
-				Credentials: mfclients.Credentials{
-					Identity: "invalidid-client@example.com",
+				Name: namesgen.Generate(),
+				Credentials: mgclients.Credentials{
+					Identity: fmt.Sprintf("%s@example.com", namesgen.Generate()),
 					Secret:   password,
 				},
-				Metadata: mfclients.Metadata{},
-				Status:   mfclients.EnabledStatus,
+				Metadata: mgclients.Metadata{},
+				Status:   mgclients.EnabledStatus,
 			},
 			err: errors.ErrMalformedEntity,
 		},
 		{
 			desc: "add client with invalid client name",
-			client: mfclients.Client{
+			client: mgclients.Client{
 				ID:   testsutil.GenerateUUID(t),
 				Name: invalidName,
-				Credentials: mfclients.Credentials{
-					Identity: "invalidname-client@example.com",
+				Credentials: mgclients.Credentials{
+					Identity: fmt.Sprintf("%s@example.com", namesgen.Generate()),
 					Secret:   password,
 				},
-				Metadata: mfclients.Metadata{},
-				Status:   mfclients.EnabledStatus,
+				Metadata: mgclients.Metadata{},
+				Status:   mgclients.EnabledStatus,
 			},
 			err: errors.ErrMalformedEntity,
 		},
 		{
 			desc: "add client with invalid client owner",
-			client: mfclients.Client{
+			client: mgclients.Client{
 				ID:    testsutil.GenerateUUID(t),
 				Owner: invalidName,
-				Credentials: mfclients.Credentials{
-					Identity: "invalidowner-client@example.com",
+				Credentials: mgclients.Credentials{
+					Identity: fmt.Sprintf("%s@example.com", namesgen.Generate()),
 					Secret:   password,
 				},
-				Metadata: mfclients.Metadata{},
-				Status:   mfclients.EnabledStatus,
+				Metadata: mgclients.Metadata{},
+				Status:   mgclients.EnabledStatus,
 			},
 			err: errors.ErrMalformedEntity,
 		},
 		{
 			desc: "add client with invalid client identity",
-			client: mfclients.Client{
+			client: mgclients.Client{
 				ID:   testsutil.GenerateUUID(t),
-				Name: clientName,
-				Credentials: mfclients.Credentials{
+				Name: namesgen.Generate(),
+				Credentials: mgclients.Credentials{
 					Identity: invalidName,
 					Secret:   password,
 				},
-				Metadata: mfclients.Metadata{},
-				Status:   mfclients.EnabledStatus,
+				Metadata: mgclients.Metadata{},
+				Status:   mgclients.EnabledStatus,
 			},
 			err: errors.ErrMalformedEntity,
 		},
 		{
-			desc: "add client with a missing client identity",
-			client: mfclients.Client{
+			desc: "add client with a missing client name",
+			client: mgclients.Client{
 				ID: testsutil.GenerateUUID(t),
-				Credentials: mfclients.Credentials{
-					Identity: "",
+				Credentials: mgclients.Credentials{
+					Identity: fmt.Sprintf("%s@example.com", namesgen.Generate()),
 					Secret:   password,
 				},
-				Metadata: mfclients.Metadata{},
+				Metadata: mgclients.Metadata{},
+			},
+			err: nil,
+		},
+		{
+			desc: "add client with a missing client identity",
+			client: mgclients.Client{
+				ID:   testsutil.GenerateUUID(t),
+				Name: namesgen.Generate(),
+				Credentials: mgclients.Credentials{
+					Secret: password,
+				},
+				Metadata: mgclients.Metadata{},
 			},
 			err: nil,
 		},
 		{
 			desc: "add client with a missing client secret",
-			client: mfclients.Client{
-				ID: testsutil.GenerateUUID(t),
-				Credentials: mfclients.Credentials{
-					Identity: "missing-client-secret@example.com",
-					Secret:   "",
+			client: mgclients.Client{
+				ID:   testsutil.GenerateUUID(t),
+				Name: namesgen.Generate(),
+				Credentials: mgclients.Credentials{
+					Identity: fmt.Sprintf("%s@example.com", namesgen.Generate()),
 				},
-				Metadata: mfclients.Metadata{},
+				Metadata: mgclients.Metadata{},
 			},
 			err: nil,
 		},
@@ -176,60 +203,45 @@ func TestClientsSave(t *testing.T) {
 	}
 }
 
-func TestIsOwner(t *testing.T) {
+func TestIsPlatformAdmin(t *testing.T) {
 	t.Cleanup(func() {
 		_, err := db.Exec("DELETE FROM clients")
 		require.Nil(t, err, fmt.Sprintf("clean clients unexpected error: %s", err))
 	})
 	repo := cpostgres.NewRepository(database)
 
-	owner := mfclients.Client{
-		ID:   testsutil.GenerateUUID(t),
-		Name: "owner",
-		Credentials: mfclients.Credentials{
-			Identity: "owner@example.com",
-			Secret:   password,
-		},
-		Metadata: mfclients.Metadata{},
-		Status:   mfclients.EnabledStatus,
-	}
-	owner, err := repo.Save(context.Background(), owner)
-	require.Nil(t, err, fmt.Sprintf("save owner unexpected error: %s", err))
-
 	cases := []struct {
-		desc    string
-		ownerID string
-		client  mfclients.Client
-		err     error
+		desc   string
+		client mgclients.Client
+		err    error
 	}{
 		{
-			desc:    "add new client successfully with an owner",
-			ownerID: owner.ID,
-			client: mfclients.Client{
+			desc: "authorize check for super user",
+			client: mgclients.Client{
 				ID:   testsutil.GenerateUUID(t),
-				Name: clientName,
-				Credentials: mfclients.Credentials{
-					Identity: "withowner@example.com",
+				Name: namesgen.Generate(),
+				Credentials: mgclients.Credentials{
+					Identity: fmt.Sprintf("%s@example.com", namesgen.Generate()),
 					Secret:   password,
 				},
-				Owner:    owner.ID,
-				Metadata: mfclients.Metadata{},
-				Status:   mfclients.EnabledStatus,
+				Metadata: mgclients.Metadata{},
+				Status:   mgclients.EnabledStatus,
+				Role:     mgclients.AdminRole,
 			},
 			err: nil,
 		},
 		{
-			desc:    "add new client successfully without an owner",
-			ownerID: owner.ID,
-			client: mfclients.Client{
+			desc: "unauthorize user",
+			client: mgclients.Client{
 				ID:   testsutil.GenerateUUID(t),
-				Name: clientName,
-				Credentials: mfclients.Credentials{
-					Identity: "withoutowner@example.com",
+				Name: namesgen.Generate(),
+				Credentials: mgclients.Credentials{
+					Identity: fmt.Sprintf("%s@example.com", namesgen.Generate()),
 					Secret:   password,
 				},
-				Metadata: mfclients.Metadata{},
-				Status:   mfclients.EnabledStatus,
+				Metadata: mgclients.Metadata{},
+				Status:   mgclients.EnabledStatus,
+				Role:     mgclients.UserRole,
 			},
 			err: errors.ErrAuthorization,
 		},
@@ -238,7 +250,7 @@ func TestIsOwner(t *testing.T) {
 	for _, tc := range cases {
 		_, err := repo.Save(context.Background(), tc.client)
 		require.Nil(t, err, fmt.Sprintf("%s: save client unexpected error: %s", tc.desc, err))
-		err = repo.IsOwner(context.Background(), tc.client.ID, tc.ownerID)
-		assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s: expected %s got %s\n", tc.desc, tc.err, err))
+		err = repo.CheckSuperAdmin(context.Background(), tc.client.ID)
+		assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s: expected %v got %v\n", tc.desc, tc.err, err))
 	}
 }

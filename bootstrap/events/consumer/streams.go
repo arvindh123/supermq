@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package consumer
@@ -8,16 +8,15 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/mainflux/mainflux/bootstrap"
-	"github.com/mainflux/mainflux/pkg/clients"
-	"github.com/mainflux/mainflux/pkg/events"
+	"github.com/absmach/magistrala/bootstrap"
+	"github.com/absmach/magistrala/pkg/events"
 )
 
 const (
 	thingRemove     = "thing.remove"
 	thingDisconnect = "policy.delete"
 
-	channelPrefix = "channel."
+	channelPrefix = "group."
 	channelUpdate = channelPrefix + "update"
 	channelRemove = channelPrefix + "remove"
 )
@@ -61,20 +60,8 @@ func (es *eventHandler) Handle(ctx context.Context, event events.Event) error {
 }
 
 func decodeRemoveThing(event map[string]interface{}) removeEvent {
-	status := read(event, "status", "")
-	st, err := clients.ToStatus(status)
-	if err != nil {
-		return removeEvent{}
-	}
-	switch st {
-	case clients.EnabledStatus:
-		return removeEvent{}
-	case clients.DisabledStatus:
-		return removeEvent{
-			id: read(event, "id", ""),
-		}
-	default:
-		return removeEvent{}
+	return removeEvent{
+		id: read(event, "id", ""),
 	}
 }
 
@@ -95,20 +82,8 @@ func decodeUpdateChannel(event map[string]interface{}) updateChannelEvent {
 }
 
 func decodeRemoveChannel(event map[string]interface{}) removeEvent {
-	status := read(event, "status", "")
-	st, err := clients.ToStatus(status)
-	if err != nil {
-		return removeEvent{}
-	}
-	switch st {
-	case clients.EnabledStatus:
-		return removeEvent{}
-	case clients.DisabledStatus:
-		return removeEvent{
-			id: read(event, "id", ""),
-		}
-	default:
-		return removeEvent{}
+	return removeEvent{
+		id: read(event, "id", ""),
 	}
 }
 

@@ -4,38 +4,38 @@ HTTP adapter provides an HTTP API for sending messages through the platform.
 
 ## Configuration
 
-The service is configured using the environment variables presented in the
-following table. Note that any unset variables will be replaced with their
-default values.
+The service is configured using the environment variables presented in the following table. Note that any unset variables will be replaced with their default values.
 
-| Variable                       | Description                                         | Default                        |
-| ------------------------------ | --------------------------------------------------- | ------------------------------ |
-| MF_HTTP_ADAPTER_LOG_LEVEL      | Log level for the HTTP Adapter                      | debug                          |
-| MF_HTTP_ADAPTER_HOST           | HTTP adapter listening host                         |                                |
-| MF_HTTP_ADAPTER_PORT           | Service HTTP port                                   | 80                             |
-| MF_HTTP_ADAPTER_SERVER_CERT    | Service server certificate                          |                                |
-| MF_HTTP_ADAPTER_SERVER_KEY     | Service server key                                  |                                |
-| MF_THINGS_AUTH_GRPC_URL        | Things service Auth gRPC URL                        | localhost:7000                 |
-| MF_THINGS_AUTH_GRPC_TIMEOUT    | Things service Auth gRPC request timeout in seconds | 1s                             |
-| MF_THINGS_AUTH_GRPC_CLIENT_TLS | Flag that indicates if TLS should be turned on      | false                          |
-| MF_THINGS_AUTH_GRPC_CA_CERTS   | Path to trusted CAs in PEM format                   |                                |
-| MF_MESSAGE_BROKER_URL          | Message broker instance URL                         | nats://localhost:4222          |
-| MF_JAEGER_URL                  | Jaeger server URL                                   | http://jaeger:14268/api/traces |
-| MF_SEND_TELEMETRY              | Send telemetry to mainflux call home server         | true                           |
-| MF_HTTP_ADAPTER_INSTANCE_ID    | HTTP Adapter instance ID                            |                                |
+| Variable                         | Description                                                                        | Default                             |
+| -------------------------------- | ---------------------------------------------------------------------------------- | ----------------------------------- |
+| MG_HTTP_ADAPTER_LOG_LEVEL        | Log level for the HTTP Adapter (debug, info, warn, error)                          | info                                |
+| MG_HTTP_ADAPTER_HOST             | Service HTTP host                                                                  | ""                                  |
+| MG_HTTP_ADAPTER_PORT             | Service HTTP port                                                                  | 80                                  |
+| MG_HTTP_ADAPTER_SERVER_CERT      | Path to the PEM encoded server certificate file                                    | ""                                  |
+| MG_HTTP_ADAPTER_SERVER_KEY       | Path to the PEM encoded server key file                                            | ""                                  |
+| MG_THINGS_AUTH_GRPC_URL          | Things service Auth gRPC URL                                                       | <localhost:7000>                    |
+| MG_THINGS_AUTH_GRPC_TIMEOUT      | Things service Auth gRPC request timeout in seconds                                | 1s                                  |
+| MG_THINGS_AUTH_GRPC_CLIENT_CERT  | Path to the PEM encoded things service Auth gRPC client certificate file           | ""                                  |
+| MG_THINGS_AUTH_GRPC_CLIENT_KEY   | Path to the PEM encoded things service Auth gRPC client key file                   | ""                                  |
+| MG_THINGS_AUTH_GRPC_SERVER_CERTS | Path to the PEM encoded things server Auth gRPC server trusted CA certificate file | ""                                  |
+| MG_MESSAGE_BROKER_URL            | Message broker instance URL                                                        | <nats://localhost:4222>             |
+| MG_JAEGER_URL                    | Jaeger server URL                                                                  | <http://localhost:14268/api/traces> |
+| MG_JAEGER_TRACE_RATIO            | Jaeger sampling ratio                                                              | 1.0                                 |
+| MG_SEND_TELEMETRY                | Send telemetry to magistrala call home server                                      | true                                |
+| MG_HTTP_ADAPTER_INSTANCE_ID      | Service instance ID                                                                | ""                                  |
 
 ## Deployment
 
-The service itself is distributed as Docker container. Check the [`http-adapter`](https://github.com/mainflux/mainflux/blob/master/docker/docker-compose.yml#L245-L262) service section in
-docker-compose to see how service is deployed.
+The service itself is distributed as Docker container. Check the [`http-adapter`](https://github.com/absmach/magistrala/blob/main/docker/docker-compose.yml) service section in docker-compose to see how service is deployed.
 
+Running this service outside of container requires working instance of the message broker service, things service and Jaeger server.
 To start the service outside of the container, execute the following shell script:
 
 ```bash
 # download the latest version of the service
-git clone https://github.com/mainflux/mainflux
+git clone https://github.com/absmach/magistrala
 
-cd mainflux
+cd magistrala
 
 # compile the http
 make http
@@ -44,29 +44,28 @@ make http
 make install
 
 # set the environment variables and run the service
-MF_HTTP_ADAPTER_LOG_LEVEL=[HTTP Adapter Log Level] \
-MF_HTTP_ADAPTER_HOST=[Service HTTP host] \
-MF_HTTP_ADAPTER_PORT=[Service HTTP port] \
-MF_HTTP_ADAPTER_SERVER_CERT=[Path to server certificate] \
-MF_HTTP_ADAPTER_SERVER_KEY=[Path to server key] \
-MF_THINGS_AUTH_GRPC_URL=[Things service Auth gRPC URL] \
-MF_THINGS_AUTH_GRPC_TIMEOUT=[Things service Auth gRPC request timeout in seconds] \
-MF_THINGS_AUTH_GRPC_CLIENT_TLS=[Flag that indicates if TLS should be turned on] \
-MF_THINGS_AUTH_GRPC_CA_CERTS=[Path to trusted CAs in PEM format] \
-MF_MESSAGE_BROKER_URL=[Message broker instance URL] \
-MF_JAEGER_URL=[Jaeger server URL] \
-MF_SEND_TELEMETRY=[Send telemetry to mainflux call home server] \
-MF_HTTP_ADAPTER_INSTANCE_ID=[HTTP Adapter instance ID] \
-$GOBIN/mainflux-http
+MG_HTTP_ADAPTER_LOG_LEVEL=info \
+MG_HTTP_ADAPTER_HOST=localhost \
+MG_HTTP_ADAPTER_PORT=80 \
+MG_HTTP_ADAPTER_SERVER_CERT="" \
+MG_HTTP_ADAPTER_SERVER_KEY="" \
+MG_THINGS_AUTH_GRPC_URL=localhost:7000 \
+MG_THINGS_AUTH_GRPC_TIMEOUT=1s \
+MG_THINGS_AUTH_GRPC_CLIENT_CERT="" \
+MG_THINGS_AUTH_GRPC_CLIENT_KEY="" \
+MG_THINGS_AUTH_GRPC_SERVER_CERTS="" \
+MG_MESSAGE_BROKER_URL=nats://localhost:4222 \
+MG_JAEGER_URL=http://localhost:14268/api/traces \
+MG_JAEGER_TRACE_RATIO=1.0 \
+MG_SEND_TELEMETRY=true \
+MG_HTTP_ADAPTER_INSTANCE_ID="" \
+$GOBIN/magistrala-http
 ```
 
-Setting `MF_HTTP_ADAPTER_CA_CERTS` expects a file in PEM format of trusted CAs. This will enable TLS against the Things gRPC endpoint trusting only those CAs that are provided.
+Setting `MG_HTTP_ADAPTER_SERVER_CERT` and `MG_HTTP_ADAPTER_SERVER_KEY` will enable TLS against the service. The service expects a file in PEM format for both the certificate and the key.
+
+Setting `MG_THINGS_AUTH_GRPC_CLIENT_CERT` and `MG_THINGS_AUTH_GRPC_CLIENT_KEY` will enable TLS against the things service. The service expects a file in PEM format for both the certificate and the key. Setting `MG_THINGS_AUTH_GRPC_SERVER_CERTS` will enable TLS against the things service trusting only those CAs that are provided. The service expects a file in PEM format of trusted CAs.
 
 ## Usage
 
-HTTP Authorization request header contains the credentials to authenticate a Thing. The authorization header can be a plain Thing key
-or a Thing key encoded as a password for Basic Authentication. In case the Basic Authentication schema is used, the username is ignored.
-For more information about service capabilities and its usage, please check out
-the [API documentation](https://api.mainflux.io/?urls.primaryName=http.yml).
-
-[doc]: https://docs.mainflux.io
+HTTP Authorization request header contains the credentials to authenticate a Thing. The authorization header can be a plain Thing key or a Thing key encoded as a password for Basic Authentication. In case the Basic Authentication schema is used, the username is ignored. For more information about service capabilities and its usage, please check out the [API documentation](https://api.mainflux.io/?urls.primaryName=http.yml).

@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package api
@@ -8,11 +8,12 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/absmach/magistrala"
+	"github.com/absmach/magistrala/internal/apiutil"
+	"github.com/absmach/magistrala/pkg/errors"
+	svcerr "github.com/absmach/magistrala/pkg/errors/service"
+	"github.com/go-chi/chi/v5"
 	kithttp "github.com/go-kit/kit/transport/http"
-	"github.com/go-zoo/bone"
-	"github.com/mainflux/mainflux"
-	"github.com/mainflux/mainflux/internal/apiutil"
-	"github.com/mainflux/mainflux/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"google.golang.org/grpc/codes"
@@ -33,22 +34,22 @@ func MakeHandler(instanceID string) http.Handler {
 		kithttp.ServerErrorEncoder(encodeError),
 	}
 
-	r := bone.New()
-	r.Post("/channels/:chanID/messages", otelhttp.NewHandler(kithttp.NewServer(
+	r := chi.NewRouter()
+	r.Post("/channels/{chanID}/messages", otelhttp.NewHandler(kithttp.NewServer(
 		sendMessageEndpoint(),
 		decodeRequest,
 		encodeResponse,
 		opts...,
-	), "publish"))
+	), "publish").ServeHTTP)
 
-	r.Post("/channels/:chanID/messages/*", otelhttp.NewHandler(kithttp.NewServer(
+	r.Post("/channels/{chanID}/messages/*", otelhttp.NewHandler(kithttp.NewServer(
 		sendMessageEndpoint(),
 		decodeRequest,
 		encodeResponse,
 		opts...,
-	), "publish"))
+	), "publish").ServeHTTP)
 
-	r.GetFunc("/health", mainflux.Health("http", instanceID))
+	r.Get("/health", magistrala.Health("http", instanceID))
 	r.Handle("/metrics", promhttp.Handler())
 
 	return r
@@ -75,16 +76,16 @@ func encodeError(_ context.Context, err error, w http.ResponseWriter) {
 	}
 
 	switch {
-	case errors.Contains(err, errors.ErrAuthentication),
+	case errors.Contains(err, svcerr.ErrAuthentication),
 		errors.Contains(err, apiutil.ErrBearerKey),
 		errors.Contains(err, apiutil.ErrBearerToken):
 		w.WriteHeader(http.StatusUnauthorized)
-	case errors.Contains(err, errors.ErrAuthorization):
+	case errors.Contains(err, svcerr.ErrAuthorization):
 		w.WriteHeader(http.StatusForbidden)
 	case errors.Contains(err, apiutil.ErrUnsupportedContentType):
 		w.WriteHeader(http.StatusUnsupportedMediaType)
 	case errors.Contains(err, errMalformedSubtopic),
-		errors.Contains(err, errors.ErrMalformedEntity):
+		errors.Contains(err, svcerr.ErrMalformedEntity):
 		w.WriteHeader(http.StatusBadRequest)
 
 	default:
@@ -98,7 +99,7 @@ func encodeError(_ context.Context, err error, w http.ResponseWriter) {
 			case codes.Internal:
 				w.WriteHeader(http.StatusInternalServerError)
 			case codes.NotFound:
-				err = errors.ErrNotFound
+				err = svcerr.ErrNotFound
 				w.WriteHeader(http.StatusNotFound)
 			default:
 				w.WriteHeader(http.StatusInternalServerError)

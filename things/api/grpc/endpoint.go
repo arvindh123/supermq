@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package grpc
@@ -6,14 +6,14 @@ package grpc
 import (
 	"context"
 
+	"github.com/absmach/magistrala"
+	"github.com/absmach/magistrala/things"
 	"github.com/go-kit/kit/endpoint"
-	"github.com/mainflux/mainflux"
-	"github.com/mainflux/mainflux/things"
 )
 
 func authorizeEndpoint(svc things.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
-		req := request.(*mainflux.AuthorizeReq)
+		req := request.(*magistrala.AuthorizeReq)
 
 		id, err := svc.Authorize(ctx, req)
 		if err != nil {

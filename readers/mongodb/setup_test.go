@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package mongodb_test
@@ -9,13 +9,13 @@ import (
 	"os"
 	"testing"
 
-	mflog "github.com/mainflux/mainflux/logger"
+	mglog "github.com/absmach/magistrala/logger"
 	"github.com/ory/dockertest/v3"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-var testLog, _ = mflog.New(os.Stdout, mflog.Info.String())
+var testLog, _ = mglog.New(os.Stdout, mglog.Info.String())
 
 func TestMain(m *testing.M) {
 	pool, err := dockertest.NewPool("")

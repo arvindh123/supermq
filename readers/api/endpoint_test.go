@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package api_test
@@ -11,15 +11,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mainflux/mainflux"
-	authmocks "github.com/mainflux/mainflux/auth/mocks"
-	"github.com/mainflux/mainflux/internal/apiutil"
-	"github.com/mainflux/mainflux/internal/testsutil"
-	"github.com/mainflux/mainflux/pkg/transformers/senml"
-	"github.com/mainflux/mainflux/readers"
-	"github.com/mainflux/mainflux/readers/api"
-	"github.com/mainflux/mainflux/readers/mocks"
-	thmocks "github.com/mainflux/mainflux/things/mocks"
+	"github.com/absmach/magistrala"
+	authmocks "github.com/absmach/magistrala/auth/mocks"
+	"github.com/absmach/magistrala/internal/apiutil"
+	"github.com/absmach/magistrala/internal/testsutil"
+	"github.com/absmach/magistrala/pkg/transformers/senml"
+	"github.com/absmach/magistrala/readers"
+	"github.com/absmach/magistrala/readers/api"
+	"github.com/absmach/magistrala/readers/mocks"
+	thmocks "github.com/absmach/magistrala/things/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -47,7 +47,7 @@ var (
 	sum float64 = 42
 )
 
-func newServer(repo readers.MessageRepository, ac *authmocks.Service, tc *thmocks.Service) *httptest.Server {
+func newServer(repo readers.MessageRepository, ac *authmocks.Service, tc *thmocks.ThingAuthzService) *httptest.Server {
 	mux := api.MakeHandler(repo, ac, tc, svcName, instanceID)
 	return httptest.NewServer(mux)
 }
@@ -61,7 +61,7 @@ type testRequest struct {
 }
 
 func (tr testRequest) make() (*http.Response, error) {
-	req, err := http.NewRequest(tr.method, tr.url, nil)
+	req, err := http.NewRequest(tr.method, tr.url, http.NoBody)
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +127,7 @@ func TestReadAll(t *testing.T) {
 
 	repo := mocks.NewMessageRepository(chanID, fromSenml(messages))
 	auth := new(authmocks.Service)
-	tauth := new(thmocks.Service)
+	tauth := new(thmocks.ThingAuthzService)
 	ts := newServer(repo, auth, tauth)
 	defer ts.Close()
 
@@ -714,10 +714,10 @@ func TestReadAll(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		repoCall := auth.On("Identify", mock.Anything, mock.Anything).Return(&mainflux.IdentityRes{Id: testsutil.GenerateUUID(t)}, nil)
-		repoCall1 := auth.On("Authorize", mock.Anything, mock.Anything).Return(&mainflux.AuthorizeRes{Authorized: true, Id: testsutil.GenerateUUID(t)}, nil)
+		repoCall := auth.On("Identify", mock.Anything, mock.Anything).Return(&magistrala.IdentityRes{Id: testsutil.GenerateUUID(t)}, nil)
+		repoCall1 := auth.On("Authorize", mock.Anything, mock.Anything).Return(&magistrala.AuthorizeRes{Authorized: true, Id: testsutil.GenerateUUID(t)}, nil)
 		if tc.key != "" {
-			repoCall1 = tauth.On("Authorize", mock.Anything, mock.Anything).Return(&mainflux.AuthorizeRes{Authorized: true, Id: testsutil.GenerateUUID(t)}, nil)
+			repoCall1 = tauth.On("Authorize", mock.Anything, mock.Anything).Return(&magistrala.AuthorizeRes{Authorized: true, Id: testsutil.GenerateUUID(t)}, nil)
 		}
 		req := testRequest{
 			client: ts.Client(),

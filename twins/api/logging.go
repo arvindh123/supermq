@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 //go:build !test
@@ -10,20 +10,20 @@ import (
 	"fmt"
 	"time"
 
-	mflog "github.com/mainflux/mainflux/logger"
-	"github.com/mainflux/mainflux/pkg/messaging"
-	"github.com/mainflux/mainflux/twins"
+	mglog "github.com/absmach/magistrala/logger"
+	"github.com/absmach/magistrala/pkg/messaging"
+	"github.com/absmach/magistrala/twins"
 )
 
 var _ twins.Service = (*loggingMiddleware)(nil)
 
 type loggingMiddleware struct {
-	logger mflog.Logger
+	logger mglog.Logger
 	svc    twins.Service
 }
 
 // LoggingMiddleware adds logging facilities to the core service.
-func LoggingMiddleware(svc twins.Service, logger mflog.Logger) twins.Service {
+func LoggingMiddleware(svc twins.Service, logger mglog.Logger) twins.Service {
 	return &loggingMiddleware{logger, svc}
 }
 
@@ -66,7 +66,7 @@ func (lm *loggingMiddleware) ViewTwin(ctx context.Context, token, twinID string)
 	return lm.svc.ViewTwin(ctx, token, twinID)
 }
 
-func (lm *loggingMiddleware) ListTwins(ctx context.Context, token string, offset uint64, limit uint64, name string, metadata twins.Metadata) (page twins.Page, err error) {
+func (lm *loggingMiddleware) ListTwins(ctx context.Context, token string, offset, limit uint64, name string, metadata twins.Metadata) (page twins.Page, err error) {
 	defer func(begin time.Time) {
 		message := fmt.Sprintf("Method list_twins for token %s took %s to complete", token, time.Since(begin))
 		if err != nil {
@@ -92,7 +92,7 @@ func (lm *loggingMiddleware) SaveStates(ctx context.Context, msg *messaging.Mess
 	return lm.svc.SaveStates(ctx, msg)
 }
 
-func (lm *loggingMiddleware) ListStates(ctx context.Context, token string, offset uint64, limit uint64, twinID string) (page twins.StatesPage, err error) {
+func (lm *loggingMiddleware) ListStates(ctx context.Context, token string, offset, limit uint64, twinID string) (page twins.StatesPage, err error) {
 	defer func(begin time.Time) {
 		message := fmt.Sprintf("Method list_states for token %s took %s to complete", token, time.Since(begin))
 		if err != nil {

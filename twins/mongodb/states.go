@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package mongodb
@@ -6,7 +6,7 @@ package mongodb
 import (
 	"context"
 
-	"github.com/mainflux/mainflux/twins"
+	"github.com/absmach/magistrala/twins"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -69,7 +69,7 @@ func (sr *stateRepository) Count(ctx context.Context, tw twins.Twin) (int64, err
 }
 
 // RetrieveAll retrieves the subset of states related to twin specified by id.
-func (sr *stateRepository) RetrieveAll(ctx context.Context, offset uint64, limit uint64, twinID string) (twins.StatesPage, error) {
+func (sr *stateRepository) RetrieveAll(ctx context.Context, offset, limit uint64, twinID string) (twins.StatesPage, error) {
 	coll := sr.db.Collection(statesCollection)
 
 	findOptions := options.Find()

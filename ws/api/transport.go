@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package api
@@ -8,16 +8,16 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/go-zoo/bone"
+	"github.com/absmach/magistrala"
+	mglog "github.com/absmach/magistrala/logger"
+	"github.com/absmach/magistrala/ws"
+	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/websocket"
-	"github.com/mainflux/mainflux"
-	mflog "github.com/mainflux/mainflux/logger"
-	"github.com/mainflux/mainflux/ws"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 const (
-	protocol            = "ws"
+	service             = "ws"
 	readwriteBufferSize = 1024
 )
 
@@ -32,17 +32,18 @@ var (
 		WriteBufferSize: readwriteBufferSize,
 		CheckOrigin:     func(r *http.Request) bool { return true },
 	}
-	logger mflog.Logger
+	logger mglog.Logger
 )
 
 // MakeHandler returns http handler with handshake endpoint.
-func MakeHandler(ctx context.Context, svc ws.Service, l mflog.Logger, instanceID string) http.Handler {
+func MakeHandler(ctx context.Context, svc ws.Service, l mglog.Logger, instanceID string) http.Handler {
 	logger = l
 
-	mux := bone.New()
-	mux.GetFunc("/channels/:chanID/messages", handshake(ctx, svc))
-	mux.GetFunc("/channels/:chanID/messages/*", handshake(ctx, svc))
-	mux.GetFunc("/version", mainflux.Health(protocol, instanceID))
+	mux := chi.NewRouter()
+	mux.Get("/channels/{chanID}/messages", handshake(ctx, svc))
+	mux.Get("/channels/{chanID}/messages/*", handshake(ctx, svc))
+
+	mux.Get("/health", magistrala.Health(service, instanceID))
 	mux.Handle("/metrics", promhttp.Handler())
 
 	return mux

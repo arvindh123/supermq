@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 // Package main contains mongodb-writer main function to start the mongodb-writer service.
@@ -8,43 +8,44 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 
+	"github.com/absmach/magistrala"
+	"github.com/absmach/magistrala/consumers"
+	consumertracing "github.com/absmach/magistrala/consumers/tracing"
+	"github.com/absmach/magistrala/consumers/writers/api"
+	"github.com/absmach/magistrala/consumers/writers/mongodb"
+	"github.com/absmach/magistrala/internal"
+	jaegerclient "github.com/absmach/magistrala/internal/clients/jaeger"
+	mongoclient "github.com/absmach/magistrala/internal/clients/mongo"
+	"github.com/absmach/magistrala/internal/server"
+	httpserver "github.com/absmach/magistrala/internal/server/http"
+	mglog "github.com/absmach/magistrala/logger"
+	"github.com/absmach/magistrala/pkg/messaging/brokers"
+	brokerstracing "github.com/absmach/magistrala/pkg/messaging/brokers/tracing"
+	"github.com/absmach/magistrala/pkg/uuid"
+	"github.com/caarlos0/env/v10"
 	chclient "github.com/mainflux/callhome/pkg/client"
-	"github.com/mainflux/mainflux"
-	"github.com/mainflux/mainflux/consumers"
-	consumertracing "github.com/mainflux/mainflux/consumers/tracing"
-	"github.com/mainflux/mainflux/consumers/writers/api"
-	"github.com/mainflux/mainflux/consumers/writers/mongodb"
-	"github.com/mainflux/mainflux/internal"
-	jaegerclient "github.com/mainflux/mainflux/internal/clients/jaeger"
-	mongoclient "github.com/mainflux/mainflux/internal/clients/mongo"
-	"github.com/mainflux/mainflux/internal/env"
-	"github.com/mainflux/mainflux/internal/server"
-	httpserver "github.com/mainflux/mainflux/internal/server/http"
-	mflog "github.com/mainflux/mainflux/logger"
-	"github.com/mainflux/mainflux/pkg/messaging/brokers"
-	brokerstracing "github.com/mainflux/mainflux/pkg/messaging/brokers/tracing"
-	"github.com/mainflux/mainflux/pkg/uuid"
 	"go.mongodb.org/mongo-driver/mongo"
 	"golang.org/x/sync/errgroup"
 )
 
 const (
 	svcName        = "mongodb-writer"
-	envPrefixDB    = "MF_MONGO_"
-	envPrefixHTTP  = "MF_MONGO_WRITER_HTTP_"
+	envPrefixDB    = "MG_MONGO_"
+	envPrefixHTTP  = "MG_MONGO_WRITER_HTTP_"
 	defSvcHTTPPort = "9008"
 )
 
 type config struct {
-	LogLevel      string  `env:"MF_MONGO_WRITER_LOG_LEVEL"     envDefault:"info"`
-	ConfigPath    string  `env:"MF_MONGO_WRITER_CONFIG_PATH"   envDefault:"/config.toml"`
-	BrokerURL     string  `env:"MF_MESSAGE_BROKER_URL"         envDefault:"nats://localhost:4222"`
-	JaegerURL     string  `env:"MF_JAEGER_URL"                 envDefault:"http://jaeger:14268/api/traces"`
-	SendTelemetry bool    `env:"MF_SEND_TELEMETRY"             envDefault:"true"`
-	InstanceID    string  `env:"MF_MONGO_WRITER_INSTANCE_ID"   envDefault:""`
-	TraceRatio    float64 `env:"MF_JAEGER_TRACE_RATIO"         envDefault:"1.0"`
+	LogLevel      string  `env:"MG_MONGO_WRITER_LOG_LEVEL"     envDefault:"info"`
+	ConfigPath    string  `env:"MG_MONGO_WRITER_CONFIG_PATH"   envDefault:"/config.toml"`
+	BrokerURL     string  `env:"MG_MESSAGE_BROKER_URL"         envDefault:"nats://localhost:4222"`
+	JaegerURL     url.URL `env:"MG_JAEGER_URL"                 envDefault:"http://jaeger:14268/api/traces"`
+	SendTelemetry bool    `env:"MG_SEND_TELEMETRY"             envDefault:"true"`
+	InstanceID    string  `env:"MG_MONGO_WRITER_INSTANCE_ID"   envDefault:""`
+	TraceRatio    float64 `env:"MG_JAEGER_TRACE_RATIO"         envDefault:"1.0"`
 }
 
 func main() {
@@ -56,13 +57,13 @@ func main() {
 		log.Fatalf("failed to load %s configuration : %s", svcName, err)
 	}
 
-	logger, err := mflog.New(os.Stdout, cfg.LogLevel)
+	logger, err := mglog.New(os.Stdout, cfg.LogLevel)
 	if err != nil {
 		log.Fatalf("failed to init logger: %s", err)
 	}
 
 	var exitCode int
-	defer mflog.ExitWithError(&exitCode)
+	defer mglog.ExitWithError(&exitCode)
 
 	if cfg.InstanceID == "" {
 		if cfg.InstanceID, err = uuid.New().ID(); err != nil {
@@ -73,13 +74,13 @@ func main() {
 	}
 
 	httpServerConfig := server.Config{Port: defSvcHTTPPort}
-	if err := env.Parse(&httpServerConfig, env.Options{Prefix: envPrefixHTTP}); err != nil {
+	if err := env.ParseWithOptions(&httpServerConfig, env.Options{Prefix: envPrefixHTTP}); err != nil {
 		logger.Error(fmt.Sprintf("failed to load %s HTTP server configuration : %s", svcName, err))
 		exitCode = 1
 		return
 	}
 
-	tp, err := jaegerclient.NewProvider(svcName, cfg.JaegerURL, cfg.InstanceID, cfg.TraceRatio)
+	tp, err := jaegerclient.NewProvider(ctx, svcName, cfg.JaegerURL, cfg.InstanceID, cfg.TraceRatio)
 	if err != nil {
 		logger.Error(fmt.Sprintf("Failed to init Jaeger: %s", err))
 		exitCode = 1
@@ -120,7 +121,7 @@ func main() {
 	hs := httpserver.New(ctx, cancel, svcName, httpServerConfig, api.MakeHandler(svcName, cfg.InstanceID), logger)
 
 	if cfg.SendTelemetry {
-		chc := chclient.New(svcName, mainflux.Version, logger, cancel)
+		chc := chclient.New(svcName, magistrala.Version, logger, cancel)
 		go chc.CallHome(ctx)
 	}
 
@@ -137,7 +138,7 @@ func main() {
 	}
 }
 
-func newService(db *mongo.Database, logger mflog.Logger) consumers.BlockingConsumer {
+func newService(db *mongo.Database, logger mglog.Logger) consumers.BlockingConsumer {
 	repo := mongodb.New(db)
 	repo = api.LoggingMiddleware(repo, logger)
 	counter, latency := internal.MakeMetrics("mongodb", "message_writer")

@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package api_test
@@ -12,15 +12,15 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/absmach/magistrala"
+	authmocks "github.com/absmach/magistrala/auth/mocks"
+	mglog "github.com/absmach/magistrala/logger"
+	"github.com/absmach/magistrala/pkg/messaging/mocks"
+	"github.com/absmach/magistrala/ws"
+	"github.com/absmach/magistrala/ws/api"
+	"github.com/absmach/mproxy/pkg/session"
+	"github.com/absmach/mproxy/pkg/websockets"
 	"github.com/gorilla/websocket"
-	"github.com/mainflux/mainflux"
-	authmocks "github.com/mainflux/mainflux/auth/mocks"
-	"github.com/mainflux/mainflux/logger"
-	"github.com/mainflux/mainflux/ws"
-	"github.com/mainflux/mainflux/ws/api"
-	"github.com/mainflux/mainflux/ws/mocks"
-	"github.com/mainflux/mproxy/pkg/session"
-	"github.com/mainflux/mproxy/pkg/websockets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -36,19 +36,19 @@ const (
 
 var msg = []byte(`[{"n":"current","t":-1,"v":1.6}]`)
 
-func newService(auth mainflux.AuthzServiceClient) (ws.Service, mocks.MockPubSub) {
-	pubsub := mocks.NewPubSub()
+func newService(auth magistrala.AuthzServiceClient) (ws.Service, *mocks.PubSub) {
+	pubsub := new(mocks.PubSub)
 	return ws.New(auth, pubsub), pubsub
 }
 
 func newHTTPServer(svc ws.Service) *httptest.Server {
-	mux := api.MakeHandler(context.Background(), svc, logger.NewMock(), instanceID)
+	mux := api.MakeHandler(context.Background(), svc, mglog.NewMock(), instanceID)
 	return httptest.NewServer(mux)
 }
 
 func newProxyHTPPServer(svc session.Handler, targetServer *httptest.Server) (*httptest.Server, error) {
-	url := strings.ReplaceAll(targetServer.URL, "http", "ws")
-	mp, err := websockets.NewProxy("", url, logger.NewMock(), svc)
+	turl := strings.ReplaceAll(targetServer.URL, "http", "ws")
+	mp, err := websockets.NewProxy("", turl, mglog.NewMock(), svc)
 	if err != nil {
 		return nil, err
 	}
@@ -83,8 +83,8 @@ func handshake(tsURL, chanID, subtopic, thingKey string, addHeader bool) (*webso
 		header.Add("Authorization", thingKey)
 	}
 
-	url, _ := makeURL(tsURL, chanID, subtopic, thingKey, addHeader)
-	conn, res, errRet := websocket.DefaultDialer.Dial(url, header)
+	turl, _ := makeURL(tsURL, chanID, subtopic, thingKey, addHeader)
+	conn, res, errRet := websocket.DefaultDialer.Dial(turl, header)
 
 	return conn, res, errRet
 }
@@ -94,25 +94,15 @@ func TestHandshake(t *testing.T) {
 	svc, pubsub := newService(auth)
 	target := newHTTPServer(svc)
 	defer target.Close()
-	handler := ws.NewHandler(pubsub, logger.NewMock(), auth)
+	handler := ws.NewHandler(pubsub, mglog.NewMock(), auth)
 	ts, err := newProxyHTPPServer(handler, target)
 	require.Nil(t, err)
 	defer ts.Close()
-	auth.On("Authorize", mock.Anything, &mainflux.AuthorizeReq{
-		Subject:     thingKey,
-		Object:      id,
-		Namespace:   "",
-		SubjectType: "thing",
-		Permission:  "publish",
-		ObjectType:  "group"}).Return(&mainflux.AuthorizeRes{Authorized: true, Id: "1"}, nil)
-	auth.On("Authorize", mock.Anything, &mainflux.AuthorizeReq{
-		Subject:     thingKey,
-		Object:      id,
-		Namespace:   "",
-		SubjectType: "thing",
-		Permission:  "subscribe",
-		ObjectType:  "group"}).Return(&mainflux.AuthorizeRes{Authorized: true, Id: "2"}, nil)
-	auth.On("Authorize", mock.Anything, mock.Anything).Return(&mainflux.AuthorizeRes{Authorized: false, Id: "3"}, nil)
+	auth.On("Authorize", mock.Anything, &magistrala.AuthorizeReq{Subject: thingKey, Object: id, Domain: "", SubjectType: "thing", Permission: "publish", ObjectType: "group"}).Return(&magistrala.AuthorizeRes{Authorized: true, Id: "1"}, nil)
+	auth.On("Authorize", mock.Anything, &magistrala.AuthorizeReq{Subject: thingKey, Object: id, Domain: "", SubjectType: "thing", Permission: "subscribe", ObjectType: "group"}).Return(&magistrala.AuthorizeRes{Authorized: true, Id: "2"}, nil)
+	auth.On("Authorize", mock.Anything, mock.Anything).Return(&magistrala.AuthorizeRes{Authorized: false, Id: "3"}, nil)
+	pubsub.On("Subscribe", mock.Anything, mock.Anything).Return(nil)
+	pubsub.On("Publish", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	cases := []struct {
 		desc     string

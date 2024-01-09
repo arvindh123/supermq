@@ -1,14 +1,14 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package cli
 
-import mfxsdk "github.com/mainflux/mainflux/pkg/sdk/go"
+import mgxsdk "github.com/absmach/magistrala/pkg/sdk/go"
 
 // Keep SDK handle in global var.
-var sdk mfxsdk.SDK
+var sdk mgxsdk.SDK
 
-// SetSDK sets mainflux SDK instance.
-func SetSDK(s mfxsdk.SDK) {
+// SetSDK sets magistrala SDK instance.
+func SetSDK(s mgxsdk.SDK) {
 	sdk = s
 }

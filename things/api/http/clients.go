@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package http
@@ -9,18 +9,18 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/absmach/magistrala/internal/api"
+	"github.com/absmach/magistrala/internal/apiutil"
+	mglog "github.com/absmach/magistrala/logger"
+	mgclients "github.com/absmach/magistrala/pkg/clients"
+	"github.com/absmach/magistrala/pkg/errors"
+	"github.com/absmach/magistrala/things"
 	"github.com/go-chi/chi/v5"
 	kithttp "github.com/go-kit/kit/transport/http"
-	"github.com/mainflux/mainflux/internal/api"
-	"github.com/mainflux/mainflux/internal/apiutil"
-	mflog "github.com/mainflux/mainflux/logger"
-	mfclients "github.com/mainflux/mainflux/pkg/clients"
-	"github.com/mainflux/mainflux/pkg/errors"
-	"github.com/mainflux/mainflux/things"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
-func clientsHandler(svc things.Service, r *chi.Mux, logger mflog.Logger) http.Handler {
+func clientsHandler(svc things.Service, r *chi.Mux, logger mglog.Logger) http.Handler {
 	opts := []kithttp.ServerOption{
 		kithttp.ServerErrorEncoder(apiutil.LoggingErrorEncoder(logger, api.EncodeError)),
 	}
@@ -53,6 +53,13 @@ func clientsHandler(svc things.Service, r *chi.Mux, logger mflog.Logger) http.Ha
 			opts...,
 		), "view_thing").ServeHTTP)
 
+		r.Get("/{thingID}/permissions", otelhttp.NewHandler(kithttp.NewServer(
+			viewClientPermsEndpoint(svc),
+			decodeViewClientPerms,
+			api.EncodeResponse,
+			opts...,
+		), "view_thing_permissions").ServeHTTP)
+
 		r.Patch("/{thingID}", otelhttp.NewHandler(kithttp.NewServer(
 			updateClientEndpoint(svc),
 			decodeUpdateClient,
@@ -74,13 +81,6 @@ func clientsHandler(svc things.Service, r *chi.Mux, logger mflog.Logger) http.Ha
 			opts...,
 		), "update_thing_credentials").ServeHTTP)
 
-		r.Patch("/{thingID}/owner", otelhttp.NewHandler(kithttp.NewServer(
-			updateClientOwnerEndpoint(svc),
-			decodeUpdateClientOwner,
-			api.EncodeResponse,
-			opts...,
-		), "update_thing_owner").ServeHTTP)
-
 		r.Post("/{thingID}/enable", otelhttp.NewHandler(kithttp.NewServer(
 			enableClientEndpoint(svc),
 			decodeChangeClientStatus,
@@ -100,14 +100,21 @@ func clientsHandler(svc things.Service, r *chi.Mux, logger mflog.Logger) http.Ha
 			decodeThingShareRequest,
 			api.EncodeResponse,
 			opts...,
-		), "thing_share").ServeHTTP)
+		), "share_thing").ServeHTTP)
 
 		r.Post("/{thingID}/unshare", otelhttp.NewHandler(kithttp.NewServer(
 			thingUnshareEndpoint(svc),
 			decodeThingUnshareRequest,
 			api.EncodeResponse,
 			opts...,
-		), "thing_delete_share").ServeHTTP)
+		), "unshare_thing").ServeHTTP)
+
+		r.Delete("/{thingID}", otelhttp.NewHandler(kithttp.NewServer(
+			deleteClientEndpoint(svc),
+			decodeDeleteClientReq,
+			api.EncodeResponse,
+			opts...,
+		), "delete_thing").ServeHTTP)
 	})
 
 	// Ideal location: things service,  channels endpoint
@@ -133,6 +140,15 @@ func clientsHandler(svc things.Service, r *chi.Mux, logger mflog.Logger) http.Ha
 
 func decodeViewClient(_ context.Context, r *http.Request) (interface{}, error) {
 	req := viewClientReq{
+		token: apiutil.ExtractBearerToken(r),
+		id:    chi.URLParam(r, "thingID"),
+	}
+
+	return req, nil
+}
+
+func decodeViewClientPerms(_ context.Context, r *http.Request) (interface{}, error) {
+	req := viewClientPermsReq{
 		token: apiutil.ExtractBearerToken(r),
 		id:    chi.URLParam(r, "thingID"),
 	}
@@ -175,10 +191,16 @@ func decodeListClients(_ context.Context, r *http.Request) (interface{}, error) 
 	if err != nil {
 		return nil, errors.Wrap(apiutil.ErrValidation, err)
 	}
+
+	lp, err := apiutil.ReadBoolQuery(r, api.ListPerms, api.DefListPerms)
+	if err != nil {
+		return nil, errors.Wrap(apiutil.ErrValidation, err)
+	}
+
 	if oid != "" {
 		ownerID = oid
 	}
-	st, err := mfclients.ToStatus(s)
+	st, err := mgclients.ToStatus(s)
 	if err != nil {
 		return nil, errors.Wrap(apiutil.ErrValidation, err)
 	}
@@ -191,6 +213,7 @@ func decodeListClients(_ context.Context, r *http.Request) (interface{}, error) 
 		name:       n,
 		tag:        t,
 		permission: p,
+		listPerms:  lp,
 		userID:     chi.URLParam(r, "userID"),
 		owner:      ownerID,
 	}
@@ -245,28 +268,12 @@ func decodeUpdateClientCredentials(_ context.Context, r *http.Request) (interfac
 	return req, nil
 }
 
-func decodeUpdateClientOwner(_ context.Context, r *http.Request) (interface{}, error) {
-	if !strings.Contains(r.Header.Get("Content-Type"), api.ContentType) {
-		return nil, errors.Wrap(apiutil.ErrValidation, apiutil.ErrUnsupportedContentType)
-	}
-
-	req := updateClientOwnerReq{
-		token: apiutil.ExtractBearerToken(r),
-		id:    chi.URLParam(r, "thingID"),
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return nil, errors.Wrap(apiutil.ErrValidation, errors.Wrap(errors.ErrMalformedEntity, err))
-	}
-
-	return req, nil
-}
-
 func decodeCreateClientReq(_ context.Context, r *http.Request) (interface{}, error) {
 	if !strings.Contains(r.Header.Get("Content-Type"), api.ContentType) {
 		return nil, errors.Wrap(apiutil.ErrValidation, apiutil.ErrUnsupportedContentType)
 	}
 
-	var c mfclients.Client
+	var c mgclients.Client
 	if err := json.NewDecoder(r.Body).Decode(&c); err != nil {
 		return nil, errors.Wrap(apiutil.ErrValidation, errors.Wrap(errors.ErrMalformedEntity, err))
 	}
@@ -317,7 +324,7 @@ func decodeListMembersRequest(_ context.Context, r *http.Request) (interface{}, 
 	if err != nil {
 		return nil, errors.Wrap(apiutil.ErrValidation, err)
 	}
-	st, err := mfclients.ToStatus(s)
+	st, err := mgclients.ToStatus(s)
 	if err != nil {
 		return nil, errors.Wrap(apiutil.ErrValidation, err)
 	}
@@ -325,14 +332,20 @@ func decodeListMembersRequest(_ context.Context, r *http.Request) (interface{}, 
 	if err != nil {
 		return nil, errors.Wrap(apiutil.ErrValidation, err)
 	}
+
+	lp, err := apiutil.ReadBoolQuery(r, api.ListPerms, api.DefListPerms)
+	if err != nil {
+		return nil, errors.Wrap(apiutil.ErrValidation, err)
+	}
 	req := listMembersReq{
 		token: apiutil.ExtractBearerToken(r),
-		Page: mfclients.Page{
+		Page: mgclients.Page{
 			Status:     st,
 			Offset:     o,
 			Limit:      l,
 			Permission: p,
 			Metadata:   m,
+			ListPerms:  lp,
 		},
 		groupID: chi.URLParam(r, "groupID"),
 	}
@@ -366,6 +379,15 @@ func decodeThingUnshareRequest(_ context.Context, r *http.Request) (interface{},
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return nil, errors.Wrap(apiutil.ErrValidation, errors.Wrap(errors.ErrMalformedEntity, err))
+	}
+
+	return req, nil
+}
+
+func decodeDeleteClientReq(_ context.Context, r *http.Request) (interface{}, error) {
+	req := deleteClientReq{
+		token: apiutil.ExtractBearerToken(r),
+		id:    chi.URLParam(r, "thingID"),
 	}
 
 	return req, nil

@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package api
@@ -7,20 +7,20 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/mainflux/mainflux"
-	"github.com/mainflux/mainflux/pkg/groups"
+	"github.com/absmach/magistrala"
+	"github.com/absmach/magistrala/pkg/groups"
 )
 
 var (
-	_ mainflux.Response = (*viewMembershipRes)(nil)
-	_ mainflux.Response = (*membershipPageRes)(nil)
-	_ mainflux.Response = (*createGroupRes)(nil)
-	_ mainflux.Response = (*groupPageRes)(nil)
-	_ mainflux.Response = (*changeStatusRes)(nil)
-	_ mainflux.Response = (*viewGroupRes)(nil)
-	_ mainflux.Response = (*updateGroupRes)(nil)
-	_ mainflux.Response = (*assignRes)(nil)
-	_ mainflux.Response = (*unassignRes)(nil)
+	_ magistrala.Response = (*viewMembershipRes)(nil)
+	_ magistrala.Response = (*membershipPageRes)(nil)
+	_ magistrala.Response = (*createGroupRes)(nil)
+	_ magistrala.Response = (*groupPageRes)(nil)
+	_ magistrala.Response = (*changeStatusRes)(nil)
+	_ magistrala.Response = (*viewGroupRes)(nil)
+	_ magistrala.Response = (*updateGroupRes)(nil)
+	_ magistrala.Response = (*assignRes)(nil)
+	_ magistrala.Response = (*unassignRes)(nil)
 )
 
 type viewMembershipRes struct {
@@ -69,6 +69,22 @@ func (res viewGroupRes) Headers() map[string]string {
 }
 
 func (res viewGroupRes) Empty() bool {
+	return false
+}
+
+type viewGroupPermsRes struct {
+	Permissions []string `json:"permissions"`
+}
+
+func (res viewGroupPermsRes) Code() int {
+	return http.StatusOK
+}
+
+func (res viewGroupPermsRes) Headers() map[string]string {
+	return map[string]string{}
+}
+
+func (res viewGroupPermsRes) Empty() bool {
 	return false
 }
 
@@ -198,4 +214,18 @@ func (res listMembersRes) Headers() map[string]string {
 
 func (res listMembersRes) Empty() bool {
 	return false
+}
+
+type deleteGroupRes struct{}
+
+func (res deleteGroupRes) Code() int {
+	return http.StatusNoContent
+}
+
+func (res deleteGroupRes) Headers() map[string]string {
+	return map[string]string{}
+}
+
+func (res deleteGroupRes) Empty() bool {
+	return true
 }

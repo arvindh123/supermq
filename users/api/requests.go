@@ -1,18 +1,18 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package api
 
 import (
-	"github.com/mainflux/mainflux/internal/api"
-	"github.com/mainflux/mainflux/internal/apiutil"
-	mfclients "github.com/mainflux/mainflux/pkg/clients"
+	"github.com/absmach/magistrala/internal/api"
+	"github.com/absmach/magistrala/internal/apiutil"
+	mgclients "github.com/absmach/magistrala/pkg/clients"
 )
 
 const maxLimitSize = 100
 
 type createClientReq struct {
-	client mfclients.Client
+	client mgclients.Client
 	token  string
 }
 
@@ -54,7 +54,7 @@ func (req viewProfileReq) validate() error {
 
 type listClientsReq struct {
 	token      string
-	status     mfclients.Status
+	status     mgclients.Status
 	offset     uint64
 	limit      uint64
 	name       string
@@ -63,7 +63,9 @@ type listClientsReq struct {
 	visibility string
 	owner      string
 	sharedBy   string
-	metadata   mfclients.Metadata
+	metadata   mgclients.Metadata
+	order      string
+	dir        string
 }
 
 func (req listClientsReq) validate() error {
@@ -79,12 +81,15 @@ func (req listClientsReq) validate() error {
 		req.visibility != api.SharedVisibility {
 		return apiutil.ErrInvalidVisibilityType
 	}
+	if req.dir != "" && (req.dir != api.AscDir && req.dir != api.DescDir) {
+		return apiutil.ErrInvalidDirection
+	}
 
 	return nil
 }
 
 type listMembersByObjectReq struct {
-	mfclients.Page
+	mgclients.Page
 	token      string
 	objectKind string
 	objectID   string
@@ -108,7 +113,7 @@ type updateClientReq struct {
 	token    string
 	id       string
 	Name     string             `json:"name,omitempty"`
-	Metadata mfclients.Metadata `json:"metadata,omitempty"`
+	Metadata mgclients.Metadata `json:"metadata,omitempty"`
 }
 
 func (req updateClientReq) validate() error {
@@ -139,13 +144,14 @@ func (req updateClientTagsReq) validate() error {
 	return nil
 }
 
-type updateClientOwnerReq struct {
+type updateClientRoleReq struct {
 	id    string
 	token string
-	Owner string `json:"owner,omitempty"`
+	role  mgclients.Role
+	Role  string `json:"role,omitempty"`
 }
 
-func (req updateClientOwnerReq) validate() error {
+func (req updateClientRoleReq) validate() error {
 	if req.token == "" {
 		return apiutil.ErrBearerToken
 	}
@@ -206,6 +212,7 @@ func (req changeClientStatusReq) validate() error {
 type loginClientReq struct {
 	Identity string `json:"identity,omitempty"`
 	Secret   string `json:"secret,omitempty"`
+	DomainID string `json:"domain_id,omitempty"`
 }
 
 func (req loginClientReq) validate() error {
@@ -221,6 +228,7 @@ func (req loginClientReq) validate() error {
 
 type tokenReq struct {
 	RefreshToken string `json:"refresh_token,omitempty"`
+	DomainID     string `json:"domain_id,omitempty"`
 }
 
 func (req tokenReq) validate() error {
@@ -317,6 +325,50 @@ func (req unassignUsersReq) validate() error {
 		return apiutil.ErrMissingRelation
 	}
 	if len(req.UserIDs) == 0 {
+		return apiutil.ErrEmptyList
+	}
+
+	return nil
+}
+
+type assignGroupsReq struct {
+	token    string
+	groupID  string
+	GroupIDs []string `json:"group_ids"`
+}
+
+func (req assignGroupsReq) validate() error {
+	if req.token == "" {
+		return apiutil.ErrBearerToken
+	}
+
+	if req.groupID == "" {
+		return apiutil.ErrMissingID
+	}
+
+	if len(req.GroupIDs) == 0 {
+		return apiutil.ErrEmptyList
+	}
+
+	return nil
+}
+
+type unassignGroupsReq struct {
+	token    string
+	groupID  string
+	GroupIDs []string `json:"group_ids"`
+}
+
+func (req unassignGroupsReq) validate() error {
+	if req.token == "" {
+		return apiutil.ErrBearerToken
+	}
+
+	if req.groupID == "" {
+		return apiutil.ErrMissingID
+	}
+
+	if len(req.GroupIDs) == 0 {
 		return apiutil.ErrEmptyList
 	}
 

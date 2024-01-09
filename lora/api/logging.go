@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 //go:build !test
@@ -10,26 +10,26 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/mainflux/mainflux/logger"
-	"github.com/mainflux/mainflux/lora"
+	mglog "github.com/absmach/magistrala/logger"
+	"github.com/absmach/magistrala/lora"
 )
 
 var _ lora.Service = (*loggingMiddleware)(nil)
 
 type loggingMiddleware struct {
-	logger logger.Logger
+	logger mglog.Logger
 	svc    lora.Service
 }
 
 // LoggingMiddleware adds logging facilities to the core service.
-func LoggingMiddleware(svc lora.Service, logger logger.Logger) lora.Service {
+func LoggingMiddleware(svc lora.Service, logger mglog.Logger) lora.Service {
 	return &loggingMiddleware{
 		logger: logger,
 		svc:    svc,
 	}
 }
 
-func (lm loggingMiddleware) CreateThing(ctx context.Context, thingID string, loraDevEUI string) (err error) {
+func (lm loggingMiddleware) CreateThing(ctx context.Context, thingID, loraDevEUI string) (err error) {
 	defer func(begin time.Time) {
 		message := fmt.Sprintf("create_thing for thing %s and lora-dev-eui %s took %s to complete", thingID, loraDevEUI, time.Since(begin))
 		if err != nil {
@@ -42,7 +42,7 @@ func (lm loggingMiddleware) CreateThing(ctx context.Context, thingID string, lor
 	return lm.svc.CreateThing(ctx, thingID, loraDevEUI)
 }
 
-func (lm loggingMiddleware) UpdateThing(ctx context.Context, thingID string, loraDevEUI string) (err error) {
+func (lm loggingMiddleware) UpdateThing(ctx context.Context, thingID, loraDevEUI string) (err error) {
 	defer func(begin time.Time) {
 		message := fmt.Sprintf("update_thing for thing %s and lora-dev-eui %s took %s to complete", thingID, loraDevEUI, time.Since(begin))
 		if err != nil {
@@ -122,7 +122,7 @@ func (lm loggingMiddleware) ConnectThing(ctx context.Context, chanID, thingID st
 
 func (lm loggingMiddleware) DisconnectThing(ctx context.Context, chanID, thingID string) (err error) {
 	defer func(begin time.Time) {
-		message := fmt.Sprintf("disconnect_thing mfx-%s : mfx-%s, took %s to complete", chanID, thingID, time.Since(begin))
+		message := fmt.Sprintf("disconnect_thing mgx-%s : mgx-%s, took %s to complete", chanID, thingID, time.Since(begin))
 		if err != nil {
 			lm.logger.Warn(fmt.Sprintf("%s with error: %s.", message, err))
 			return

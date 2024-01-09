@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 // Package main contains mqtt-adapter main function to start the mqtt-adapter service.
@@ -10,53 +10,59 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
+	"github.com/absmach/magistrala"
+	jaegerclient "github.com/absmach/magistrala/internal/clients/jaeger"
+	"github.com/absmach/magistrala/internal/server"
+	mglog "github.com/absmach/magistrala/logger"
+	"github.com/absmach/magistrala/mqtt"
+	"github.com/absmach/magistrala/mqtt/events"
+	mqtttracing "github.com/absmach/magistrala/mqtt/tracing"
+	"github.com/absmach/magistrala/pkg/auth"
+	"github.com/absmach/magistrala/pkg/errors"
+	"github.com/absmach/magistrala/pkg/messaging/brokers"
+	brokerstracing "github.com/absmach/magistrala/pkg/messaging/brokers/tracing"
+	"github.com/absmach/magistrala/pkg/messaging/handler"
+	mqttpub "github.com/absmach/magistrala/pkg/messaging/mqtt"
+	"github.com/absmach/magistrala/pkg/uuid"
+	mp "github.com/absmach/mproxy/pkg/mqtt"
+	"github.com/absmach/mproxy/pkg/mqtt/websocket"
+	"github.com/absmach/mproxy/pkg/session"
+	"github.com/caarlos0/env/v10"
 	"github.com/cenkalti/backoff/v4"
 	chclient "github.com/mainflux/callhome/pkg/client"
-	"github.com/mainflux/mainflux"
-	authapi "github.com/mainflux/mainflux/internal/clients/grpc/auth"
-	jaegerclient "github.com/mainflux/mainflux/internal/clients/jaeger"
-	"github.com/mainflux/mainflux/internal/env"
-	"github.com/mainflux/mainflux/internal/server"
-	mflog "github.com/mainflux/mainflux/logger"
-	"github.com/mainflux/mainflux/mqtt"
-	"github.com/mainflux/mainflux/mqtt/events"
-	mqtttracing "github.com/mainflux/mainflux/mqtt/tracing"
-	"github.com/mainflux/mainflux/pkg/errors"
-	"github.com/mainflux/mainflux/pkg/messaging/brokers"
-	brokerstracing "github.com/mainflux/mainflux/pkg/messaging/brokers/tracing"
-	"github.com/mainflux/mainflux/pkg/messaging/handler"
-	mqttpub "github.com/mainflux/mainflux/pkg/messaging/mqtt"
-	"github.com/mainflux/mainflux/pkg/uuid"
-	mp "github.com/mainflux/mproxy/pkg/mqtt"
-	"github.com/mainflux/mproxy/pkg/mqtt/websocket"
-	"github.com/mainflux/mproxy/pkg/session"
 	"golang.org/x/sync/errgroup"
 )
 
-const svcName = "mqtt"
+const (
+	svcName        = "mqtt"
+	envPrefixAuthz = "MG_THINGS_AUTH_GRPC_"
+)
 
 type config struct {
-	LogLevel              string        `env:"MF_MQTT_ADAPTER_LOG_LEVEL"                    envDefault:"info"`
-	MQTTPort              string        `env:"MF_MQTT_ADAPTER_MQTT_PORT"                    envDefault:"1883"`
-	MQTTTargetHost        string        `env:"MF_MQTT_ADAPTER_MQTT_TARGET_HOST"             envDefault:"localhost"`
-	MQTTTargetPort        string        `env:"MF_MQTT_ADAPTER_MQTT_TARGET_PORT"             envDefault:"1883"`
-	MQTTForwarderTimeout  time.Duration `env:"MF_MQTT_ADAPTER_FORWARDER_TIMEOUT"            envDefault:"30s"`
-	MQTTTargetHealthCheck string        `env:"MF_MQTT_ADAPTER_MQTT_TARGET_HEALTH_CHECK"     envDefault:""`
-	MQTTQoS               uint8         `env:"MF_MQTT_ADAPTER_MQTT_QOS"                     envDefault:"1"`
-	HTTPPort              string        `env:"MF_MQTT_ADAPTER_WS_PORT"                      envDefault:"8080"`
-	HTTPTargetHost        string        `env:"MF_MQTT_ADAPTER_WS_TARGET_HOST"               envDefault:"localhost"`
-	HTTPTargetPort        string        `env:"MF_MQTT_ADAPTER_WS_TARGET_PORT"               envDefault:"8080"`
-	HTTPTargetPath        string        `env:"MF_MQTT_ADAPTER_WS_TARGET_PATH"               envDefault:"/mqtt"`
-	Instance              string        `env:"MF_MQTT_ADAPTER_INSTANCE"                     envDefault:""`
-	JaegerURL             string        `env:"MF_JAEGER_URL"                                envDefault:"http://jaeger:14268/api/traces"`
-	BrokerURL             string        `env:"MF_MESSAGE_BROKER_URL"                        envDefault:"nats://localhost:4222"`
-	SendTelemetry         bool          `env:"MF_SEND_TELEMETRY"                            envDefault:"true"`
-	InstanceID            string        `env:"MF_MQTT_ADAPTER_INSTANCE_ID"                  envDefault:""`
-	ESURL                 string        `env:"MF_MQTT_ADAPTER_ES_URL"                       envDefault:"redis://localhost:6379/0"`
-	TraceRatio            float64       `env:"MF_JAEGER_TRACE_RATIO"                        envDefault:"1.0"`
+	LogLevel              string        `env:"MG_MQTT_ADAPTER_LOG_LEVEL"                    envDefault:"info"`
+	MQTTPort              string        `env:"MG_MQTT_ADAPTER_MQTT_PORT"                    envDefault:"1883"`
+	MQTTTargetHost        string        `env:"MG_MQTT_ADAPTER_MQTT_TARGET_HOST"             envDefault:"localhost"`
+	MQTTTargetPort        string        `env:"MG_MQTT_ADAPTER_MQTT_TARGET_PORT"             envDefault:"1883"`
+	MQTTForwarderTimeout  time.Duration `env:"MG_MQTT_ADAPTER_FORWARDER_TIMEOUT"            envDefault:"30s"`
+	MQTTTargetHealthCheck string        `env:"MG_MQTT_ADAPTER_MQTT_TARGET_HEALTH_CHECK"     envDefault:""`
+	MQTTQoS               uint8         `env:"MG_MQTT_ADAPTER_MQTT_QOS"                     envDefault:"1"`
+	HTTPPort              string        `env:"MG_MQTT_ADAPTER_WS_PORT"                      envDefault:"8080"`
+	HTTPTargetHost        string        `env:"MG_MQTT_ADAPTER_WS_TARGET_HOST"               envDefault:"localhost"`
+	HTTPTargetPort        string        `env:"MG_MQTT_ADAPTER_WS_TARGET_PORT"               envDefault:"8080"`
+	HTTPTargetPath        string        `env:"MG_MQTT_ADAPTER_WS_TARGET_PATH"               envDefault:"/mqtt"`
+	Instance              string        `env:"MG_MQTT_ADAPTER_INSTANCE"                     envDefault:""`
+	JaegerURL             url.URL       `env:"MG_JAEGER_URL"                                envDefault:"http://localhost:14268/api/traces"`
+	BrokerURL             string        `env:"MG_MESSAGE_BROKER_URL"                        envDefault:"nats://localhost:4222"`
+	SendTelemetry         bool          `env:"MG_SEND_TELEMETRY"                            envDefault:"true"`
+	InstanceID            string        `env:"MG_MQTT_ADAPTER_INSTANCE_ID"                  envDefault:""`
+	ESURL                 string        `env:"MG_ES_URL"                                    envDefault:"nats://localhost:4222"`
+	TraceRatio            float64       `env:"MG_JAEGER_TRACE_RATIO"                        envDefault:"1.0"`
 }
 
 func main() {
@@ -68,13 +74,13 @@ func main() {
 		log.Fatalf("failed to load %s configuration : %s", svcName, err)
 	}
 
-	logger, err := mflog.New(os.Stdout, cfg.LogLevel)
+	logger, err := mglog.New(os.Stdout, cfg.LogLevel)
 	if err != nil {
 		log.Fatalf("failed to init logger: %s", err)
 	}
 
 	var exitCode int
-	defer mflog.ExitWithError(&exitCode)
+	defer mglog.ExitWithError(&exitCode)
 
 	if cfg.InstanceID == "" {
 		if cfg.InstanceID, err = uuid.New().ID(); err != nil {
@@ -102,7 +108,7 @@ func main() {
 		Port: cfg.HTTPTargetPort,
 	}
 
-	tp, err := jaegerclient.NewProvider(svcName, cfg.JaegerURL, cfg.InstanceID, cfg.TraceRatio)
+	tp, err := jaegerclient.NewProvider(ctx, svcName, cfg.JaegerURL, cfg.InstanceID, cfg.TraceRatio)
 	if err != nil {
 		logger.Error(fmt.Sprintf("Failed to init Jaeger: %s", err))
 		exitCode = 1
@@ -156,21 +162,28 @@ func main() {
 		return
 	}
 
-	auth, aHandler, err := authapi.SetupAuthz("authz")
+	authConfig := auth.Config{}
+	if err := env.ParseWithOptions(&authConfig, env.Options{Prefix: envPrefixAuthz}); err != nil {
+		logger.Error(fmt.Sprintf("failed to load %s auth configuration : %s", svcName, err))
+		exitCode = 1
+		return
+	}
+
+	authClient, authHandler, err := auth.SetupAuthz(authConfig)
 	if err != nil {
 		logger.Error(err.Error())
 		exitCode = 1
 		return
 	}
-	defer aHandler.Close()
+	defer authHandler.Close()
 
-	logger.Info("Successfully connected to things grpc server " + aHandler.Secure())
+	logger.Info("Successfully connected to things grpc server " + authHandler.Secure())
 
-	h := mqtt.NewHandler(np, es, logger, auth)
+	h := mqtt.NewHandler(np, es, logger, authClient)
 	h = handler.NewTracing(tracer, h)
 
 	if cfg.SendTelemetry {
-		chc := chclient.New(svcName, mainflux.Version, logger, cancel)
+		chc := chclient.New(svcName, magistrala.Version, logger, cancel)
 		go chc.CallHome(ctx)
 	}
 
@@ -185,11 +198,7 @@ func main() {
 	})
 
 	g.Go(func() error {
-		if sig := errors.SignalHandler(ctx); sig != nil {
-			cancel()
-			logger.Info(fmt.Sprintf("mProxy shutdown by signal: %s", sig))
-		}
-		return nil
+		return stopSignalHandler(ctx, cancel, logger)
 	})
 
 	if err := g.Wait(); err != nil {
@@ -197,14 +206,14 @@ func main() {
 	}
 }
 
-func proxyMQTT(ctx context.Context, cfg config, logger mflog.Logger, handler session.Handler) error {
+func proxyMQTT(ctx context.Context, cfg config, logger mglog.Logger, sessionHandler session.Handler) error {
 	address := fmt.Sprintf(":%s", cfg.MQTTPort)
 	target := fmt.Sprintf("%s:%s", cfg.MQTTTargetHost, cfg.MQTTTargetPort)
-	mp := mp.New(address, target, handler, logger)
+	mproxy := mp.New(address, target, sessionHandler, logger)
 
 	errCh := make(chan error)
 	go func() {
-		errCh <- mp.Listen(ctx)
+		errCh <- mproxy.Listen(ctx)
 	}()
 
 	select {
@@ -216,9 +225,9 @@ func proxyMQTT(ctx context.Context, cfg config, logger mflog.Logger, handler ses
 	}
 }
 
-func proxyWS(ctx context.Context, cfg config, logger mflog.Logger, handler session.Handler) error {
+func proxyWS(ctx context.Context, cfg config, logger mglog.Logger, sessionHandler session.Handler) error {
 	target := fmt.Sprintf("%s:%s", cfg.HTTPTargetHost, cfg.HTTPTargetPort)
-	wp := websocket.New(target, cfg.HTTPTargetPath, "ws", handler, logger)
+	wp := websocket.New(target, cfg.HTTPTargetPath, "ws", sessionHandler, logger)
 	http.Handle("/mqtt", wp.Handler())
 
 	errCh := make(chan error)
@@ -250,6 +259,19 @@ func healthcheck(cfg config) func() error {
 		if res.StatusCode != http.StatusOK {
 			return errors.New(string(body))
 		}
+		return nil
+	}
+}
+
+func stopSignalHandler(ctx context.Context, cancel context.CancelFunc, logger mglog.Logger) error {
+	c := make(chan os.Signal, 2)
+	signal.Notify(c, syscall.SIGINT, syscall.SIGABRT)
+	select {
+	case sig := <-c:
+		defer cancel()
+		logger.Info(fmt.Sprintf("%s service shutdown by signal: %s", svcName, sig))
+		return nil
+	case <-ctx.Done():
 		return nil
 	}
 }

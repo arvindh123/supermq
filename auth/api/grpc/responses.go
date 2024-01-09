@@ -1,10 +1,12 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package grpc
 
 type identityRes struct {
-	id string
+	id       string
+	userID   string
+	domainID string
 }
 
 type issueRes struct {
@@ -21,8 +23,15 @@ type authorizeRes struct {
 type addPolicyRes struct {
 	authorized bool
 }
+type addPoliciesRes struct {
+	authorized bool
+}
 
 type deletePolicyRes struct {
+	deleted bool
+}
+
+type deletePoliciesRes struct {
 	deleted bool
 }
 
@@ -42,4 +51,14 @@ type listSubjectsRes struct {
 
 type countSubjectsRes struct {
 	count int
+}
+
+type listPermissionsRes struct {
+	Domain          string
+	SubjectType     string
+	Subject         string
+	SubjectRelation string
+	ObjectType      string
+	Object          string
+	Permissions     []string
 }

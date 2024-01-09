@@ -1,3 +1,7 @@
+#!/bin/bash
+# Copyright (c) Abstract Machines
+# SPDX-License-Identifier: Apache-2.0
+
 # This script contains commands to be executed by the CI tool.
 NPROC=$(nproc)
 GO_VERSION=1.21.3
@@ -44,8 +48,8 @@ setup_protoc() {
     export PATH=$PATH:/usr/local/bin/protoc
 }
 
-setup_mf() {
-    echo "Setting up Mainflux..."
+setup_mg() {
+    echo "Setting up Magistrala..."
     for p in $(ls *.pb.go); do
         mv $p $p.tmp
     done
@@ -66,9 +70,9 @@ setup_mf() {
         fi
     done
     echo "Compile check for rabbitmq..."
-    MF_MESSAGE_BROKER_TYPE=rabbitmq make http
+    MG_MESSAGE_BROKER_TYPE=rabbitmq make http
     echo "Compile check for redis..."
-    MF_ES_STORE_TYPE=redis make http
+    MG_ES_TYPE=redis make http
     make -j$NPROC
 }
 
@@ -81,7 +85,7 @@ setup() {
     echo "Setting up..."
     update_go
     setup_protoc
-    setup_mf
+    setup_mg
     setup_lint
 }
 

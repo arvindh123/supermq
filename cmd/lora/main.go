@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 // Package main contains lora main function to start the lora service.
@@ -8,58 +8,59 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"time"
 
+	"github.com/absmach/magistrala"
+	"github.com/absmach/magistrala/internal"
+	"github.com/absmach/magistrala/internal/clients/jaeger"
+	redisclient "github.com/absmach/magistrala/internal/clients/redis"
+	"github.com/absmach/magistrala/internal/server"
+	httpserver "github.com/absmach/magistrala/internal/server/http"
+	mglog "github.com/absmach/magistrala/logger"
+	"github.com/absmach/magistrala/lora"
+	"github.com/absmach/magistrala/lora/api"
+	"github.com/absmach/magistrala/lora/events"
+	"github.com/absmach/magistrala/lora/mqtt"
+	"github.com/absmach/magistrala/pkg/events/store"
+	"github.com/absmach/magistrala/pkg/messaging"
+	"github.com/absmach/magistrala/pkg/messaging/brokers"
+	brokerstracing "github.com/absmach/magistrala/pkg/messaging/brokers/tracing"
+	"github.com/absmach/magistrala/pkg/uuid"
+	"github.com/caarlos0/env/v10"
 	mqttpaho "github.com/eclipse/paho.mqtt.golang"
 	"github.com/go-redis/redis/v8"
 	chclient "github.com/mainflux/callhome/pkg/client"
-	"github.com/mainflux/mainflux"
-	"github.com/mainflux/mainflux/internal"
-	"github.com/mainflux/mainflux/internal/clients/jaeger"
-	redisclient "github.com/mainflux/mainflux/internal/clients/redis"
-	"github.com/mainflux/mainflux/internal/env"
-	"github.com/mainflux/mainflux/internal/server"
-	httpserver "github.com/mainflux/mainflux/internal/server/http"
-	mflog "github.com/mainflux/mainflux/logger"
-	"github.com/mainflux/mainflux/lora"
-	"github.com/mainflux/mainflux/lora/api"
-	"github.com/mainflux/mainflux/lora/events"
-	"github.com/mainflux/mainflux/lora/mqtt"
-	"github.com/mainflux/mainflux/pkg/events/store"
-	"github.com/mainflux/mainflux/pkg/messaging"
-	"github.com/mainflux/mainflux/pkg/messaging/brokers"
-	brokerstracing "github.com/mainflux/mainflux/pkg/messaging/brokers/tracing"
-	"github.com/mainflux/mainflux/pkg/uuid"
 	"golang.org/x/sync/errgroup"
 )
 
 const (
 	svcName        = "lora-adapter"
-	envPrefixHTTP  = "MF_LORA_ADAPTER_HTTP_"
+	envPrefixHTTP  = "MG_LORA_ADAPTER_HTTP_"
 	defSvcHTTPPort = "9017"
 
 	thingsRMPrefix   = "thing"
 	channelsRMPrefix = "channel"
 	connsRMPrefix    = "connection"
-	thingsStream     = "mainflux.things"
+	thingsStream     = "magistrala.things"
 )
 
 type config struct {
-	LogLevel       string        `env:"MF_LORA_ADAPTER_LOG_LEVEL"           envDefault:"info"`
-	LoraMsgURL     string        `env:"MF_LORA_ADAPTER_MESSAGES_URL"        envDefault:"tcp://localhost:1883"`
-	LoraMsgUser    string        `env:"MF_LORA_ADAPTER_MESSAGES_USER"       envDefault:""`
-	LoraMsgPass    string        `env:"MF_LORA_ADAPTER_MESSAGES_PASS"       envDefault:""`
-	LoraMsgTopic   string        `env:"MF_LORA_ADAPTER_MESSAGES_TOPIC"      envDefault:"application/+/device/+/event/up"`
-	LoraMsgTimeout time.Duration `env:"MF_LORA_ADAPTER_MESSAGES_TIMEOUT"    envDefault:"30s"`
-	ESConsumerName string        `env:"MF_LORA_ADAPTER_EVENT_CONSUMER"      envDefault:"lora-adapter"`
-	BrokerURL      string        `env:"MF_MESSAGE_BROKER_URL"               envDefault:"nats://localhost:4222"`
-	JaegerURL      string        `env:"MF_JAEGER_URL"                       envDefault:"http://jaeger:14268/api/traces"`
-	SendTelemetry  bool          `env:"MF_SEND_TELEMETRY"                   envDefault:"true"`
-	InstanceID     string        `env:"MF_LORA_ADAPTER_INSTANCE_ID"         envDefault:""`
-	ESURL          string        `env:"MF_LORA_ADAPTER_ES_URL"              envDefault:"redis://localhost:6379/0"`
-	RouteMapURL    string        `env:"MF_LORA_ADAPTER_ROUTE_MAP_URL"       envDefault:"redis://localhost:6379/0"`
-	TraceRatio     float64       `env:"MF_JAEGER_TRACE_RATIO"               envDefault:"1.0"`
+	LogLevel       string        `env:"MG_LORA_ADAPTER_LOG_LEVEL"           envDefault:"info"`
+	LoraMsgURL     string        `env:"MG_LORA_ADAPTER_MESSAGES_URL"        envDefault:"tcp://localhost:1883"`
+	LoraMsgUser    string        `env:"MG_LORA_ADAPTER_MESSAGES_USER"       envDefault:""`
+	LoraMsgPass    string        `env:"MG_LORA_ADAPTER_MESSAGES_PASS"       envDefault:""`
+	LoraMsgTopic   string        `env:"MG_LORA_ADAPTER_MESSAGES_TOPIC"      envDefault:"application/+/device/+/event/up"`
+	LoraMsgTimeout time.Duration `env:"MG_LORA_ADAPTER_MESSAGES_TIMEOUT"    envDefault:"30s"`
+	ESConsumerName string        `env:"MG_LORA_ADAPTER_EVENT_CONSUMER"      envDefault:"lora-adapter"`
+	BrokerURL      string        `env:"MG_MESSAGE_BROKER_URL"               envDefault:"nats://localhost:4222"`
+	JaegerURL      url.URL       `env:"MG_JAEGER_URL"                       envDefault:"http://localhost:14268/api/traces"`
+	SendTelemetry  bool          `env:"MG_SEND_TELEMETRY"                   envDefault:"true"`
+	InstanceID     string        `env:"MG_LORA_ADAPTER_INSTANCE_ID"         envDefault:""`
+	ESURL          string        `env:"MG_ES_URL"                           envDefault:"nats://localhost:4222"`
+	RouteMapURL    string        `env:"MG_LORA_ADAPTER_ROUTE_MAP_URL"       envDefault:"redis://localhost:6379/0"`
+	TraceRatio     float64       `env:"MG_JAEGER_TRACE_RATIO"               envDefault:"1.0"`
 }
 
 func main() {
@@ -71,13 +72,13 @@ func main() {
 		log.Fatalf("failed to load %s configuration : %s", svcName, err)
 	}
 
-	logger, err := mflog.New(os.Stdout, cfg.LogLevel)
+	logger, err := mglog.New(os.Stdout, cfg.LogLevel)
 	if err != nil {
 		log.Fatalf("failed to init logger: %s", err)
 	}
 
 	var exitCode int
-	defer mflog.ExitWithError(&exitCode)
+	defer mglog.ExitWithError(&exitCode)
 
 	if cfg.InstanceID == "" {
 		if cfg.InstanceID, err = uuid.New().ID(); err != nil {
@@ -88,7 +89,7 @@ func main() {
 	}
 
 	httpServerConfig := server.Config{Port: defSvcHTTPPort}
-	if err := env.Parse(&httpServerConfig, env.Options{Prefix: envPrefixHTTP}); err != nil {
+	if err := env.ParseWithOptions(&httpServerConfig, env.Options{Prefix: envPrefixHTTP}); err != nil {
 		logger.Error(fmt.Sprintf("failed to load %s HTTP server configuration : %s", svcName, err))
 		exitCode = 1
 		return
@@ -102,7 +103,7 @@ func main() {
 	}
 	defer rmConn.Close()
 
-	tp, err := jaeger.NewProvider(svcName, cfg.JaegerURL, cfg.InstanceID, cfg.TraceRatio)
+	tp, err := jaeger.NewProvider(ctx, svcName, cfg.JaegerURL, cfg.InstanceID, cfg.TraceRatio)
 	if err != nil {
 		logger.Error(fmt.Sprintf("Failed to init Jaeger: %s", err))
 		exitCode = 1
@@ -148,7 +149,7 @@ func main() {
 	hs := httpserver.New(ctx, cancel, svcName, httpServerConfig, api.MakeHandler(cfg.InstanceID), logger)
 
 	if cfg.SendTelemetry {
-		chc := chclient.New(svcName, mainflux.Version, logger, cancel)
+		chc := chclient.New(svcName, magistrala.Version, logger, cancel)
 		go chc.CallHome(ctx)
 	}
 
@@ -165,9 +166,9 @@ func main() {
 	}
 }
 
-func connectToMQTTBroker(url, user, password string, timeout time.Duration, logger mflog.Logger) (mqttpaho.Client, error) {
+func connectToMQTTBroker(burl, user, password string, timeout time.Duration, logger mglog.Logger) (mqttpaho.Client, error) {
 	opts := mqttpaho.NewClientOptions()
-	opts.AddBroker(url)
+	opts.AddBroker(burl)
 	opts.SetUsername(user)
 	opts.SetPassword(password)
 	opts.SetOnConnectHandler(func(_ mqttpaho.Client) {
@@ -186,16 +187,16 @@ func connectToMQTTBroker(url, user, password string, timeout time.Duration, logg
 	return client, nil
 }
 
-func subscribeToLoRaBroker(svc lora.Service, mc mqttpaho.Client, timeout time.Duration, topic string, logger mflog.Logger) error {
-	mqtt := mqtt.NewBroker(svc, mc, timeout, logger)
+func subscribeToLoRaBroker(svc lora.Service, mc mqttpaho.Client, timeout time.Duration, topic string, logger mglog.Logger) error {
+	mqttBroker := mqtt.NewBroker(svc, mc, timeout, logger)
 	logger.Info("Subscribed to Lora MQTT broker")
-	if err := mqtt.Subscribe(topic); err != nil {
+	if err := mqttBroker.Subscribe(topic); err != nil {
 		return fmt.Errorf("failed to subscribe to Lora MQTT broker: %s", err)
 	}
 	return nil
 }
 
-func subscribeToThingsES(ctx context.Context, svc lora.Service, cfg config, logger mflog.Logger) error {
+func subscribeToThingsES(ctx context.Context, svc lora.Service, cfg config, logger mglog.Logger) error {
 	subscriber, err := store.NewSubscriber(ctx, cfg.ESURL, thingsStream, cfg.ESConsumerName, logger)
 	if err != nil {
 		return err
@@ -208,12 +209,12 @@ func subscribeToThingsES(ctx context.Context, svc lora.Service, cfg config, logg
 	return subscriber.Subscribe(ctx, handler)
 }
 
-func newRouteMapRepository(client *redis.Client, prefix string, logger mflog.Logger) lora.RouteMapRepository {
+func newRouteMapRepository(client *redis.Client, prefix string, logger mglog.Logger) lora.RouteMapRepository {
 	logger.Info(fmt.Sprintf("Connected to %s Redis Route-map", prefix))
 	return events.NewRouteMapRepository(client, prefix)
 }
 
-func newService(pub messaging.Publisher, rmConn *redis.Client, thingsRMPrefix, channelsRMPrefix, connsRMPrefix string, logger mflog.Logger) lora.Service {
+func newService(pub messaging.Publisher, rmConn *redis.Client, thingsRMPrefix, channelsRMPrefix, connsRMPrefix string, logger mglog.Logger) lora.Service {
 	thingsRM := newRouteMapRepository(rmConn, thingsRMPrefix, logger)
 	chansRM := newRouteMapRepository(rmConn, channelsRMPrefix, logger)
 	connsRM := newRouteMapRepository(rmConn, connsRMPrefix, logger)

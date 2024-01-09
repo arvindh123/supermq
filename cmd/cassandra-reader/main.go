@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 // Package main contains cassandra-reader main function to start the cassandra-reader service.
@@ -10,34 +10,36 @@ import (
 	"log"
 	"os"
 
+	"github.com/absmach/magistrala"
+	"github.com/absmach/magistrala/internal"
+	cassandraclient "github.com/absmach/magistrala/internal/clients/cassandra"
+	"github.com/absmach/magistrala/internal/server"
+	httpserver "github.com/absmach/magistrala/internal/server/http"
+	mglog "github.com/absmach/magistrala/logger"
+	"github.com/absmach/magistrala/pkg/auth"
+	"github.com/absmach/magistrala/pkg/uuid"
+	"github.com/absmach/magistrala/readers"
+	"github.com/absmach/magistrala/readers/api"
+	"github.com/absmach/magistrala/readers/cassandra"
+	"github.com/caarlos0/env/v10"
 	"github.com/gocql/gocql"
 	chclient "github.com/mainflux/callhome/pkg/client"
-	"github.com/mainflux/mainflux"
-	"github.com/mainflux/mainflux/internal"
-	cassandraclient "github.com/mainflux/mainflux/internal/clients/cassandra"
-	authclient "github.com/mainflux/mainflux/internal/clients/grpc/auth"
-	"github.com/mainflux/mainflux/internal/env"
-	"github.com/mainflux/mainflux/internal/server"
-	httpserver "github.com/mainflux/mainflux/internal/server/http"
-	mflog "github.com/mainflux/mainflux/logger"
-	"github.com/mainflux/mainflux/pkg/uuid"
-	"github.com/mainflux/mainflux/readers"
-	"github.com/mainflux/mainflux/readers/api"
-	"github.com/mainflux/mainflux/readers/cassandra"
 	"golang.org/x/sync/errgroup"
 )
 
 const (
 	svcName        = "cassandra-reader"
-	envPrefixDB    = "MF_CASSANDRA_"
-	envPrefixHTTP  = "MF_CASSANDRA_READER_HTTP_"
+	envPrefixDB    = "MG_CASSANDRA_"
+	envPrefixHTTP  = "MG_CASSANDRA_READER_HTTP_"
+	envPrefixAuth  = "MG_AUTH_GRPC_"
+	envPrefixAuthz = "MG_THINGS_AUTH_GRPC_"
 	defSvcHTTPPort = "9003"
 )
 
 type config struct {
-	LogLevel      string `env:"MF_CASSANDRA_READER_LOG_LEVEL"     envDefault:"info"`
-	SendTelemetry bool   `env:"MF_SEND_TELEMETRY"                 envDefault:"true"`
-	InstanceID    string `env:"MF_CASSANDRA_READER_INSTANCE_ID"   envDefault:""`
+	LogLevel      string `env:"MG_CASSANDRA_READER_LOG_LEVEL"     envDefault:"info"`
+	SendTelemetry bool   `env:"MG_SEND_TELEMETRY"                 envDefault:"true"`
+	InstanceID    string `env:"MG_CASSANDRA_READER_INSTANCE_ID"   envDefault:""`
 }
 
 func main() {
@@ -50,13 +52,13 @@ func main() {
 		log.Fatalf("failed to load %s service configuration : %s", svcName, err)
 	}
 
-	logger, err := mflog.New(os.Stdout, cfg.LogLevel)
+	logger, err := mglog.New(os.Stdout, cfg.LogLevel)
 	if err != nil {
 		log.Fatalf("failed to init logger: %s", err)
 	}
 
 	var exitCode int
-	defer mflog.ExitWithError(&exitCode)
+	defer mglog.ExitWithError(&exitCode)
 
 	if cfg.InstanceID == "" {
 		if cfg.InstanceID, err = uuid.New().ID(); err != nil {
@@ -66,7 +68,14 @@ func main() {
 		}
 	}
 
-	ac, acHandler, err := authclient.Setup(svcName)
+	authConfig := auth.Config{}
+	if err := env.ParseWithOptions(&authConfig, env.Options{Prefix: envPrefixAuth}); err != nil {
+		logger.Error(fmt.Sprintf("failed to load %s auth configuration : %s", svcName, err))
+		exitCode = 1
+		return
+	}
+
+	ac, acHandler, err := auth.Setup(authConfig)
 	if err != nil {
 		logger.Error(err.Error())
 		exitCode = 1
@@ -76,7 +85,14 @@ func main() {
 
 	logger.Info("Successfully connected to auth grpc server " + acHandler.Secure())
 
-	tc, tcHandler, err := authclient.SetupAuthz(svcName)
+	authConfig = auth.Config{}
+	if err := env.ParseWithOptions(&authConfig, env.Options{Prefix: envPrefixAuthz}); err != nil {
+		logger.Error(fmt.Sprintf("failed to load %s auth configuration : %s", svcName, err))
+		exitCode = 1
+		return
+	}
+
+	tc, tcHandler, err := auth.SetupAuthz(authConfig)
 	if err != nil {
 		logger.Error(err.Error())
 		exitCode = 1
@@ -100,7 +116,7 @@ func main() {
 
 	// Create new http server
 	httpServerConfig := server.Config{Port: defSvcHTTPPort}
-	if err := env.Parse(&httpServerConfig, env.Options{Prefix: envPrefixHTTP}); err != nil {
+	if err := env.ParseWithOptions(&httpServerConfig, env.Options{Prefix: envPrefixHTTP}); err != nil {
 		logger.Error(fmt.Sprintf("failed to load %s HTTP server configuration : %s", svcName, err))
 		exitCode = 1
 		return
@@ -108,7 +124,7 @@ func main() {
 	hs := httpserver.New(ctx, cancel, svcName, httpServerConfig, api.MakeHandler(repo, ac, tc, svcName, cfg.InstanceID), logger)
 
 	if cfg.SendTelemetry {
-		chc := chclient.New(svcName, mainflux.Version, logger, cancel)
+		chc := chclient.New(svcName, magistrala.Version, logger, cancel)
 		go chc.CallHome(ctx)
 	}
 
@@ -126,7 +142,7 @@ func main() {
 	}
 }
 
-func newService(csdSession *gocql.Session, logger mflog.Logger) readers.MessageRepository {
+func newService(csdSession *gocql.Session, logger mglog.Logger) readers.MessageRepository {
 	repo := cassandra.New(csdSession)
 	repo = api.LoggingMiddleware(repo, logger)
 	counter, latency := internal.MakeMetrics("cassandra", "message_reader")

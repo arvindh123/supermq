@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package api
@@ -7,16 +7,16 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/mainflux/mainflux"
-	"github.com/mainflux/mainflux/bootstrap"
+	"github.com/absmach/magistrala"
+	"github.com/absmach/magistrala/bootstrap"
 )
 
 var (
-	_ mainflux.Response = (*removeRes)(nil)
-	_ mainflux.Response = (*configRes)(nil)
-	_ mainflux.Response = (*stateRes)(nil)
-	_ mainflux.Response = (*viewRes)(nil)
-	_ mainflux.Response = (*listRes)(nil)
+	_ magistrala.Response = (*removeRes)(nil)
+	_ magistrala.Response = (*configRes)(nil)
+	_ magistrala.Response = (*stateRes)(nil)
+	_ magistrala.Response = (*viewRes)(nil)
+	_ magistrala.Response = (*listRes)(nil)
 )
 
 type removeRes struct{}

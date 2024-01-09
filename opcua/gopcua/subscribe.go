@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package gopcua
@@ -9,12 +9,12 @@ import (
 	"strconv"
 	"time"
 
+	mglog "github.com/absmach/magistrala/logger"
+	"github.com/absmach/magistrala/opcua"
+	"github.com/absmach/magistrala/pkg/errors"
+	"github.com/absmach/magistrala/pkg/messaging"
 	opcuagopcua "github.com/gopcua/opcua"
 	uagopcua "github.com/gopcua/opcua/ua"
-	"github.com/mainflux/mainflux/logger"
-	"github.com/mainflux/mainflux/opcua"
-	"github.com/mainflux/mainflux/pkg/errors"
-	"github.com/mainflux/mainflux/pkg/messaging"
 )
 
 const (
@@ -45,7 +45,7 @@ type client struct {
 	thingsRM   opcua.RouteMapRepository
 	channelsRM opcua.RouteMapRepository
 	connectRM  opcua.RouteMapRepository
-	logger     logger.Logger
+	logger     mglog.Logger
 }
 
 type message struct {
@@ -58,7 +58,7 @@ type message struct {
 }
 
 // NewSubscriber returns new OPC-UA client instance.
-func NewSubscriber(ctx context.Context, publisher messaging.Publisher, thingsRM, channelsRM, connectRM opcua.RouteMapRepository, log logger.Logger) opcua.Subscriber {
+func NewSubscriber(ctx context.Context, publisher messaging.Publisher, thingsRM, channelsRM, connectRM opcua.RouteMapRepository, log mglog.Logger) opcua.Subscriber {
 	return client{
 		ctx:        ctx,
 		publisher:  publisher,
@@ -209,7 +209,7 @@ func (c client) runHandler(ctx context.Context, sub *opcuagopcua.Subscription, u
 	}
 }
 
-// Publish forwards messages from the OPC-UA Server to Mainflux Message broker.
+// Publish forwards messages from the OPC-UA Server to Magistrala Message broker.
 func (c client) publish(ctx context.Context, token string, m message) error {
 	// Get route-map of the OPC-UA ServerURI
 	chanID, err := c.channelsRM.Get(ctx, m.ServerURI)
@@ -229,7 +229,7 @@ func (c client) publish(ctx context.Context, token string, m message) error {
 		return fmt.Errorf("%s between channel %s and thing %s", errNotFoundConn, chanID, thingID)
 	}
 
-	// Publish on Mainflux Message broker
+	// Publish on Magistrala Message broker
 	SenML := fmt.Sprintf(`[{"n":"%s", "t": %d, "%s":%v}]`, m.Type, m.Time, m.DataKey, m.Data)
 	payload := []byte(SenML)
 

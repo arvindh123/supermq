@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package ws
@@ -11,11 +11,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mainflux/mainflux"
-	"github.com/mainflux/mainflux/logger"
-	"github.com/mainflux/mainflux/pkg/errors"
-	"github.com/mainflux/mainflux/pkg/messaging"
-	"github.com/mainflux/mproxy/pkg/session"
+	"github.com/absmach/magistrala"
+	"github.com/absmach/magistrala/auth"
+	mglog "github.com/absmach/magistrala/logger"
+	"github.com/absmach/magistrala/pkg/errors"
+	svcerr "github.com/absmach/magistrala/pkg/errors/service"
+	"github.com/absmach/magistrala/pkg/messaging"
+	"github.com/absmach/mproxy/pkg/session"
 )
 
 var _ session.Handler = (*handler)(nil)
@@ -46,7 +48,7 @@ var (
 	ErrFailedPublishDisconnectEvent = errors.New("failed to publish disconnect event")
 	ErrFailedParseSubtopic          = errors.New("failed to parse subtopic")
 	ErrFailedPublishConnectEvent    = errors.New("failed to publish connect event")
-	ErrFailedPublishToMsgBroker     = errors.New("failed to publish to mainflux message broker")
+	ErrFailedPublishToMsgBroker     = errors.New("failed to publish to magistrala message broker")
 )
 
 var channelRegExp = regexp.MustCompile(`^\/?channels\/([\w\-]+)\/messages(\/[^?]*)?(\?.*)?$`)
@@ -54,16 +56,16 @@ var channelRegExp = regexp.MustCompile(`^\/?channels\/([\w\-]+)\/messages(\/[^?]
 // Event implements events.Event interface.
 type handler struct {
 	pubsub messaging.PubSub
-	auth   mainflux.AuthzServiceClient
-	logger logger.Logger
+	auth   magistrala.AuthzServiceClient
+	logger mglog.Logger
 }
 
 // NewHandler creates new Handler entity.
-func NewHandler(pubsub messaging.PubSub, logger logger.Logger, auth mainflux.AuthzServiceClient) session.Handler {
+func NewHandler(pubsub messaging.PubSub, logger mglog.Logger, authClient magistrala.AuthzServiceClient) session.Handler {
 	return &handler{
 		logger: logger,
 		pubsub: pubsub,
-		auth:   auth,
+		auth:   authClient,
 	}
 }
 
@@ -92,7 +94,7 @@ func (h *handler) AuthPublish(ctx context.Context, topic *string, payload *[]byt
 		token = string(s.Password)
 	}
 
-	return h.authAccess(ctx, token, *topic, "publish")
+	return h.authAccess(ctx, token, *topic, auth.PublishPermission)
 }
 
 // AuthSubscribe is called on device publish,
@@ -115,7 +117,7 @@ func (h *handler) AuthSubscribe(ctx context.Context, topics *[]string) error {
 	}
 
 	for _, v := range *topics {
-		if err := h.authAccess(ctx, token, v, "subscribe"); err != nil {
+		if err := h.authAccess(ctx, token, v, auth.SubscribePermission); err != nil {
 			return err
 		}
 	}
@@ -135,13 +137,13 @@ func (h *handler) Publish(ctx context.Context, topic *string, payload *[]byte) e
 		return errors.Wrap(ErrFailedPublish, ErrClientNotInitialized)
 	}
 	h.logger.Info(fmt.Sprintf(LogInfoPublished, s.ID, *topic))
-	// Topics are in the format:
-	// channels/<channel_id>/messages/<subtopic>/.../ct/<content_type>
 
 	if len(*payload) == 0 {
 		return ErrFailedMessagePublish
 	}
 
+	// Topics are in the format:
+	// channels/<channel_id>/messages/<subtopic>/.../ct/<content_type>
 	channelParts := channelRegExp.FindStringSubmatch(*topic)
 	if len(channelParts) < 2 {
 		return errors.Wrap(ErrFailedPublish, ErrMalformedTopic)
@@ -163,13 +165,12 @@ func (h *handler) Publish(ctx context.Context, topic *string, payload *[]byte) e
 		token = string(s.Password)
 	}
 
-	ar := &mainflux.AuthorizeReq{
-		Namespace:   "",
-		SubjectType: "thing",
-		Permission:  "publish",
+	ar := &magistrala.AuthorizeReq{
+		SubjectType: auth.ThingType,
+		Permission:  auth.PublishPermission,
 		Subject:     token,
 		Object:      chanID,
-		ObjectType:  "group",
+		ObjectType:  auth.GroupType,
 	}
 	res, err := h.auth.Authorize(ctx, ar)
 	if err != nil {
@@ -224,7 +225,7 @@ func (h *handler) Disconnect(ctx context.Context) error {
 func (h *handler) authAccess(ctx context.Context, password, topic, action string) error {
 	// Topics are in the format:
 	// channels/<channel_id>/messages/<subtopic>/.../ct/<content_type>
-	if !channelRegExp.Match([]byte(topic)) {
+	if !channelRegExp.MatchString(topic) {
 		return ErrMalformedTopic
 	}
 
@@ -235,20 +236,19 @@ func (h *handler) authAccess(ctx context.Context, password, topic, action string
 
 	chanID := channelParts[1]
 
-	ar := &mainflux.AuthorizeReq{
-		Namespace:   "",
-		SubjectType: "thing",
+	ar := &magistrala.AuthorizeReq{
+		SubjectType: auth.ThingType,
 		Permission:  action,
 		Subject:     password,
 		Object:      chanID,
-		ObjectType:  "group",
+		ObjectType:  auth.GroupType,
 	}
 	res, err := h.auth.Authorize(ctx, ar)
 	if err != nil {
-		return err
+		return errors.Wrap(svcerr.ErrAuthorization, err)
 	}
 	if !res.GetAuthorized() {
-		return errors.ErrAuthorization
+		return errors.Wrap(svcerr.ErrAuthorization, err)
 	}
 
 	return nil

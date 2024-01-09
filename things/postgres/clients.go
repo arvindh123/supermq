@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package postgres
@@ -8,27 +8,35 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/mainflux/mainflux/internal/postgres"
-	mfclients "github.com/mainflux/mainflux/pkg/clients"
-	pgclients "github.com/mainflux/mainflux/pkg/clients/postgres"
-	"github.com/mainflux/mainflux/pkg/errors"
+	"github.com/absmach/magistrala/internal/postgres"
+	mgclients "github.com/absmach/magistrala/pkg/clients"
+	pgclients "github.com/absmach/magistrala/pkg/clients/postgres"
+	"github.com/absmach/magistrala/pkg/errors"
+	repoerr "github.com/absmach/magistrala/pkg/errors/repository"
 )
 
-var _ mfclients.Repository = (*clientRepo)(nil)
+var _ mgclients.Repository = (*clientRepo)(nil)
 
 type clientRepo struct {
 	pgclients.ClientRepository
 }
 
+// Repository is the interface that wraps the basic methods for
+// a client repository.
+//
+//go:generate mockery --name Repository --output=../mocks --filename repository.go --quiet --note "Copyright (c) Abstract Machines"
 type Repository interface {
-	mfclients.Repository
+	mgclients.Repository
 
 	// Save persists the client account. A non-nil error is returned to indicate
 	// operation failure.
-	Save(ctx context.Context, client ...mfclients.Client) ([]mfclients.Client, error)
+	Save(ctx context.Context, client ...mgclients.Client) ([]mgclients.Client, error)
 
 	// RetrieveBySecret retrieves a client based on the secret (key).
-	RetrieveBySecret(ctx context.Context, key string) (mfclients.Client, error)
+	RetrieveBySecret(ctx context.Context, key string) (mgclients.Client, error)
+
+	// Delete deletes client with given id
+	Delete(ctx context.Context, id string) error
 }
 
 // NewRepository instantiates a PostgreSQL
@@ -39,12 +47,12 @@ func NewRepository(db postgres.Database) Repository {
 	}
 }
 
-func (repo clientRepo) Save(ctx context.Context, cs ...mfclients.Client) ([]mfclients.Client, error) {
+func (repo clientRepo) Save(ctx context.Context, cs ...mgclients.Client) ([]mgclients.Client, error) {
 	tx, err := repo.ClientRepository.DB.BeginTxx(ctx, nil)
 	if err != nil {
-		return []mfclients.Client{}, errors.Wrap(errors.ErrCreateEntity, err)
+		return []mgclients.Client{}, errors.Wrap(repoerr.ErrCreateEntity, err)
 	}
-	var clients []mfclients.Client
+	var clients []mgclients.Client
 
 	for _, cli := range cs {
 		q := `INSERT INTO clients (id, name, tags, owner_id, identity, secret, metadata, created_at, updated_at, updated_by, status)
@@ -53,41 +61,41 @@ func (repo clientRepo) Save(ctx context.Context, cs ...mfclients.Client) ([]mfcl
 
 		dbcli, err := pgclients.ToDBClient(cli)
 		if err != nil {
-			return []mfclients.Client{}, errors.Wrap(errors.ErrCreateEntity, err)
+			return []mgclients.Client{}, errors.Wrap(repoerr.ErrCreateEntity, err)
 		}
 
 		row, err := repo.ClientRepository.DB.NamedQueryContext(ctx, q, dbcli)
 		if err != nil {
 			if err := tx.Rollback(); err != nil {
-				return []mfclients.Client{}, postgres.HandleError(err, errors.ErrCreateEntity)
+				return []mgclients.Client{}, postgres.HandleError(repoerr.ErrCreateEntity, err)
 			}
-			return []mfclients.Client{}, errors.Wrap(errors.ErrCreateEntity, err)
+			return []mgclients.Client{}, errors.Wrap(repoerr.ErrCreateEntity, err)
 		}
 
 		defer row.Close()
 		row.Next()
 		dbcli = pgclients.DBClient{}
 		if err := row.StructScan(&dbcli); err != nil {
-			return []mfclients.Client{}, err
+			return []mgclients.Client{}, errors.Wrap(repoerr.ErrFailedOpDB, err)
 		}
 
 		client, err := pgclients.ToClient(dbcli)
 		if err != nil {
-			return []mfclients.Client{}, err
+			return []mgclients.Client{}, errors.Wrap(repoerr.ErrFailedOpDB, err)
 		}
 		clients = append(clients, client)
 	}
 	if err = tx.Commit(); err != nil {
-		return []mfclients.Client{}, errors.Wrap(errors.ErrCreateEntity, err)
+		return []mgclients.Client{}, errors.Wrap(repoerr.ErrCreateEntity, err)
 	}
 
 	return clients, nil
 }
 
-func (repo clientRepo) RetrieveBySecret(ctx context.Context, key string) (mfclients.Client, error) {
+func (repo clientRepo) RetrieveBySecret(ctx context.Context, key string) (mgclients.Client, error) {
 	q := fmt.Sprintf(`SELECT id, name, tags, COALESCE(owner_id, '') AS owner_id, identity, secret, metadata, created_at, updated_at, updated_by, status
         FROM clients
-        WHERE secret = $1 AND status = %d`, mfclients.EnabledStatus)
+        WHERE secret = $1 AND status = %d`, mgclients.EnabledStatus)
 
 	dbc := pgclients.DBClient{
 		Secret: key,
@@ -95,10 +103,18 @@ func (repo clientRepo) RetrieveBySecret(ctx context.Context, key string) (mfclie
 
 	if err := repo.DB.QueryRowxContext(ctx, q, key).StructScan(&dbc); err != nil {
 		if err == sql.ErrNoRows {
-			return mfclients.Client{}, errors.Wrap(errors.ErrNotFound, err)
+			return mgclients.Client{}, errors.Wrap(repoerr.ErrNotFound, err)
 		}
-		return mfclients.Client{}, errors.Wrap(errors.ErrViewEntity, err)
+		return mgclients.Client{}, errors.Wrap(repoerr.ErrViewEntity, err)
 	}
 
 	return pgclients.ToClient(dbc)
+}
+
+func (repo clientRepo) Delete(ctx context.Context, id string) error {
+	q := "DELETE FROM clients AS c  WHERE c.id = $1 ;"
+	if _, err := repo.DB.ExecContext(ctx, q, id); err != nil {
+		return postgres.HandleError(repoerr.ErrRemoveEntity, err)
+	}
+	return nil
 }

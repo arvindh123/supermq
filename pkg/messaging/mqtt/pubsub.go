@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package mqtt
@@ -10,13 +10,13 @@ import (
 	"sync"
 	"time"
 
+	mglog "github.com/absmach/magistrala/logger"
+	"github.com/absmach/magistrala/pkg/messaging"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
-	mflog "github.com/mainflux/mainflux/logger"
-	"github.com/mainflux/mainflux/pkg/messaging"
 	"google.golang.org/protobuf/proto"
 )
 
-const username = "mainflux-mqtt"
+const username = "magistrala-mqtt"
 
 var (
 	// ErrConnect indicates that connection to MQTT broker failed.
@@ -51,7 +51,7 @@ type subscription struct {
 
 type pubsub struct {
 	publisher
-	logger        mflog.Logger
+	logger        mglog.Logger
 	mu            sync.RWMutex
 	address       string
 	timeout       time.Duration
@@ -59,7 +59,7 @@ type pubsub struct {
 }
 
 // NewPubSub returns MQTT message publisher/subscriber.
-func NewPubSub(url string, qos uint8, timeout time.Duration, logger mflog.Logger) (messaging.PubSub, error) {
+func NewPubSub(url string, qos uint8, timeout time.Duration, logger mglog.Logger) (messaging.PubSub, error) {
 	client, err := newClient(url, "mqtt-publisher", timeout)
 	if err != nil {
 		return nil, err
@@ -196,7 +196,7 @@ func (ps *pubsub) mqttHandler(h messaging.MessageHandler) mqtt.MessageHandler {
 		}
 
 		if err := h.Handle(&msg); err != nil {
-			ps.logger.Warn(fmt.Sprintf("Failed to handle Mainflux message: %s", err))
+			ps.logger.Warn(fmt.Sprintf("Failed to handle Magistrala message: %s", err))
 		}
 	}
 }

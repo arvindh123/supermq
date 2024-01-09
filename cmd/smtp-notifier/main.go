@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 // Package main contains smtp-notifier main function to start the smtp-notifier service.
@@ -8,51 +8,53 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 
+	"github.com/absmach/magistrala"
+	"github.com/absmach/magistrala/consumers"
+	"github.com/absmach/magistrala/consumers/notifiers"
+	"github.com/absmach/magistrala/consumers/notifiers/api"
+	notifierpg "github.com/absmach/magistrala/consumers/notifiers/postgres"
+	"github.com/absmach/magistrala/consumers/notifiers/smtp"
+	"github.com/absmach/magistrala/consumers/notifiers/tracing"
+	"github.com/absmach/magistrala/internal"
+	jaegerclient "github.com/absmach/magistrala/internal/clients/jaeger"
+	pgclient "github.com/absmach/magistrala/internal/clients/postgres"
+	"github.com/absmach/magistrala/internal/email"
+	"github.com/absmach/magistrala/internal/server"
+	httpserver "github.com/absmach/magistrala/internal/server/http"
+	mglog "github.com/absmach/magistrala/logger"
+	"github.com/absmach/magistrala/pkg/auth"
+	"github.com/absmach/magistrala/pkg/messaging/brokers"
+	brokerstracing "github.com/absmach/magistrala/pkg/messaging/brokers/tracing"
+	"github.com/absmach/magistrala/pkg/ulid"
+	"github.com/absmach/magistrala/pkg/uuid"
+	"github.com/caarlos0/env/v10"
 	"github.com/jmoiron/sqlx"
 	chclient "github.com/mainflux/callhome/pkg/client"
-	"github.com/mainflux/mainflux"
-	"github.com/mainflux/mainflux/consumers"
-	"github.com/mainflux/mainflux/consumers/notifiers"
-	"github.com/mainflux/mainflux/consumers/notifiers/api"
-	notifierpg "github.com/mainflux/mainflux/consumers/notifiers/postgres"
-	"github.com/mainflux/mainflux/consumers/notifiers/smtp"
-	"github.com/mainflux/mainflux/consumers/notifiers/tracing"
-	"github.com/mainflux/mainflux/internal"
-	authclient "github.com/mainflux/mainflux/internal/clients/grpc/auth"
-	jaegerclient "github.com/mainflux/mainflux/internal/clients/jaeger"
-	pgclient "github.com/mainflux/mainflux/internal/clients/postgres"
-	"github.com/mainflux/mainflux/internal/email"
-	"github.com/mainflux/mainflux/internal/env"
-	"github.com/mainflux/mainflux/internal/server"
-	httpserver "github.com/mainflux/mainflux/internal/server/http"
-	mflog "github.com/mainflux/mainflux/logger"
-	"github.com/mainflux/mainflux/pkg/messaging/brokers"
-	brokerstracing "github.com/mainflux/mainflux/pkg/messaging/brokers/tracing"
-	"github.com/mainflux/mainflux/pkg/ulid"
-	"github.com/mainflux/mainflux/pkg/uuid"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 )
 
 const (
 	svcName        = "smtp-notifier"
-	envPrefixDB    = "MF_SMTP_NOTIFIER_DB_"
-	envPrefixHTTP  = "MF_SMTP_NOTIFIER_HTTP_"
+	envPrefixDB    = "MG_SMTP_NOTIFIER_DB_"
+	envPrefixHTTP  = "MG_SMTP_NOTIFIER_HTTP_"
+	envPrefixAuth  = "MG_AUTH_GRPC_"
 	defDB          = "subscriptions"
 	defSvcHTTPPort = "9015"
 )
 
 type config struct {
-	LogLevel      string  `env:"MF_SMTP_NOTIFIER_LOG_LEVEL"    envDefault:"info"`
-	ConfigPath    string  `env:"MF_SMTP_NOTIFIER_CONFIG_PATH"  envDefault:"/config.toml"`
-	From          string  `env:"MF_SMTP_NOTIFIER_FROM_ADDR"    envDefault:""`
-	BrokerURL     string  `env:"MF_MESSAGE_BROKER_URL"         envDefault:"nats://localhost:4222"`
-	JaegerURL     string  `env:"MF_JAEGER_URL"                 envDefault:"http://jaeger:14268/api/traces"`
-	SendTelemetry bool    `env:"MF_SEND_TELEMETRY"             envDefault:"true"`
-	InstanceID    string  `env:"MF_SMTP_NOTIFIER_INSTANCE_ID"  envDefault:""`
-	TraceRatio    float64 `env:"MF_JAEGER_TRACE_RATIO"         envDefault:"1.0"`
+	LogLevel      string  `env:"MG_SMTP_NOTIFIER_LOG_LEVEL"    envDefault:"info"`
+	ConfigPath    string  `env:"MG_SMTP_NOTIFIER_CONFIG_PATH"  envDefault:"/config.toml"`
+	From          string  `env:"MG_SMTP_NOTIFIER_FROM_ADDR"    envDefault:""`
+	BrokerURL     string  `env:"MG_MESSAGE_BROKER_URL"         envDefault:"nats://localhost:4222"`
+	JaegerURL     url.URL `env:"MG_JAEGER_URL"                 envDefault:"http://jaeger:14268/api/traces"`
+	SendTelemetry bool    `env:"MG_SEND_TELEMETRY"             envDefault:"true"`
+	InstanceID    string  `env:"MG_SMTP_NOTIFIER_INSTANCE_ID"  envDefault:""`
+	TraceRatio    float64 `env:"MG_JAEGER_TRACE_RATIO"         envDefault:"1.0"`
 }
 
 func main() {
@@ -64,13 +66,13 @@ func main() {
 		log.Fatalf("failed to load %s configuration : %s", svcName, err)
 	}
 
-	logger, err := mflog.New(os.Stdout, cfg.LogLevel)
+	logger, err := mglog.New(os.Stdout, cfg.LogLevel)
 	if err != nil {
 		log.Fatalf("failed to init logger: %s", err)
 	}
 
 	var exitCode int
-	defer mflog.ExitWithError(&exitCode)
+	defer mglog.ExitWithError(&exitCode)
 
 	if cfg.InstanceID == "" {
 		if cfg.InstanceID, err = uuid.New().ID(); err != nil {
@@ -81,7 +83,12 @@ func main() {
 	}
 
 	dbConfig := pgclient.Config{Name: defDB}
-	db, err := pgclient.SetupWithConfig(envPrefixDB, *notifierpg.Migration(), dbConfig)
+	if err := env.ParseWithOptions(&dbConfig, env.Options{Prefix: envPrefixDB}); err != nil {
+		logger.Error(fmt.Sprintf("failed to load %s Postgres configuration : %s", svcName, err))
+		exitCode = 1
+		return
+	}
+	db, err := pgclient.Setup(dbConfig, *notifierpg.Migration())
 	if err != nil {
 		logger.Fatal(err.Error())
 		exitCode = 1
@@ -97,13 +104,13 @@ func main() {
 	}
 
 	httpServerConfig := server.Config{Port: defSvcHTTPPort}
-	if err := env.Parse(&httpServerConfig, env.Options{Prefix: envPrefixHTTP}); err != nil {
+	if err := env.ParseWithOptions(&httpServerConfig, env.Options{Prefix: envPrefixHTTP}); err != nil {
 		logger.Error(fmt.Sprintf("failed to load %s HTTP server configuration : %s", svcName, err))
 		exitCode = 1
 		return
 	}
 
-	tp, err := jaegerclient.NewProvider(svcName, cfg.JaegerURL, cfg.InstanceID, cfg.TraceRatio)
+	tp, err := jaegerclient.NewProvider(ctx, svcName, cfg.JaegerURL, cfg.InstanceID, cfg.TraceRatio)
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to init Jaeger: %s", err))
 		exitCode = 1
@@ -125,7 +132,14 @@ func main() {
 	defer pubSub.Close()
 	pubSub = brokerstracing.NewPubSub(httpServerConfig, tracer, pubSub)
 
-	auth, authHandler, err := authclient.Setup(svcName)
+	authConfig := auth.Config{}
+	if err := env.ParseWithOptions(&authConfig, env.Options{Prefix: envPrefixAuth}); err != nil {
+		logger.Error(fmt.Sprintf("failed to load %s auth configuration : %s", svcName, err))
+		exitCode = 1
+		return
+	}
+
+	authClient, authHandler, err := auth.Setup(authConfig)
 	if err != nil {
 		logger.Error(err.Error())
 		exitCode = 1
@@ -135,7 +149,7 @@ func main() {
 
 	logger.Info("Successfully connected to auth grpc server " + authHandler.Secure())
 
-	svc, err := newService(db, tracer, auth, cfg, ec, logger)
+	svc, err := newService(db, tracer, authClient, cfg, ec, logger)
 	if err != nil {
 		logger.Error(err.Error())
 		exitCode = 1
@@ -151,7 +165,7 @@ func main() {
 	hs := httpserver.New(ctx, cancel, svcName, httpServerConfig, api.MakeHandler(svc, logger, cfg.InstanceID), logger)
 
 	if cfg.SendTelemetry {
-		chc := chclient.New(svcName, mainflux.Version, logger, cancel)
+		chc := chclient.New(svcName, magistrala.Version, logger, cancel)
 		go chc.CallHome(ctx)
 	}
 
@@ -168,7 +182,7 @@ func main() {
 	}
 }
 
-func newService(db *sqlx.DB, tracer trace.Tracer, auth mainflux.AuthServiceClient, c config, ec email.Config, logger mflog.Logger) (notifiers.Service, error) {
+func newService(db *sqlx.DB, tracer trace.Tracer, authClient magistrala.AuthServiceClient, c config, ec email.Config, logger mglog.Logger) (notifiers.Service, error) {
 	database := notifierpg.NewDatabase(db, tracer)
 	repo := tracing.New(tracer, notifierpg.New(database))
 	idp := ulid.New()
@@ -179,7 +193,7 @@ func newService(db *sqlx.DB, tracer trace.Tracer, auth mainflux.AuthServiceClien
 	}
 
 	notifier := smtp.New(agent)
-	svc := notifiers.New(auth, repo, idp, notifier, c.From)
+	svc := notifiers.New(authClient, repo, idp, notifier, c.From)
 	svc = api.LoggingMiddleware(svc, logger)
 	counter, latency := internal.MakeMetrics("notifier", "smtp")
 	svc = api.MetricsMiddleware(svc, counter, latency)

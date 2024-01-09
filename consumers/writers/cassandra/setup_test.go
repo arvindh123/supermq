@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package cassandra_test
@@ -8,13 +8,13 @@ import (
 	"os"
 	"testing"
 
+	"github.com/absmach/magistrala/internal/clients/cassandra"
+	mglog "github.com/absmach/magistrala/logger"
 	"github.com/gocql/gocql"
-	"github.com/mainflux/mainflux/internal/clients/cassandra"
-	mflog "github.com/mainflux/mainflux/logger"
 	"github.com/ory/dockertest/v3"
 )
 
-var logger, _ = mflog.New(os.Stdout, mflog.Info.String())
+var logger, _ = mglog.New(os.Stdout, mglog.Info.String())
 
 func TestMain(m *testing.M) {
 	pool, err := dockertest.NewPool("")

@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package cli
@@ -6,8 +6,8 @@ package cli
 import (
 	"encoding/json"
 
-	mfclients "github.com/mainflux/mainflux/pkg/clients"
-	mfxsdk "github.com/mainflux/mainflux/pkg/sdk/go"
+	mgclients "github.com/absmach/magistrala/pkg/clients"
+	mgxsdk "github.com/absmach/magistrala/pkg/sdk/go"
 	"github.com/spf13/cobra"
 )
 
@@ -17,18 +17,18 @@ var cmdGroups = []cobra.Command{
 		Short: "Create group",
 		Long: "Creates new group\n" +
 			"Usage:\n" +
-			"\tmainflux-cli groups create '{\"name\":\"new group\", \"description\":\"new group description\", \"metadata\":{\"key\": \"value\"}}' $USERTOKEN\n",
+			"\tmagistrala-cli groups create '{\"name\":\"new group\", \"description\":\"new group description\", \"metadata\":{\"key\": \"value\"}}' $USERTOKEN\n",
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) != 2 {
 				logUsage(cmd.Use)
 				return
 			}
-			var group mfxsdk.Group
+			var group mgxsdk.Group
 			if err := json.Unmarshal([]byte(args[0]), &group); err != nil {
 				logError(err)
 				return
 			}
-			group.Status = mfclients.EnabledStatus.String()
+			group.Status = mgclients.EnabledStatus.String()
 			group, err := sdk.CreateGroup(group, args[1])
 			if err != nil {
 				logError(err)
@@ -42,14 +42,14 @@ var cmdGroups = []cobra.Command{
 		Short: "Update group",
 		Long: "Updates group\n" +
 			"Usage:\n" +
-			"\tmainflux-cli groups update '{\"id\":\"<group_id>\", \"name\":\"new group\", \"description\":\"new group description\", \"metadata\":{\"key\": \"value\"}}' $USERTOKEN\n",
+			"\tmagistrala-cli groups update '{\"id\":\"<group_id>\", \"name\":\"new group\", \"description\":\"new group description\", \"metadata\":{\"key\": \"value\"}}' $USERTOKEN\n",
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) != 2 {
 				logUsage(cmd.Use)
 				return
 			}
 
-			var group mfxsdk.Group
+			var group mgxsdk.Group
 			if err := json.Unmarshal([]byte(args[0]), &group); err != nil {
 				logError(err)
 				return
@@ -69,10 +69,10 @@ var cmdGroups = []cobra.Command{
 		Short: "Get group",
 		Long: "Get all users groups, group children or group by id.\n" +
 			"Usage:\n" +
-			"\tmainflux-cli groups get all $USERTOKEN - lists all groups\n" +
-			"\tmainflux-cli groups get children <group_id> $USERTOKEN - lists all children groups of <group_id>\n" +
-			"\tmainflux-cli groups get parents <group_id> $USERTOKEN - lists all parent groups of <group_id>\n" +
-			"\tmainflux-cli groups get <group_id> $USERTOKEN - shows group with provided group ID\n",
+			"\tmagistrala-cli groups get all $USERTOKEN - lists all groups\n" +
+			"\tmagistrala-cli groups get children <group_id> $USERTOKEN - lists all children groups of <group_id>\n" +
+			"\tmagistrala-cli groups get parents <group_id> $USERTOKEN - lists all parent groups of <group_id>\n" +
+			"\tmagistrala-cli groups get <group_id> $USERTOKEN - shows group with provided group ID\n",
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) < 2 {
 				logUsage(cmd.Use)
@@ -83,7 +83,7 @@ var cmdGroups = []cobra.Command{
 					logUsage(cmd.Use)
 					return
 				}
-				pm := mfxsdk.PageMetadata{
+				pm := mgxsdk.PageMetadata{
 					Offset: Offset,
 					Limit:  Limit,
 				}
@@ -100,7 +100,7 @@ var cmdGroups = []cobra.Command{
 					logUsage(cmd.Use)
 					return
 				}
-				pm := mfxsdk.PageMetadata{
+				pm := mgxsdk.PageMetadata{
 					Offset: Offset,
 					Limit:  Limit,
 				}
@@ -117,7 +117,7 @@ var cmdGroups = []cobra.Command{
 					logUsage(cmd.Use)
 					return
 				}
-				pm := mfxsdk.PageMetadata{
+				pm := mgxsdk.PageMetadata{
 					Offset: Offset,
 					Limit:  Limit,
 				}
@@ -142,11 +142,29 @@ var cmdGroups = []cobra.Command{
 		},
 	},
 	{
+		Use:   "delete <group_id> <user_auth_token>",
+		Short: "Delete group",
+		Long: "Delete group by id.\n" +
+			"Usage:\n" +
+			"\tmagistrala-cli groups delete <group_id> $USERTOKEN - delete the given group ID\n",
+		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) != 2 {
+				logUsage(cmd.Use)
+				return
+			}
+			if err := sdk.DeleteGroup(args[0], args[1]); err != nil {
+				logError(err)
+				return
+			}
+			logOK()
+		},
+	},
+	{
 		Use:   "assign user <relation> <user_ids> <group_id> <user_auth_token>",
 		Short: "Assign user",
 		Long: "Assign user to a group\n" +
 			"Usage:\n" +
-			"\tmainflux-cli groups assign user <relation> '[\"<user_id_1>\", \"<user_id_2>\"]' <group_id> $USERTOKEN\n",
+			"\tmagistrala-cli groups assign user <relation> '[\"<user_id_1>\", \"<user_id_2>\"]' <group_id> $USERTOKEN\n",
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) != 5 {
 				logUsage(cmd.Use)
@@ -157,7 +175,7 @@ var cmdGroups = []cobra.Command{
 				logError(err)
 				return
 			}
-			if err := sdk.AddUserToGroup(args[2], mfxsdk.UsersRelationRequest{Relation: args[0], UserIDs: userIDs}, args[3]); err != nil {
+			if err := sdk.AddUserToGroup(args[2], mgxsdk.UsersRelationRequest{Relation: args[0], UserIDs: userIDs}, args[3]); err != nil {
 				logError(err)
 				return
 			}
@@ -169,7 +187,7 @@ var cmdGroups = []cobra.Command{
 		Short: "Unassign user",
 		Long: "Unassign user from a group\n" +
 			"Usage:\n" +
-			"\tmainflux-cli groups unassign user <relation> '[\"<user_id_1>\", \"<user_id_2>\"]' <group_id> $USERTOKEN\n",
+			"\tmagistrala-cli groups unassign user <relation> '[\"<user_id_1>\", \"<user_id_2>\"]' <group_id> $USERTOKEN\n",
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) != 5 {
 				logUsage(cmd.Use)
@@ -180,7 +198,7 @@ var cmdGroups = []cobra.Command{
 				logError(err)
 				return
 			}
-			if err := sdk.RemoveUserFromGroup(args[2], mfxsdk.UsersRelationRequest{Relation: args[0], UserIDs: userIDs}, args[3]); err != nil {
+			if err := sdk.RemoveUserFromGroup(args[2], mgxsdk.UsersRelationRequest{Relation: args[0], UserIDs: userIDs}, args[3]); err != nil {
 				logError(err)
 				return
 			}
@@ -193,13 +211,13 @@ var cmdGroups = []cobra.Command{
 		Short: "List users",
 		Long: "List users in a group\n" +
 			"Usage:\n" +
-			"\tmainflux-cli groups users <group_id> $USERTOKEN",
+			"\tmagistrala-cli groups users <group_id> $USERTOKEN",
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) != 2 {
 				logUsage(cmd.Use)
 				return
 			}
-			pm := mfxsdk.PageMetadata{
+			pm := mgxsdk.PageMetadata{
 				Offset: Offset,
 				Limit:  Limit,
 				Status: Status,
@@ -217,13 +235,13 @@ var cmdGroups = []cobra.Command{
 		Short: "List channels",
 		Long: "List channels in a group\n" +
 			"Usage:\n" +
-			"\tmainflux-cli groups channels <group_id> $USERTOKEN",
+			"\tmagistrala-cli groups channels <group_id> $USERTOKEN",
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) != 2 {
 				logUsage(cmd.Use)
 				return
 			}
-			pm := mfxsdk.PageMetadata{
+			pm := mgxsdk.PageMetadata{
 				Offset: Offset,
 				Limit:  Limit,
 				Status: Status,
@@ -241,7 +259,7 @@ var cmdGroups = []cobra.Command{
 		Short: "Change group status to enabled",
 		Long: "Change group status to enabled\n" +
 			"Usage:\n" +
-			"\tmainflux-cli groups enable <group_id> $USERTOKEN\n",
+			"\tmagistrala-cli groups enable <group_id> $USERTOKEN\n",
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) != 2 {
 				logUsage(cmd.Use)
@@ -262,7 +280,7 @@ var cmdGroups = []cobra.Command{
 		Short: "Change group status to disabled",
 		Long: "Change group status to disabled\n" +
 			"Usage:\n" +
-			"\tmainflux-cli groups disable <group_id> $USERTOKEN\n",
+			"\tmagistrala-cli groups disable <group_id> $USERTOKEN\n",
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) != 2 {
 				logUsage(cmd.Use)

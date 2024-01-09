@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package grpc
@@ -7,15 +7,15 @@ import (
 	"context"
 	"time"
 
+	"github.com/absmach/magistrala"
 	"github.com/go-kit/kit/endpoint"
 	kitgrpc "github.com/go-kit/kit/transport/grpc"
-	"github.com/mainflux/mainflux"
 	"google.golang.org/grpc"
 )
 
-const svcName = "mainflux.AuthzService"
+const svcName = "magistrala.AuthzService"
 
-var _ mainflux.AuthzServiceClient = (*grpcClient)(nil)
+var _ magistrala.AuthzServiceClient = (*grpcClient)(nil)
 
 type grpcClient struct {
 	timeout   time.Duration
@@ -23,7 +23,7 @@ type grpcClient struct {
 }
 
 // NewClient returns new gRPC client instance.
-func NewClient(conn *grpc.ClientConn, timeout time.Duration) mainflux.AuthzServiceClient {
+func NewClient(conn *grpc.ClientConn, timeout time.Duration) magistrala.AuthzServiceClient {
 	return &grpcClient{
 		authorize: kitgrpc.NewClient(
 			conn,
@@ -31,35 +31,35 @@ func NewClient(conn *grpc.ClientConn, timeout time.Duration) mainflux.AuthzServi
 			"Authorize",
 			encodeAuthorizeRequest,
 			decodeAuthorizeResponse,
-			mainflux.AuthorizeRes{},
+			magistrala.AuthorizeRes{},
 		).Endpoint(),
 
 		timeout: timeout,
 	}
 }
 
-func (client grpcClient) Authorize(ctx context.Context, req *mainflux.AuthorizeReq, _ ...grpc.CallOption) (r *mainflux.AuthorizeRes, err error) {
-	ctx, close := context.WithTimeout(ctx, client.timeout)
-	defer close()
+func (client grpcClient) Authorize(ctx context.Context, req *magistrala.AuthorizeReq, _ ...grpc.CallOption) (r *magistrala.AuthorizeRes, err error) {
+	ctx, cancel := context.WithTimeout(ctx, client.timeout)
+	defer cancel()
 
 	res, err := client.authorize(ctx, req)
 	if err != nil {
-		return &mainflux.AuthorizeRes{}, err
+		return &magistrala.AuthorizeRes{}, err
 	}
 
 	ar := res.(authorizeRes)
-	return &mainflux.AuthorizeRes{Authorized: ar.authorized, Id: ar.id}, err
+	return &magistrala.AuthorizeRes{Authorized: ar.authorized, Id: ar.id}, err
 }
 
 func decodeAuthorizeResponse(_ context.Context, grpcRes interface{}) (interface{}, error) {
-	res := grpcRes.(*mainflux.AuthorizeRes)
+	res := grpcRes.(*magistrala.AuthorizeRes)
 	return authorizeRes{authorized: res.Authorized, id: res.Id}, nil
 }
 
 func encodeAuthorizeRequest(_ context.Context, grpcReq interface{}) (interface{}, error) {
-	req := grpcReq.(*mainflux.AuthorizeReq)
-	return &mainflux.AuthorizeReq{
-		Namespace:   req.GetNamespace(),
+	req := grpcReq.(*magistrala.AuthorizeReq)
+	return &magistrala.AuthorizeReq{
+		Domain:      req.GetDomain(),
 		SubjectType: req.GetSubjectType(),
 		Subject:     req.GetSubject(),
 		SubjectKind: req.GetSubjectKind(),

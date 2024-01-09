@@ -1,15 +1,18 @@
+# Copyright (c) Abstract Machines
+# SPDX-License-Identifier: Apache-2.0
+
 openapi: 3.0.3
 info:
-  title: Mainflux Users Service
+  title: Magistrala Users Service
   description: |
     This is the Users Server based on the OpenAPI 3.0 specification.  It is the HTTP API for managing platform users. You can now help us improve the API whether it's by making changes to the definition itself or to the code.
     Some useful links:
-    - [The Mainflux repository](https://github.com/mainflux/mainflux)
+    - [The Magistrala repository](https://github.com/absmach/magistrala)
   contact:
     email: info@mainflux.com
   license:
     name: Apache 2.0
-    url: https://github.com/mainflux/mainflux/blob/master/LICENSE
+    url: https://github.com/absmach/magistrala/blob/master/LICENSE
   version: 0.14.0
 
 servers:
@@ -212,18 +215,17 @@ paths:
         "500":
           $ref: "#/components/responses/ServiceError"
 
-  /users/{userID}/owner:
+  /users/{userID}/role:
     patch:
-      summary: Updates the user owner.
+      summary: Updates the user role.
       description: |
-        Updates owner for the user with provided ID. Owner is updated using
-        authorization token and a new owner identifier received in request.
+        Updates role for the user with provided ID.
       tags:
         - Users
       parameters:
         - $ref: "#/components/parameters/UserID"
       requestBody:
-        $ref: "#/components/requestBodies/UserUpdateOwnerReq"
+        $ref: "#/components/requestBodies/UserUpdateRoleReq"
       security:
         - bearerAuth: []
       responses:
@@ -296,8 +298,6 @@ paths:
         authorization token and the new received info.
       tags:
         - Users
-      parameters:
-        - $ref: "#/components/parameters/UserID"
       requestBody:
         $ref: "#/components/requestBodies/UserUpdateSecretReq"
       security:
@@ -569,6 +569,26 @@ paths:
           description: Missing or invalid access token provided.
         "404":
           description: Group does not exist.
+        "500":
+          $ref: "#/components/responses/ServiceError"
+    delete:
+      summary: Delete group for a group with the given id.
+      description: |
+        Delete group removes a group with the given id from repo
+        and removes all the policies related to this group.
+      tags:
+        - Groups
+      parameters:
+        - $ref: "#/components/parameters/GroupID"
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Group deleted.
+        "401":
+          description: Missing or invalid access token provided.
+        "403":
+          description: Unauthorized access to group id.
         "500":
           $ref: "#/components/responses/ServiceError"
 
@@ -918,7 +938,7 @@ components:
           properties:
             identity:
               type: string
-              example: admin@mainflux.com
+              example: admin@magistrala.com
               description: User Identity for example email address.
         metadata:
           type: object
@@ -1081,7 +1101,7 @@ components:
           properties:
             identity:
               type: string
-              example: user@mainflux.com
+              example: user@magistrala.com
               description: User Identity for example email address.
             secret:
               type: string
@@ -1241,7 +1261,7 @@ components:
       properties:
         identity:
           type: string
-          example: user@mainflux.com
+          example: user@magistrala.com
           description: User Identity for example email address.
       required:
         - identity
@@ -1261,13 +1281,14 @@ components:
         - old_secret
         - new_secret
 
-    UserOwner:
+    UserRole:
       type: object
       properties:
-        owner:
+        role:
           type: string
-          example: user@mainflux.com
-          description: User owner for example email address.
+          enum: ["admin","user"]
+          example: user
+          description: User role example.
       required:
         - owner
 
@@ -1345,7 +1366,7 @@ components:
       properties:
         identity:
           type: string
-          example: user@mainflux.com
+          example: user@magistrala.com
           description: User Identity for example email address.
         secret:
           type: string
@@ -1655,13 +1676,13 @@ components:
           schema:
             $ref: "#/components/schemas/UserSecret"
 
-    UserUpdateOwnerReq:
-      description: JSON-formated document describing the owner of user to be update
+    UserUpdateRoleReq:
+      description: JSON-formated document describing the role of the user to be updated
       required: true
       content:
         application/json:
           schema:
-            $ref: "#/components/schemas/UserOwner"
+            $ref: "#/components/schemas/UserRole"
 
     GroupCreateReq:
       description: JSON-formatted document describing the new group to be registered

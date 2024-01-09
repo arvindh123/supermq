@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package api
@@ -8,12 +8,13 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/absmach/magistrala"
+	"github.com/absmach/magistrala/internal/apiutil"
+	"github.com/absmach/magistrala/pkg/errors"
+	svcerr "github.com/absmach/magistrala/pkg/errors/service"
+	"github.com/absmach/magistrala/readers"
+	"github.com/go-chi/chi/v5"
 	kithttp "github.com/go-kit/kit/transport/http"
-	"github.com/go-zoo/bone"
-	"github.com/mainflux/mainflux"
-	"github.com/mainflux/mainflux/internal/apiutil"
-	"github.com/mainflux/mainflux/pkg/errors"
-	"github.com/mainflux/mainflux/readers"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -43,38 +44,39 @@ const (
 	thingType           = "thing"
 	userType            = "user"
 	subscribePermission = "subscribe"
+	viewPermission      = "view"
 	groupType           = "group"
 )
 
 var errUserAccess = errors.New("user has no permission")
 
 // MakeHandler returns a HTTP handler for API endpoints.
-func MakeHandler(svc readers.MessageRepository, uauth mainflux.AuthServiceClient, taauth mainflux.AuthzServiceClient, svcName, instanceID string) http.Handler {
+func MakeHandler(svc readers.MessageRepository, uauth magistrala.AuthServiceClient, taauth magistrala.AuthzServiceClient, svcName, instanceID string) http.Handler {
 	opts := []kithttp.ServerOption{
 		kithttp.ServerErrorEncoder(encodeError),
 	}
 
-	mux := bone.New()
-	mux.Get("/channels/:chanID/messages", kithttp.NewServer(
+	mux := chi.NewRouter()
+	mux.Get("/channels/{chanID}/messages", kithttp.NewServer(
 		listMessagesEndpoint(svc, uauth, taauth),
 		decodeList,
 		encodeResponse,
 		opts...,
-	))
+	).ServeHTTP)
 
-	mux.GetFunc("/health", mainflux.Health(svcName, instanceID))
+	mux.Get("/health", magistrala.Health(svcName, instanceID))
 	mux.Handle("/metrics", promhttp.Handler())
 
 	return mux
 }
 
 func decodeList(_ context.Context, r *http.Request) (interface{}, error) {
-	offset, err := apiutil.ReadUintQuery(r, offsetKey, defOffset)
+	offset, err := apiutil.ReadNumQuery[uint64](r, offsetKey, defOffset)
 	if err != nil {
 		return nil, errors.Wrap(apiutil.ErrValidation, err)
 	}
 
-	limit, err := apiutil.ReadUintQuery(r, limitKey, defLimit)
+	limit, err := apiutil.ReadNumQuery[uint64](r, limitKey, defLimit)
 	if err != nil {
 		return nil, errors.Wrap(apiutil.ErrValidation, err)
 	}
@@ -104,7 +106,7 @@ func decodeList(_ context.Context, r *http.Request) (interface{}, error) {
 		return nil, errors.Wrap(apiutil.ErrValidation, err)
 	}
 
-	v, err := apiutil.ReadFloatQuery(r, valueKey, 0)
+	v, err := apiutil.ReadNumQuery[float64](r, valueKey, 0)
 	if err != nil {
 		return nil, errors.Wrap(apiutil.ErrValidation, err)
 	}
@@ -129,18 +131,18 @@ func decodeList(_ context.Context, r *http.Request) (interface{}, error) {
 		return nil, err
 	}
 
-	from, err := apiutil.ReadFloatQuery(r, fromKey, 0)
+	from, err := apiutil.ReadNumQuery[float64](r, fromKey, 0)
 	if err != nil {
 		return nil, errors.Wrap(apiutil.ErrValidation, err)
 	}
 
-	to, err := apiutil.ReadFloatQuery(r, toKey, 0)
+	to, err := apiutil.ReadNumQuery[float64](r, toKey, 0)
 	if err != nil {
 		return nil, errors.Wrap(apiutil.ErrValidation, err)
 	}
 
 	req := listMessagesReq{
-		chanID: bone.GetValue(r, "chanID"),
+		chanID: chi.URLParam(r, "chanID"),
 		token:  apiutil.ExtractBearerToken(r),
 		key:    apiutil.ExtractThingKey(r),
 		pageMeta: readers.PageMetadata{
@@ -167,7 +169,7 @@ func decodeList(_ context.Context, r *http.Request) (interface{}, error) {
 func encodeResponse(_ context.Context, w http.ResponseWriter, response interface{}) error {
 	w.Header().Set("Content-Type", contentType)
 
-	if ar, ok := response.(mainflux.Response); ok {
+	if ar, ok := response.(magistrala.Response); ok {
 		for k, v := range ar.Headers() {
 			w.Header().Set(k, v)
 		}
@@ -191,14 +193,14 @@ func encodeError(_ context.Context, err error, w http.ResponseWriter) {
 	switch {
 	case errors.Contains(err, nil):
 	case errors.Contains(err, apiutil.ErrInvalidQueryParams),
-		errors.Contains(err, errors.ErrMalformedEntity),
+		errors.Contains(err, svcerr.ErrMalformedEntity),
 		errors.Contains(err, apiutil.ErrMissingID),
 		errors.Contains(err, apiutil.ErrLimitSize),
 		errors.Contains(err, apiutil.ErrOffsetSize),
 		errors.Contains(err, apiutil.ErrInvalidComparator):
 		w.WriteHeader(http.StatusBadRequest)
-	case errors.Contains(err, errors.ErrAuthentication),
-		errors.Contains(err, errors.ErrAuthorization),
+	case errors.Contains(err, svcerr.ErrAuthentication),
+		errors.Contains(err, svcerr.ErrAuthorization),
 		errors.Contains(err, apiutil.ErrBearerToken):
 		w.WriteHeader(http.StatusUnauthorized)
 	case errors.Contains(err, readers.ErrReadMessages):
@@ -218,14 +220,14 @@ func encodeError(_ context.Context, err error, w http.ResponseWriter) {
 	}
 }
 
-func authorize(ctx context.Context, req listMessagesReq, uauth mainflux.AuthServiceClient, taauth mainflux.AuthzServiceClient) (err error) {
+func authorize(ctx context.Context, req listMessagesReq, uauth magistrala.AuthServiceClient, taauth magistrala.AuthzServiceClient) (err error) {
 	switch {
 	case req.token != "":
-		if _, err = uauth.Authorize(ctx, &mainflux.AuthorizeReq{
+		if _, err = uauth.Authorize(ctx, &magistrala.AuthorizeReq{
 			SubjectType: userType,
 			SubjectKind: tokenKind,
 			Subject:     req.token,
-			Permission:  subscribePermission,
+			Permission:  viewPermission,
 			ObjectType:  groupType,
 			Object:      req.chanID,
 		}); err != nil {
@@ -237,7 +239,7 @@ func authorize(ctx context.Context, req listMessagesReq, uauth mainflux.AuthServ
 		}
 		return nil
 	case req.key != "":
-		if _, err = taauth.Authorize(ctx, &mainflux.AuthorizeReq{
+		if _, err = taauth.Authorize(ctx, &magistrala.AuthorizeReq{
 			SubjectType: groupType,
 			Subject:     req.key,
 			ObjectType:  thingType,
@@ -252,6 +254,6 @@ func authorize(ctx context.Context, req listMessagesReq, uauth mainflux.AuthServ
 		}
 		return nil
 	default:
-		return errors.ErrAuthorization
+		return svcerr.ErrAuthorization
 	}
 }

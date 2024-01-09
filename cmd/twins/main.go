@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 // Package main contains twins main function to start the twins service.
@@ -8,31 +8,32 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 
+	"github.com/absmach/magistrala"
+	"github.com/absmach/magistrala/internal"
+	jaegerclient "github.com/absmach/magistrala/internal/clients/jaeger"
+	mongoclient "github.com/absmach/magistrala/internal/clients/mongo"
+	redisclient "github.com/absmach/magistrala/internal/clients/redis"
+	"github.com/absmach/magistrala/internal/server"
+	httpserver "github.com/absmach/magistrala/internal/server/http"
+	mglog "github.com/absmach/magistrala/logger"
+	"github.com/absmach/magistrala/pkg/auth"
+	"github.com/absmach/magistrala/pkg/messaging"
+	"github.com/absmach/magistrala/pkg/messaging/brokers"
+	brokerstracing "github.com/absmach/magistrala/pkg/messaging/brokers/tracing"
+	"github.com/absmach/magistrala/pkg/uuid"
+	localusers "github.com/absmach/magistrala/things/standalone"
+	"github.com/absmach/magistrala/twins"
+	"github.com/absmach/magistrala/twins/api"
+	twapi "github.com/absmach/magistrala/twins/api/http"
+	"github.com/absmach/magistrala/twins/events"
+	twmongodb "github.com/absmach/magistrala/twins/mongodb"
+	"github.com/absmach/magistrala/twins/tracing"
+	"github.com/caarlos0/env/v10"
 	"github.com/go-redis/redis/v8"
 	chclient "github.com/mainflux/callhome/pkg/client"
-	"github.com/mainflux/mainflux"
-	"github.com/mainflux/mainflux/internal"
-	authclient "github.com/mainflux/mainflux/internal/clients/grpc/auth"
-	jaegerclient "github.com/mainflux/mainflux/internal/clients/jaeger"
-	mongoclient "github.com/mainflux/mainflux/internal/clients/mongo"
-	redisclient "github.com/mainflux/mainflux/internal/clients/redis"
-	"github.com/mainflux/mainflux/internal/env"
-	"github.com/mainflux/mainflux/internal/server"
-	httpserver "github.com/mainflux/mainflux/internal/server/http"
-	mflog "github.com/mainflux/mainflux/logger"
-	"github.com/mainflux/mainflux/pkg/messaging"
-	"github.com/mainflux/mainflux/pkg/messaging/brokers"
-	brokerstracing "github.com/mainflux/mainflux/pkg/messaging/brokers/tracing"
-	"github.com/mainflux/mainflux/pkg/uuid"
-	localusers "github.com/mainflux/mainflux/things/standalone"
-	"github.com/mainflux/mainflux/twins"
-	"github.com/mainflux/mainflux/twins/api"
-	twapi "github.com/mainflux/mainflux/twins/api/http"
-	"github.com/mainflux/mainflux/twins/events"
-	twmongodb "github.com/mainflux/mainflux/twins/mongodb"
-	"github.com/mainflux/mainflux/twins/tracing"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
@@ -40,23 +41,24 @@ import (
 
 const (
 	svcName        = "twins"
-	envPrefixDB    = "MF_TWINS_DB_"
-	envPrefixHTTP  = "MF_TWINS_HTTP_"
+	envPrefixDB    = "MG_TWINS_DB_"
+	envPrefixHTTP  = "MG_TWINS_HTTP_"
+	envPrefixAuth  = "MG_AUTH_GRPC_"
 	defSvcHTTPPort = "9018"
 )
 
 type config struct {
-	LogLevel        string  `env:"MF_TWINS_LOG_LEVEL"          envDefault:"info"`
-	StandaloneID    string  `env:"MF_TWINS_STANDALONE_ID"      envDefault:""`
-	StandaloneToken string  `env:"MF_TWINS_STANDALONE_TOKEN"   envDefault:""`
-	ChannelID       string  `env:"MF_TWINS_CHANNEL_ID"         envDefault:""`
-	BrokerURL       string  `env:"MF_MESSAGE_BROKER_URL"       envDefault:"nats://localhost:4222"`
-	JaegerURL       string  `env:"MF_JAEGER_URL"               envDefault:"http://jaeger:14268/api/traces"`
-	SendTelemetry   bool    `env:"MF_SEND_TELEMETRY"           envDefault:"true"`
-	InstanceID      string  `env:"MF_TWINS_INSTANCE_ID"        envDefault:""`
-	ESURL           string  `env:"MF_TWINS_ES_URL"             envDefault:"redis://localhost:6379/0"`
-	CacheURL        string  `env:"MF_TWINS_CACHE_URL"          envDefault:"redis://localhost:6379/0"`
-	TraceRatio      float64 `env:"MF_JAEGER_TRACE_RATIO"       envDefault:"1.0"`
+	LogLevel        string  `env:"MG_TWINS_LOG_LEVEL"          envDefault:"info"`
+	StandaloneID    string  `env:"MG_TWINS_STANDALONE_ID"      envDefault:""`
+	StandaloneToken string  `env:"MG_TWINS_STANDALONE_TOKEN"   envDefault:""`
+	ChannelID       string  `env:"MG_TWINS_CHANNEL_ID"         envDefault:""`
+	BrokerURL       string  `env:"MG_MESSAGE_BROKER_URL"       envDefault:"nats://localhost:4222"`
+	JaegerURL       url.URL `env:"MG_JAEGER_URL"               envDefault:"http://jaeger:14268/api/traces"`
+	SendTelemetry   bool    `env:"MG_SEND_TELEMETRY"           envDefault:"true"`
+	InstanceID      string  `env:"MG_TWINS_INSTANCE_ID"        envDefault:""`
+	ESURL           string  `env:"MG_ES_URL"                   envDefault:"nats://localhost:4222"`
+	CacheURL        string  `env:"MG_TWINS_CACHE_URL"          envDefault:"redis://localhost:6379/0"`
+	TraceRatio      float64 `env:"MG_JAEGER_TRACE_RATIO"       envDefault:"1.0"`
 }
 
 func main() {
@@ -68,13 +70,13 @@ func main() {
 		log.Fatalf("failed to load %s configuration : %s", svcName, err)
 	}
 
-	logger, err := mflog.New(os.Stdout, cfg.LogLevel)
+	logger, err := mglog.New(os.Stdout, cfg.LogLevel)
 	if err != nil {
 		log.Fatalf("failed to init logger: %s", err)
 	}
 
 	var exitCode int
-	defer mflog.ExitWithError(&exitCode)
+	defer mglog.ExitWithError(&exitCode)
 
 	if cfg.InstanceID == "" {
 		if cfg.InstanceID, err = uuid.New().ID(); err != nil {
@@ -85,7 +87,7 @@ func main() {
 	}
 
 	httpServerConfig := server.Config{Port: defSvcHTTPPort}
-	if err := env.Parse(&httpServerConfig, env.Options{Prefix: envPrefixHTTP}); err != nil {
+	if err := env.ParseWithOptions(&httpServerConfig, env.Options{Prefix: envPrefixHTTP}); err != nil {
 		logger.Error(fmt.Sprintf("failed to load %s HTTP server configuration : %s", svcName, err))
 		exitCode = 1
 		return
@@ -106,7 +108,7 @@ func main() {
 		return
 	}
 
-	tp, err := jaegerclient.NewProvider(svcName, cfg.JaegerURL, cfg.InstanceID, cfg.TraceRatio)
+	tp, err := jaegerclient.NewProvider(ctx, svcName, cfg.JaegerURL, cfg.InstanceID, cfg.TraceRatio)
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to init Jaeger: %s", err))
 		exitCode = 1
@@ -119,19 +121,26 @@ func main() {
 	}()
 	tracer := tp.Tracer(svcName)
 
-	var auth mainflux.AuthServiceClient
+	var authClient magistrala.AuthServiceClient
 	switch cfg.StandaloneID != "" && cfg.StandaloneToken != "" {
 	case true:
-		auth = localusers.NewAuthService(cfg.StandaloneID, cfg.StandaloneToken)
+		authClient = localusers.NewAuthService(cfg.StandaloneID, cfg.StandaloneToken)
 	default:
-		authServiceClient, authHandler, err := authclient.Setup(svcName)
+		authConfig := auth.Config{}
+		if err := env.ParseWithOptions(&authConfig, env.Options{Prefix: envPrefixAuth}); err != nil {
+			logger.Error(fmt.Sprintf("failed to load %s auth configuration : %s", svcName, err))
+			exitCode = 1
+			return
+		}
+
+		authServiceClient, authHandler, err := auth.Setup(authConfig)
 		if err != nil {
 			logger.Error(err.Error())
 			exitCode = 1
 			return
 		}
 		defer authHandler.Close()
-		auth = authServiceClient
+		authClient = authServiceClient
 		logger.Info("Successfully connected to auth grpc server " + authHandler.Secure())
 	}
 
@@ -144,7 +153,7 @@ func main() {
 	defer pubSub.Close()
 	pubSub = brokerstracing.NewPubSub(httpServerConfig, tracer, pubSub)
 
-	svc, err := newService(ctx, svcName, pubSub, cfg, auth, tracer, db, cacheClient, logger)
+	svc, err := newService(ctx, svcName, pubSub, cfg, authClient, tracer, db, cacheClient, logger)
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to create %s service: %s", svcName, err))
 		exitCode = 1
@@ -154,7 +163,7 @@ func main() {
 	hs := httpserver.New(ctx, cancel, svcName, httpServerConfig, twapi.MakeHandler(svc, logger, cfg.InstanceID), logger)
 
 	if cfg.SendTelemetry {
-		chc := chclient.New(svcName, mainflux.Version, logger, cancel)
+		chc := chclient.New(svcName, magistrala.Version, logger, cancel)
 		go chc.CallHome(ctx)
 	}
 
@@ -171,7 +180,7 @@ func main() {
 	}
 }
 
-func newService(ctx context.Context, id string, ps messaging.PubSub, cfg config, users mainflux.AuthServiceClient, tracer trace.Tracer, db *mongo.Database, cacheclient *redis.Client, logger mflog.Logger) (twins.Service, error) {
+func newService(ctx context.Context, id string, ps messaging.PubSub, cfg config, users magistrala.AuthServiceClient, tracer trace.Tracer, db *mongo.Database, cacheclient *redis.Client, logger mglog.Logger) (twins.Service, error) {
 	twinRepo := twmongodb.NewTwinRepository(db)
 	twinRepo = tracing.TwinRepositoryMiddleware(tracer, twinRepo)
 
@@ -206,7 +215,7 @@ func newService(ctx context.Context, id string, ps messaging.PubSub, cfg config,
 	return svc, nil
 }
 
-func handle(ctx context.Context, logger mflog.Logger, chanID string, svc twins.Service) handlerFunc {
+func handle(ctx context.Context, logger mglog.Logger, chanID string, svc twins.Service) handlerFunc {
 	return func(msg *messaging.Message) error {
 		if msg.Channel == chanID {
 			return nil

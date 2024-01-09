@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package mqtt
@@ -11,12 +11,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mainflux/mainflux"
-	"github.com/mainflux/mainflux/logger"
-	"github.com/mainflux/mainflux/mqtt/events"
-	"github.com/mainflux/mainflux/pkg/errors"
-	"github.com/mainflux/mainflux/pkg/messaging"
-	"github.com/mainflux/mproxy/pkg/session"
+	"github.com/absmach/magistrala"
+	"github.com/absmach/magistrala/auth"
+	mglog "github.com/absmach/magistrala/logger"
+	"github.com/absmach/magistrala/mqtt/events"
+	"github.com/absmach/magistrala/pkg/errors"
+	"github.com/absmach/magistrala/pkg/messaging"
+	"github.com/absmach/mproxy/pkg/session"
 )
 
 var _ session.Handler = (*handler)(nil)
@@ -48,7 +49,7 @@ var (
 	ErrFailedPublishDisconnectEvent = errors.New("failed to publish disconnect event")
 	ErrFailedParseSubtopic          = errors.New("failed to parse subtopic")
 	ErrFailedPublishConnectEvent    = errors.New("failed to publish connect event")
-	ErrFailedPublishToMsgBroker     = errors.New("failed to publish to mainflux message broker")
+	ErrFailedPublishToMsgBroker     = errors.New("failed to publish to magistrala message broker")
 )
 
 var channelRegExp = regexp.MustCompile(`^\/?channels\/([\w\-]+)\/messages(\/[^?]*)?(\?.*)?$`)
@@ -56,18 +57,18 @@ var channelRegExp = regexp.MustCompile(`^\/?channels\/([\w\-]+)\/messages(\/[^?]
 // Event implements events.Event interface.
 type handler struct {
 	publisher messaging.Publisher
-	auth      mainflux.AuthzServiceClient
-	logger    logger.Logger
+	auth      magistrala.AuthzServiceClient
+	logger    mglog.Logger
 	es        events.EventStore
 }
 
 // NewHandler creates new Handler entity.
-func NewHandler(publisher messaging.Publisher, es events.EventStore, logger logger.Logger, auth mainflux.AuthzServiceClient) session.Handler {
+func NewHandler(publisher messaging.Publisher, es events.EventStore, logger mglog.Logger, authClient magistrala.AuthzServiceClient) session.Handler {
 	return &handler{
 		es:        es,
 		logger:    logger,
 		publisher: publisher,
-		auth:      auth,
+		auth:      authClient,
 	}
 }
 
@@ -103,7 +104,7 @@ func (h *handler) AuthPublish(ctx context.Context, topic *string, payload *[]byt
 		return ErrClientNotInitialized
 	}
 
-	return h.authAccess(ctx, string(s.Password), *topic, "publish")
+	return h.authAccess(ctx, string(s.Password), *topic, auth.PublishPermission)
 }
 
 // AuthSubscribe is called on device subscribe,
@@ -118,7 +119,7 @@ func (h *handler) AuthSubscribe(ctx context.Context, topics *[]string) error {
 	}
 
 	for _, v := range *topics {
-		if err := h.authAccess(ctx, string(s.Password), v, "subscribe"); err != nil {
+		if err := h.authAccess(ctx, string(s.Password), v, auth.SubscribePermission); err != nil {
 			return err
 		}
 	}
@@ -222,13 +223,12 @@ func (h *handler) authAccess(ctx context.Context, password, topic, action string
 
 	chanID := channelParts[1]
 
-	ar := &mainflux.AuthorizeReq{
-		Namespace:   "",
-		SubjectType: "thing",
+	ar := &magistrala.AuthorizeReq{
+		SubjectType: auth.ThingType,
 		Permission:  action,
 		Subject:     password,
 		Object:      chanID,
-		ObjectType:  "group",
+		ObjectType:  auth.GroupType,
 	}
 	res, err := h.auth.Authorize(ctx, ar)
 	if err != nil {

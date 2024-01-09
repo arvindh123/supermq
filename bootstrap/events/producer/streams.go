@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package producer
@@ -6,12 +6,9 @@ package producer
 import (
 	"context"
 
-	"github.com/mainflux/mainflux/bootstrap"
-	"github.com/mainflux/mainflux/pkg/events"
-	"github.com/mainflux/mainflux/pkg/events/store"
+	"github.com/absmach/magistrala/bootstrap"
+	"github.com/absmach/magistrala/pkg/events"
 )
-
-const streamID = "mainflux.bootstrap"
 
 var _ bootstrap.Service = (*eventStore)(nil)
 
@@ -22,16 +19,11 @@ type eventStore struct {
 
 // NewEventStoreMiddleware returns wrapper around bootstrap service that sends
 // events to event store.
-func NewEventStoreMiddleware(ctx context.Context, svc bootstrap.Service, url string) (bootstrap.Service, error) {
-	publisher, err := store.NewPublisher(ctx, url, streamID)
-	if err != nil {
-		return nil, err
-	}
-
+func NewEventStoreMiddleware(svc bootstrap.Service, publisher events.Publisher) bootstrap.Service {
 	return &eventStore{
 		svc:       svc,
 		Publisher: publisher,
-	}, nil
+	}
 }
 
 func (es *eventStore) Add(ctx context.Context, token string, cfg bootstrap.Config) (bootstrap.Config, error) {
@@ -105,8 +97,8 @@ func (es *eventStore) UpdateConnections(ctx context.Context, token, id string, c
 	}
 
 	ev := updateConnectionsEvent{
-		mfThing:    id,
-		mfChannels: connections,
+		mgThing:    id,
+		mgChannels: connections,
 	}
 
 	return es.Publish(ctx, ev)
@@ -138,7 +130,7 @@ func (es *eventStore) Remove(ctx context.Context, token, id string) error {
 	}
 
 	ev := removeConfigEvent{
-		mfThing: id,
+		mgThing: id,
 	}
 
 	return es.Publish(ctx, ev)
@@ -170,7 +162,7 @@ func (es *eventStore) ChangeState(ctx context.Context, token, id string, state b
 	}
 
 	ev := changeStateEvent{
-		mfThing: id,
+		mgThing: id,
 		state:   state,
 	}
 

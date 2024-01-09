@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package ws
@@ -7,9 +7,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/mainflux/mainflux"
-	"github.com/mainflux/mainflux/pkg/errors"
-	"github.com/mainflux/mainflux/pkg/messaging"
+	"github.com/absmach/magistrala"
+	"github.com/absmach/magistrala/auth"
+	"github.com/absmach/magistrala/pkg/errors"
+	"github.com/absmach/magistrala/pkg/messaging"
 )
 
 const chansPrefix = "channels"
@@ -51,14 +52,14 @@ type Service interface {
 var _ Service = (*adapterService)(nil)
 
 type adapterService struct {
-	auth   mainflux.AuthzServiceClient
+	auth   magistrala.AuthzServiceClient
 	pubsub messaging.PubSub
 }
 
 // New instantiates the WS adapter implementation.
-func New(auth mainflux.AuthzServiceClient, pubsub messaging.PubSub) Service {
+func New(authClient magistrala.AuthzServiceClient, pubsub messaging.PubSub) Service {
 	return &adapterService{
-		auth:   auth,
+		auth:   authClient,
 		pubsub: pubsub,
 	}
 }
@@ -68,7 +69,7 @@ func (svc *adapterService) Subscribe(ctx context.Context, thingKey, chanID, subt
 		return ErrUnauthorizedAccess
 	}
 
-	thingID, err := svc.authorize(ctx, thingKey, chanID, "subscribe")
+	thingID, err := svc.authorize(ctx, thingKey, chanID, auth.SubscribePermission)
 	if err != nil {
 		return ErrUnauthorizedAccess
 	}
@@ -95,13 +96,12 @@ func (svc *adapterService) Subscribe(ctx context.Context, thingKey, chanID, subt
 // authorize checks if the thingKey is authorized to access the channel
 // and returns the thingID if it is.
 func (svc *adapterService) authorize(ctx context.Context, thingKey, chanID, action string) (string, error) {
-	ar := &mainflux.AuthorizeReq{
-		Namespace:   "",
-		SubjectType: "thing",
+	ar := &magistrala.AuthorizeReq{
+		SubjectType: auth.ThingType,
 		Permission:  action,
 		Subject:     thingKey,
 		Object:      chanID,
-		ObjectType:  "group",
+		ObjectType:  auth.GroupType,
 	}
 	res, err := svc.auth.Authorize(ctx, ar)
 	if err != nil {

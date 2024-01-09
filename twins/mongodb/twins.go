@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package mongodb
@@ -6,8 +6,8 @@ package mongodb
 import (
 	"context"
 
-	"github.com/mainflux/mainflux/pkg/errors"
-	"github.com/mainflux/mainflux/twins"
+	"github.com/absmach/magistrala/pkg/errors"
+	"github.com/absmach/magistrala/twins"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -131,7 +131,7 @@ func (tr *twinRepository) RetrieveByAttribute(ctx context.Context, channel, subt
 	return ids, nil
 }
 
-func (tr *twinRepository) RetrieveAll(ctx context.Context, owner string, offset uint64, limit uint64, name string, metadata twins.Metadata) (twins.Page, error) {
+func (tr *twinRepository) RetrieveAll(ctx context.Context, owner string, offset, limit uint64, name string, metadata twins.Metadata) (twins.Page, error) {
 	coll := tr.db.Collection(twinsCollection)
 
 	findOptions := options.Find()

@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package postgres_test
@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
+	pgclient "github.com/absmach/magistrala/internal/clients/postgres"
+	gpostgres "github.com/absmach/magistrala/internal/groups/postgres"
+	"github.com/absmach/magistrala/internal/postgres"
 	"github.com/jmoiron/sqlx"
-	pgclient "github.com/mainflux/mainflux/internal/clients/postgres"
-	"github.com/mainflux/mainflux/internal/postgres"
-	upostgres "github.com/mainflux/mainflux/users/postgres"
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
 	"go.opentelemetry.io/otel"
@@ -76,7 +76,7 @@ func TestMain(m *testing.M) {
 		SSLRootCert: "",
 	}
 
-	if db, err = pgclient.SetupDB(dbConfig, *upostgres.Migration()); err != nil {
+	if db, err = pgclient.Setup(dbConfig, *gpostgres.Migration()); err != nil {
 		log.Fatalf("Could not setup test DB connection: %s", err)
 	}
 

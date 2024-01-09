@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package cli
@@ -6,8 +6,8 @@ package cli
 import (
 	"encoding/json"
 
-	mfclients "github.com/mainflux/mainflux/pkg/clients"
-	mfxsdk "github.com/mainflux/mainflux/pkg/sdk/go"
+	mgclients "github.com/absmach/magistrala/pkg/clients"
+	mgxsdk "github.com/absmach/magistrala/pkg/sdk/go"
 	"github.com/spf13/cobra"
 )
 
@@ -17,7 +17,7 @@ var cmdUsers = []cobra.Command{
 		Short: "Create user",
 		Long: "Create user with provided name, username and password. Token in optional\n" +
 			"For example:\n" +
-			"\tmainflux-cli users create user user@example.com 12345678 $USER_AUTH_TOKEN\n",
+			"\tmagistrala-cli users create user user@example.com 12345678 $USER_AUTH_TOKEN\n",
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) < 3 || len(args) > 4 {
 				logUsage(cmd.Use)
@@ -27,13 +27,13 @@ var cmdUsers = []cobra.Command{
 				args = append(args, "")
 			}
 
-			user := mfxsdk.User{
+			user := mgxsdk.User{
 				Name: args[0],
-				Credentials: mfxsdk.Credentials{
+				Credentials: mgxsdk.Credentials{
 					Identity: args[1],
 					Secret:   args[2],
 				},
-				Status: mfclients.EnabledStatus.String(),
+				Status: mgclients.EnabledStatus.String(),
 			}
 			user, err := sdk.CreateUser(user, args[3])
 			if err != nil {
@@ -49,9 +49,9 @@ var cmdUsers = []cobra.Command{
 		Short: "Get users",
 		Long: "Get all users or get user by id. Users can be filtered by name or metadata or status\n" +
 			"Usage:\n" +
-			"\tmainflux-cli users get all <user_auth_token> - lists all users\n" +
-			"\tmainflux-cli users get all <user_auth_token> --offset <offset> --limit <limit> - lists all users with provided offset and limit\n" +
-			"\tmainflux-cli users get <user_id> <user_auth_token> - shows user with provided <user_id>\n",
+			"\tmagistrala-cli users get all <user_auth_token> - lists all users\n" +
+			"\tmagistrala-cli users get all <user_auth_token> --offset <offset> --limit <limit> - lists all users with provided offset and limit\n" +
+			"\tmagistrala-cli users get <user_id> <user_auth_token> - shows user with provided <user_id>\n",
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) != 2 {
 				logUsage(cmd.Use)
@@ -62,8 +62,8 @@ var cmdUsers = []cobra.Command{
 				logError(err)
 				return
 			}
-			pageMetadata := mfxsdk.PageMetadata{
-				Email:    Email,
+			pageMetadata := mgxsdk.PageMetadata{
+				Identity: Identity,
 				Offset:   Offset,
 				Limit:    Limit,
 				Metadata: metadata,
@@ -88,24 +88,26 @@ var cmdUsers = []cobra.Command{
 		},
 	},
 	{
-		Use:   "token <username> <password>",
+		Use:   "token <username> <password> [<domainID>]",
 		Short: "Get token",
 		Long: "Generate new token from username and password\n" +
 			"For example:\n" +
-			"\tmainflux-cli users token user@example.com 12345678\n",
+			"\tmagistrala-cli users token user@example.com 12345678\n",
 		Run: func(cmd *cobra.Command, args []string) {
-			if len(args) != 2 {
+			if len(args) != 3 && len(args) != 2 {
 				logUsage(cmd.Use)
 				return
 			}
 
-			user := mfxsdk.User{
-				Credentials: mfxsdk.Credentials{
-					Identity: args[0],
-					Secret:   args[1],
-				},
+			lg := mgxsdk.Login{
+				Identity: args[0],
+				Secret:   args[1],
 			}
-			token, err := sdk.CreateToken(user)
+			if len(args) == 3 {
+				lg.DomainID = args[2]
+			}
+
+			token, err := sdk.CreateToken(lg)
 			if err != nil {
 				logError(err)
 				return
@@ -115,18 +117,22 @@ var cmdUsers = []cobra.Command{
 		},
 	},
 	{
-		Use:   "refreshtoken <token>",
+		Use:   "refreshtoken <token> [<domainID>]",
 		Short: "Get token",
 		Long: "Generate new token from refresh token\n" +
 			"For example:\n" +
-			"\tmainflux-cli users refreshtoken <refresh_token>\n",
+			"\tmagistrala-cli users refreshtoken <refresh_token>\n",
 		Run: func(cmd *cobra.Command, args []string) {
-			if len(args) != 1 {
+			if len(args) != 2 && len(args) != 1 {
 				logUsage(cmd.Use)
 				return
 			}
 
-			token, err := sdk.RefreshToken(args[0])
+			lg := mgxsdk.Login{}
+			if len(args) == 2 {
+				lg.DomainID = args[1]
+			}
+			token, err := sdk.RefreshToken(lg, args[0])
 			if err != nil {
 				logError(err)
 				return
@@ -140,17 +146,16 @@ var cmdUsers = []cobra.Command{
 		Short: "Update user",
 		Long: "Updates either user name and metadata or user tags or user identity or user owner\n" +
 			"Usage:\n" +
-			"\tmainflux-cli users update <user_id> '{\"name\":\"new name\", \"metadata\":{\"key\": \"value\"}}' $USERTOKEN - updates user name and metadata\n" +
-			"\tmainflux-cli users update tags <user_id> '[\"tag1\", \"tag2\"]' $USERTOKEN - updates user tags\n" +
-			"\tmainflux-cli users update identity <user_id> newidentity@example.com $USERTOKEN - updates user identity\n" +
-			"\tmainflux-cli users update owner <user_id> <owner_id> $USERTOKEN - updates user owner\n",
+			"\tmagistrala-cli users update <user_id> '{\"name\":\"new name\", \"metadata\":{\"key\": \"value\"}}' $USERTOKEN - updates user name and metadata\n" +
+			"\tmagistrala-cli users update tags <user_id> '[\"tag1\", \"tag2\"]' $USERTOKEN - updates user tags\n" +
+			"\tmagistrala-cli users update identity <user_id> newidentity@example.com $USERTOKEN - updates user identity\n",
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) != 4 && len(args) != 3 {
 				logUsage(cmd.Use)
 				return
 			}
 
-			var user mfxsdk.User
+			var user mgxsdk.User
 			if args[0] == "tags" {
 				if err := json.Unmarshal([]byte(args[2]), &user.Tags); err != nil {
 					logError(err)
@@ -181,10 +186,10 @@ var cmdUsers = []cobra.Command{
 
 			}
 
-			if args[0] == "owner" {
+			if args[0] == "role" {
 				user.ID = args[1]
-				user.Owner = args[2]
-				user, err := sdk.UpdateUserOwner(user, args[3])
+				user.Role = args[2]
+				user, err := sdk.UpdateUserRole(user, args[3])
 				if err != nil {
 					logError(err)
 					return
@@ -214,7 +219,7 @@ var cmdUsers = []cobra.Command{
 		Short: "Get user profile",
 		Long: "Get user profile\n" +
 			"Usage:\n" +
-			"\tmainflux-cli users profile $USERTOKEN\n",
+			"\tmagistrala-cli users profile $USERTOKEN\n",
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) != 1 {
 				logUsage(cmd.Use)
@@ -235,7 +240,7 @@ var cmdUsers = []cobra.Command{
 		Short: "Send reset password request",
 		Long: "Send reset password request\n" +
 			"Usage:\n" +
-			"\tmainflux-cli users resetpasswordrequest example@mail.com\n",
+			"\tmagistrala-cli users resetpasswordrequest example@mail.com\n",
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) != 1 {
 				logUsage(cmd.Use)
@@ -255,7 +260,7 @@ var cmdUsers = []cobra.Command{
 		Short: "Reset password",
 		Long: "Reset password\n" +
 			"Usage:\n" +
-			"\tmainflux-cli users resetpassword 12345678 12345678 $REQUESTTOKEN\n",
+			"\tmagistrala-cli users resetpassword 12345678 12345678 $REQUESTTOKEN\n",
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) != 3 {
 				logUsage(cmd.Use)
@@ -275,7 +280,7 @@ var cmdUsers = []cobra.Command{
 		Short: "Update password",
 		Long: "Update password\n" +
 			"Usage:\n" +
-			"\tmainflux-cli users password old_password new_password $USERTOKEN\n",
+			"\tmagistrala-cli users password old_password new_password $USERTOKEN\n",
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) != 3 {
 				logUsage(cmd.Use)
@@ -296,7 +301,7 @@ var cmdUsers = []cobra.Command{
 		Short: "Change user status to enabled",
 		Long: "Change user status to enabled\n" +
 			"Usage:\n" +
-			"\tmainflux-cli users enable <user_id> <user_auth_token>\n",
+			"\tmagistrala-cli users enable <user_id> <user_auth_token>\n",
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) != 2 {
 				logUsage(cmd.Use)
@@ -317,7 +322,7 @@ var cmdUsers = []cobra.Command{
 		Short: "Change user status to disabled",
 		Long: "Change user status to disabled\n" +
 			"Usage:\n" +
-			"\tmainflux-cli users disable <user_id> <user_auth_token>\n",
+			"\tmagistrala-cli users disable <user_id> <user_auth_token>\n",
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) != 2 {
 				logUsage(cmd.Use)
@@ -339,25 +344,25 @@ var cmdUsers = []cobra.Command{
 		Short: "List channels",
 		Long: "List channels of user\n" +
 			"Usage:\n" +
-			"\tmainflux-cli users channels <user_id> <user_auth_token>\n",
+			"\tmagistrala-cli users channels <user_id> <user_auth_token>\n",
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) != 2 {
 				logUsage(cmd.Use)
 				return
 			}
 
-			pm := mfxsdk.PageMetadata{
+			pm := mgxsdk.PageMetadata{
 				Offset: Offset,
 				Limit:  Limit,
 			}
 
-			users, err := sdk.ListUserChannels(args[0], pm, args[1])
+			cp, err := sdk.ListUserChannels(args[0], pm, args[1])
 			if err != nil {
 				logError(err)
 				return
 			}
 
-			logJSON(users)
+			logJSON(cp)
 		},
 	},
 
@@ -366,40 +371,68 @@ var cmdUsers = []cobra.Command{
 		Short: "List things",
 		Long: "List things of user\n" +
 			"Usage:\n" +
-			"\tmainflux-cli users things <user_id> <user_auth_token>\n",
+			"\tmagistrala-cli users things <user_id> <user_auth_token>\n",
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) != 2 {
 				logUsage(cmd.Use)
 				return
 			}
 
-			pm := mfxsdk.PageMetadata{
+			pm := mgxsdk.PageMetadata{
 				Offset: Offset,
 				Limit:  Limit,
 			}
 
-			users, err := sdk.ListUserThings(args[0], pm, args[1])
+			tp, err := sdk.ListUserThings(args[0], pm, args[1])
 			if err != nil {
 				logError(err)
 				return
 			}
 
-			logJSON(users)
+			logJSON(tp)
 		},
 	},
+
 	{
-		Use:   "groups <user_id> <user_auth_token>",
-		Short: "List groups",
-		Long: "List groups of user\n" +
+		Use:   "domains <user_id> <user_auth_token>",
+		Short: "List domains",
+		Long: "List user's domains\n" +
 			"Usage:\n" +
-			"\tmainflux-cli users groups <user_id> <user_auth_token>\n",
+			"\tmagistrala-cli users domains <user_id> <user_auth_token>\n",
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) != 2 {
 				logUsage(cmd.Use)
 				return
 			}
 
-			pm := mfxsdk.PageMetadata{
+			pm := mgxsdk.PageMetadata{
+				Offset: Offset,
+				Limit:  Limit,
+			}
+
+			dp, err := sdk.ListUserDomains(args[0], pm, args[1])
+			if err != nil {
+				logError(err)
+				return
+			}
+
+			logJSON(dp)
+		},
+	},
+
+	{
+		Use:   "groups <user_id> <user_auth_token>",
+		Short: "List groups",
+		Long: "List groups of user\n" +
+			"Usage:\n" +
+			"\tmagistrala-cli users groups <user_id> <user_auth_token>\n",
+		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) != 2 {
+				logUsage(cmd.Use)
+				return
+			}
+
+			pm := mgxsdk.PageMetadata{
 				Offset: Offset,
 				Limit:  Limit,
 			}

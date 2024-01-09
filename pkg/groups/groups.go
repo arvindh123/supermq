@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package groups
@@ -7,7 +7,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/mainflux/mainflux/pkg/clients"
+	"github.com/absmach/magistrala/pkg/clients"
 )
 
 const (
@@ -23,7 +23,7 @@ const (
 // Paths are unique per owner.
 type Group struct {
 	ID          string           `json:"id"`
-	Owner       string           `json:"owner_id"`
+	Owner       string           `json:"owner_id,omitempty"`
 	Parent      string           `json:"parent_id,omitempty"`
 	Name        string           `json:"name"`
 	Description string           `json:"description,omitempty"`
@@ -35,6 +35,7 @@ type Group struct {
 	UpdatedAt   time.Time        `json:"updated_at,omitempty"`
 	UpdatedBy   string           `json:"updated_by,omitempty"`
 	Status      clients.Status   `json:"status"`
+	Permissions []string         `json:"permissions,omitempty"`
 }
 
 type Member struct {
@@ -59,6 +60,7 @@ type Page struct {
 	Level      uint64
 	ID         string
 	Permission string
+	ListPerms  bool
 	Direction  int64 // ancestors (+1) or descendants (-1)
 	Groups     []Group
 }
@@ -83,20 +85,28 @@ type Repository interface {
 	// ChangeStatus changes groups status to active or inactive
 	ChangeStatus(ctx context.Context, group Group) (Group, error)
 
-	// Assign(ctx context.Context, groupID, memberKind string, ids ...string) error
+	// AssignParentGroup assigns parent group id to a given group id
+	AssignParentGroup(ctx context.Context, parentGroupID string, groupIDs ...string) error
 
-	// Unassign(ctx context.Context, groupID string, ids ...string) error
+	// UnassignParentGroup unassign parent group id fr given group id
+	UnassignParentGroup(ctx context.Context, parentGroupID string, groupIDs ...string) error
+
+	// Delete a group
+	Delete(ctx context.Context, groupID string) error
 }
 
 type Service interface {
 	// CreateGroup creates new  group.
-	CreateGroup(ctx context.Context, token string, g Group) (Group, error)
+	CreateGroup(ctx context.Context, token, kind string, g Group) (Group, error)
 
 	// UpdateGroup updates the group identified by the provided ID.
 	UpdateGroup(ctx context.Context, token string, g Group) (Group, error)
 
 	// ViewGroup retrieves data about the group identified by ID.
 	ViewGroup(ctx context.Context, token, id string) (Group, error)
+
+	// ViewGroupPerms retrieves permissions on the group id for the given authorized token.
+	ViewGroupPerms(ctx context.Context, token, id string) ([]string, error)
 
 	// ListGroups retrieves
 	ListGroups(ctx context.Context, token, memberKind, memberID string, gm Page) (Page, error)
@@ -109,6 +119,9 @@ type Service interface {
 
 	// DisableGroup logically disables the group identified with the provided ID.
 	DisableGroup(ctx context.Context, token, id string) (Group, error)
+
+	// DeleteGroup delete the given group id
+	DeleteGroup(ctx context.Context, token, id string) error
 
 	// Assign member to group
 	Assign(ctx context.Context, token, groupID, relation, memberKind string, memberIDs ...string) (err error)

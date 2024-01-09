@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package rabbitmq
@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/mainflux/mainflux/pkg/messaging"
+	"github.com/absmach/magistrala/pkg/messaging"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"google.golang.org/protobuf/proto"
 )
@@ -76,7 +76,7 @@ func (pub *publisher) Publish(ctx context.Context, topic string, msg *messaging.
 		amqp.Publishing{
 			Headers:     amqp.Table{},
 			ContentType: "application/octet-stream",
-			AppId:       "mainflux-publisher",
+			AppId:       "magistrala-publisher",
 			Body:        data,
 		})
 

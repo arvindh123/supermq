@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package sdk
@@ -6,7 +6,7 @@ package sdk
 import (
 	"time"
 
-	"github.com/mainflux/mainflux/pkg/transformers/senml"
+	"github.com/absmach/magistrala/pkg/transformers/senml"
 )
 
 type createThingsRes struct {
@@ -85,4 +85,9 @@ type SubscriptionPage struct {
 
 type identifyThingResp struct {
 	ID string `json:"id,omitempty"`
+}
+
+type DomainsPage struct {
+	Domains []Domain `json:"domains"`
+	pageRes
 }

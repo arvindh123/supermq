@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 //go:build !test
@@ -10,19 +10,19 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/mainflux/mainflux/certs"
-	mflog "github.com/mainflux/mainflux/logger"
+	"github.com/absmach/magistrala/certs"
+	mglog "github.com/absmach/magistrala/logger"
 )
 
 var _ certs.Service = (*loggingMiddleware)(nil)
 
 type loggingMiddleware struct {
-	logger mflog.Logger
+	logger mglog.Logger
 	svc    certs.Service
 }
 
 // LoggingMiddleware adds logging facilities to the bootstrap service.
-func LoggingMiddleware(svc certs.Service, logger mflog.Logger) certs.Service {
+func LoggingMiddleware(svc certs.Service, logger mglog.Logger) certs.Service {
 	return &loggingMiddleware{logger, svc}
 }
 

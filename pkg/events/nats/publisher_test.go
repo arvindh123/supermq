@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package nats_test
@@ -12,16 +12,16 @@ import (
 	"testing"
 	"time"
 
-	mflog "github.com/mainflux/mainflux/logger"
-	"github.com/mainflux/mainflux/pkg/events"
-	"github.com/mainflux/mainflux/pkg/events/nats"
+	mglog "github.com/absmach/magistrala/logger"
+	"github.com/absmach/magistrala/pkg/events"
+	"github.com/absmach/magistrala/pkg/events/nats"
 	"github.com/stretchr/testify/assert"
 )
 
 var (
 	streamTopic = "test-topic"
 	eventsChan  = make(chan map[string]interface{})
-	logger      = mflog.NewMock()
+	logger      = mglog.NewMock()
 	errFailed   = errors.New("failed")
 )
 
@@ -149,21 +149,18 @@ func TestPublish(t *testing.T) {
 }
 
 func TestUnavailablePublish(t *testing.T) {
-	client, err := startContainer()
-	assert.Nil(t, err, fmt.Sprintf("got unexpected error on starting container: %s", err))
-
-	_, err = nats.NewPublisher(ctx, "http://invaliurl.com", stream)
+	_, err := nats.NewPublisher(ctx, "http://invaliurl.com", stream)
 	assert.NotNilf(t, err, fmt.Sprintf("got unexpected error on creating event store: %s", err), err)
 
-	publisher, err := nats.NewPublisher(ctx, client.url, stream)
+	publisher, err := nats.NewPublisher(ctx, natsURL, stream)
 	assert.Nil(t, err, fmt.Sprintf("got unexpected error on creating event store: %s", err))
 
-	err = client.pool.Client.PauseContainer(client.container.Container.ID)
+	err = pool.Client.PauseContainer(container.Container.ID)
 	assert.Nil(t, err, fmt.Sprintf("got unexpected error on pausing container: %s", err))
 
 	spawnGoroutines(publisher, t)
 
-	err = client.pool.Client.UnpauseContainer(client.container.Container.ID)
+	err = pool.Client.UnpauseContainer(container.Container.ID)
 	assert.Nil(t, err, fmt.Sprintf("got unexpected error on unpausing container: %s", err))
 
 	// Wait for the events to be published.
@@ -171,9 +168,6 @@ func TestUnavailablePublish(t *testing.T) {
 
 	err = publisher.Close()
 	assert.Nil(t, err, fmt.Sprintf("got unexpected error on closing publisher: %s", err))
-
-	err = client.pool.Purge(client.container)
-	assert.Nil(t, err, fmt.Sprintf("got unexpected error on purging container: %s", err))
 }
 
 func generateRandomEvent() testEvent {

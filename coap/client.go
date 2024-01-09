@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package coap
@@ -9,9 +9,9 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	"github.com/mainflux/mainflux/logger"
-	"github.com/mainflux/mainflux/pkg/errors"
-	"github.com/mainflux/mainflux/pkg/messaging"
+	mglog "github.com/absmach/magistrala/logger"
+	"github.com/absmach/magistrala/pkg/errors"
+	"github.com/absmach/magistrala/pkg/messaging"
 	"github.com/plgd-dev/go-coap/v2/message"
 	"github.com/plgd-dev/go-coap/v2/message/codes"
 	mux "github.com/plgd-dev/go-coap/v2/mux"
@@ -39,11 +39,11 @@ type client struct {
 	client  mux.Client
 	token   message.Token
 	observe uint32
-	logger  logger.Logger
+	logger  mglog.Logger
 }
 
 // NewClient instantiates a new Observer.
-func NewClient(c mux.Client, tkn message.Token, l logger.Logger) Client {
+func NewClient(c mux.Client, tkn message.Token, l mglog.Logger) Client {
 	return &client{
 		client:  c,
 		token:   tkn,

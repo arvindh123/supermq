@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package senml_test
@@ -8,10 +8,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/mainflux/mainflux/pkg/errors"
-	"github.com/mainflux/mainflux/pkg/messaging"
-	"github.com/mainflux/mainflux/pkg/transformers/senml"
-	mfsenml "github.com/mainflux/senml"
+	"github.com/absmach/magistrala/pkg/errors"
+	"github.com/absmach/magistrala/pkg/messaging"
+	"github.com/absmach/magistrala/pkg/transformers/senml"
+	mgsenml "github.com/absmach/senml"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -139,7 +139,7 @@ func TestTransformCBOR(t *testing.T) {
 			desc: "test invalid payload",
 			msg:  tooManyMsg,
 			msgs: nil,
-			err:  mfsenml.ErrTooManyValues,
+			err:  mgsenml.ErrTooManyValues,
 		},
 	}
 

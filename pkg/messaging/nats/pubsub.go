@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package nats
@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	mflog "github.com/mainflux/mainflux/logger"
-	"github.com/mainflux/mainflux/pkg/messaging"
+	mglog "github.com/absmach/magistrala/logger"
+	"github.com/absmach/magistrala/pkg/messaging"
 	broker "github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 	"google.golang.org/protobuf/proto"
@@ -27,7 +27,7 @@ var (
 
 	jsStreamConfig = jetstream.StreamConfig{
 		Name:              "channels",
-		Description:       "Mainflux stream for sending and receiving messages in between Mainflux channels",
+		Description:       "Magistrala stream for sending and receiving messages in between Magistrala channels",
 		Subjects:          []string{"channels.>"},
 		Retention:         jetstream.LimitsPolicy,
 		MaxMsgsPerSubject: 1e6,
@@ -42,7 +42,7 @@ var _ messaging.PubSub = (*pubsub)(nil)
 
 type pubsub struct {
 	publisher
-	logger mflog.Logger
+	logger mglog.Logger
 	stream jetstream.Stream
 }
 
@@ -53,7 +53,7 @@ type pubsub struct {
 // from ordinary subscribe. For more information, please take a look
 // here: https://docs.nats.io/developing-with-nats/receiving/queues.
 // If the queue is empty, Subscribe will be used.
-func NewPubSub(ctx context.Context, url string, logger mflog.Logger, opts ...messaging.Option) (messaging.PubSub, error) {
+func NewPubSub(ctx context.Context, url string, logger mglog.Logger, opts ...messaging.Option) (messaging.PubSub, error) {
 	conn, err := broker.Connect(url, broker.MaxReconnects(maxReconnects))
 	if err != nil {
 		return nil, err
@@ -99,7 +99,7 @@ func (ps *pubsub) Subscribe(ctx context.Context, cfg messaging.SubscriberConfig)
 	consumerConfig := jetstream.ConsumerConfig{
 		Name:          formatConsumerName(cfg.Topic, cfg.ID),
 		Durable:       formatConsumerName(cfg.Topic, cfg.ID),
-		Description:   fmt.Sprintf("Mainflux consumer of id %s for cfg.Topic %s", cfg.ID, cfg.Topic),
+		Description:   fmt.Sprintf("Magistrala consumer of id %s for cfg.Topic %s", cfg.ID, cfg.Topic),
 		DeliverPolicy: jetstream.DeliverNewPolicy,
 		FilterSubject: cfg.Topic,
 	}
@@ -150,7 +150,7 @@ func (ps *pubsub) natsHandler(h messaging.MessageHandler) func(m jetstream.Msg) 
 		}
 
 		if err := h.Handle(&msg); err != nil {
-			ps.logger.Warn(fmt.Sprintf("Failed to handle Mainflux message: %s", err))
+			ps.logger.Warn(fmt.Sprintf("Failed to handle Magistrala message: %s", err))
 		}
 		if err := m.Ack(); err != nil {
 			ps.logger.Warn(fmt.Sprintf("Failed to ack message: %s", err))

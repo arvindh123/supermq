@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package api
@@ -6,11 +6,11 @@ package api
 import (
 	"context"
 
+	"github.com/absmach/magistrala/internal/apiutil"
+	mgclients "github.com/absmach/magistrala/pkg/clients"
+	"github.com/absmach/magistrala/pkg/errors"
+	"github.com/absmach/magistrala/users"
 	"github.com/go-kit/kit/endpoint"
-	"github.com/mainflux/mainflux/internal/apiutil"
-	mfclients "github.com/mainflux/mainflux/pkg/clients"
-	"github.com/mainflux/mainflux/pkg/errors"
-	"github.com/mainflux/mainflux/users"
 )
 
 func registrationEndpoint(svc users.Service) endpoint.Endpoint {
@@ -71,7 +71,7 @@ func listClientsEndpoint(svc users.Service) endpoint.Endpoint {
 			return nil, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		pm := mfclients.Page{
+		pm := mgclients.Page{
 			Status:   req.status,
 			Offset:   req.offset,
 			Limit:    req.limit,
@@ -80,6 +80,8 @@ func listClientsEndpoint(svc users.Service) endpoint.Endpoint {
 			Tag:      req.tag,
 			Metadata: req.metadata,
 			Identity: req.identity,
+			Order:    req.order,
+			Dir:      req.dir,
 		}
 		page, err := svc.ListClients(ctx, req.token, pm)
 		if err != nil {
@@ -154,6 +156,23 @@ func listMembersByThingEndpoint(svc users.Service) endpoint.Endpoint {
 	}
 }
 
+func listMembersByDomainEndpoint(svc users.Service) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		req := request.(listMembersByObjectReq)
+		req.objectKind = "domains"
+		if err := req.validate(); err != nil {
+			return nil, errors.Wrap(apiutil.ErrValidation, err)
+		}
+
+		page, err := svc.ListMembers(ctx, req.token, req.objectKind, req.objectID, req.Page)
+		if err != nil {
+			return nil, err
+		}
+
+		return buildClientsResponse(page), nil
+	}
+}
+
 func updateClientEndpoint(svc users.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(updateClientReq)
@@ -161,7 +180,7 @@ func updateClientEndpoint(svc users.Service) endpoint.Endpoint {
 			return nil, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		client := mfclients.Client{
+		client := mgclients.Client{
 			ID:       req.id,
 			Name:     req.Name,
 			Metadata: req.Metadata,
@@ -182,7 +201,7 @@ func updateClientTagsEndpoint(svc users.Service) endpoint.Endpoint {
 			return nil, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		client := mfclients.Client{
+		client := mgclients.Client{
 			ID:   req.id,
 			Tags: req.Tags,
 		}
@@ -213,10 +232,10 @@ func updateClientIdentityEndpoint(svc users.Service) endpoint.Endpoint {
 
 // Password reset request endpoint.
 // When successful password reset link is generated.
-// Link is generated using MF_TOKEN_RESET_ENDPOINT env.
+// Link is generated using MG_TOKEN_RESET_ENDPOINT env.
 // and value from Referer header for host.
-// {Referer}+{MF_TOKEN_RESET_ENDPOINT}+{token=TOKEN}
-// http://mainflux.com/reset-request?token=xxxxxxxxxxx.
+// {Referer}+{MG_TOKEN_RESET_ENDPOINT}+{token=TOKEN}
+// http://magistrala.com/reset-request?token=xxxxxxxxxxx.
 // Email with a link is being sent to the user.
 // When user clicks on a link it should get the ui with form to
 // enter new password, when form is submitted token and new password
@@ -270,18 +289,18 @@ func updateClientSecretEndpoint(svc users.Service) endpoint.Endpoint {
 	}
 }
 
-func updateClientOwnerEndpoint(svc users.Service) endpoint.Endpoint {
+func updateClientRoleEndpoint(svc users.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
-		req := request.(updateClientOwnerReq)
+		req := request.(updateClientRoleReq)
 		if err := req.validate(); err != nil {
 			return nil, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		client := mfclients.Client{
-			ID:    req.id,
-			Owner: req.Owner,
+		client := mgclients.Client{
+			ID:   req.id,
+			Role: req.role,
 		}
-		client, err := svc.UpdateClientOwner(ctx, req.token, client)
+		client, err := svc.UpdateClientRole(ctx, req.token, client)
 		if err != nil {
 			return nil, err
 		}
@@ -297,7 +316,7 @@ func issueTokenEndpoint(svc users.Service) endpoint.Endpoint {
 			return nil, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		token, err := svc.IssueToken(ctx, req.Identity, req.Secret)
+		token, err := svc.IssueToken(ctx, req.Identity, req.Secret, req.DomainID)
 		if err != nil {
 			return nil, err
 		}
@@ -317,7 +336,7 @@ func refreshTokenEndpoint(svc users.Service) endpoint.Endpoint {
 			return nil, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		token, err := svc.RefreshToken(ctx, req.RefreshToken)
+		token, err := svc.RefreshToken(ctx, req.RefreshToken, req.DomainID)
 		if err != nil {
 			return nil, err
 		}
@@ -362,7 +381,7 @@ func disableClientEndpoint(svc users.Service) endpoint.Endpoint {
 	}
 }
 
-func buildClientsResponse(cp mfclients.MembersPage) clientsPageRes {
+func buildClientsResponse(cp mgclients.MembersPage) clientsPageRes {
 	res := clientsPageRes{
 		pageRes: pageRes{
 			Total:  cp.Total,

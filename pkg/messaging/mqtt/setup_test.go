@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package mqtt_test
@@ -12,21 +12,21 @@ import (
 	"testing"
 	"time"
 
+	mglog "github.com/absmach/magistrala/logger"
+	"github.com/absmach/magistrala/pkg/messaging"
+	mqttpubsub "github.com/absmach/magistrala/pkg/messaging/mqtt"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
-	mflog "github.com/mainflux/mainflux/logger"
-	"github.com/mainflux/mainflux/pkg/messaging"
-	mqttpubsub "github.com/mainflux/mainflux/pkg/messaging/mqtt"
 	"github.com/ory/dockertest/v3"
 )
 
 var (
 	pubsub  messaging.PubSub
-	logger  mflog.Logger
+	logger  mglog.Logger
 	address string
 )
 
 const (
-	username      = "mainflux-mqtt"
+	username      = "magistrala-mqtt"
 	qos           = 2
 	port          = "1883/tcp"
 	broker        = "eclipse-mosquitto"
@@ -51,7 +51,7 @@ func TestMain(m *testing.M) {
 	address = fmt.Sprintf("%s:%s", "localhost", container.GetPort(port))
 	pool.MaxWait = poolMaxWait
 
-	logger, err = mflog.New(os.Stdout, mflog.Debug.String())
+	logger, err = mglog.New(os.Stdout, mglog.Debug.String())
 	if err != nil {
 		log.Fatalf(err.Error())
 	}

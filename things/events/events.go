@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package events
@@ -9,36 +9,40 @@ import (
 	"strings"
 	"time"
 
-	mfclients "github.com/mainflux/mainflux/pkg/clients"
-	"github.com/mainflux/mainflux/pkg/events"
+	mgclients "github.com/absmach/magistrala/pkg/clients"
+	"github.com/absmach/magistrala/pkg/events"
 )
 
 const (
-	clientPrefix      = "thing."
-	clientCreate      = clientPrefix + "create"
-	clientUpdate      = clientPrefix + "update"
-	clientRemove      = clientPrefix + "remove"
-	clientView        = clientPrefix + "view"
-	clientList        = clientPrefix + "list"
-	clientListByGroup = clientPrefix + "list_by_channel"
-	clientIdentify    = clientPrefix + "identify"
-	clientAuthorize   = clientPrefix + "authorize"
+	clientPrefix       = "thing."
+	clientCreate       = clientPrefix + "create"
+	clientUpdate       = clientPrefix + "update"
+	clientChangeStatus = clientPrefix + "change_status"
+	clientRemove       = clientPrefix + "remove"
+	clientView         = clientPrefix + "view"
+	clientViewPerms    = clientPrefix + "view_perms"
+	clientList         = clientPrefix + "list"
+	clientListByGroup  = clientPrefix + "list_by_channel"
+	clientIdentify     = clientPrefix + "identify"
+	clientAuthorize    = clientPrefix + "authorize"
 )
 
 var (
 	_ events.Event = (*createClientEvent)(nil)
 	_ events.Event = (*updateClientEvent)(nil)
-	_ events.Event = (*removeClientEvent)(nil)
+	_ events.Event = (*changeStatusClientEvent)(nil)
 	_ events.Event = (*viewClientEvent)(nil)
+	_ events.Event = (*viewClientPermsEvent)(nil)
 	_ events.Event = (*listClientEvent)(nil)
 	_ events.Event = (*listClientByGroupEvent)(nil)
 	_ events.Event = (*identifyClientEvent)(nil)
 	_ events.Event = (*authorizeClientEvent)(nil)
 	_ events.Event = (*shareClientEvent)(nil)
+	_ events.Event = (*removeClientEvent)(nil)
 )
 
 type createClientEvent struct {
-	mfclients.Client
+	mgclients.Client
 }
 
 func (cce createClientEvent) Encode() (map[string]interface{}, error) {
@@ -75,7 +79,7 @@ func (cce createClientEvent) Encode() (map[string]interface{}, error) {
 }
 
 type updateClientEvent struct {
-	mfclients.Client
+	mgclients.Client
 	operation string
 }
 
@@ -123,16 +127,16 @@ func (uce updateClientEvent) Encode() (map[string]interface{}, error) {
 	return val, nil
 }
 
-type removeClientEvent struct {
+type changeStatusClientEvent struct {
 	id        string
 	status    string
 	updatedAt time.Time
 	updatedBy string
 }
 
-func (rce removeClientEvent) Encode() (map[string]interface{}, error) {
+func (rce changeStatusClientEvent) Encode() (map[string]interface{}, error) {
 	return map[string]interface{}{
-		"operation":  clientRemove,
+		"operation":  clientChangeStatus,
 		"id":         rce.id,
 		"status":     rce.status,
 		"updated_at": rce.updatedAt,
@@ -141,7 +145,7 @@ func (rce removeClientEvent) Encode() (map[string]interface{}, error) {
 }
 
 type viewClientEvent struct {
-	mfclients.Client
+	mgclients.Client
 }
 
 func (vce viewClientEvent) Encode() (map[string]interface{}, error) {
@@ -187,9 +191,21 @@ func (vce viewClientEvent) Encode() (map[string]interface{}, error) {
 	return val, nil
 }
 
+type viewClientPermsEvent struct {
+	permissions []string
+}
+
+func (vcpe viewClientPermsEvent) Encode() (map[string]interface{}, error) {
+	val := map[string]interface{}{
+		"operation":   clientViewPerms,
+		"permissions": vcpe.permissions,
+	}
+	return val, nil
+}
+
 type listClientEvent struct {
 	reqUserID string
-	mfclients.Page
+	mgclients.Page
 }
 
 func (lce listClientEvent) Encode() (map[string]interface{}, error) {
@@ -242,7 +258,7 @@ func (lce listClientEvent) Encode() (map[string]interface{}, error) {
 }
 
 type listClientByGroupEvent struct {
-	mfclients.Page
+	mgclients.Page
 	channelID string
 }
 
@@ -364,5 +380,16 @@ func (sce shareClientEvent) Encode() (map[string]interface{}, error) {
 		"id":        sce.id,
 		"relation":  sce.relation,
 		"user_ids":  strings.Join(sce.userIDs, ","),
+	}, nil
+}
+
+type removeClientEvent struct {
+	id string
+}
+
+func (dce removeClientEvent) Encode() (map[string]interface{}, error) {
+	return map[string]interface{}{
+		"operation": clientRemove,
+		"id":        dce.id,
 	}, nil
 }

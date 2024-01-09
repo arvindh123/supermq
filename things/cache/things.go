@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package cache
@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/absmach/magistrala/pkg/errors"
+	"github.com/absmach/magistrala/things"
 	"github.com/go-redis/redis/v8"
-	"github.com/mainflux/mainflux/pkg/errors"
-	"github.com/mainflux/mainflux/things"
 )
 
 const (
@@ -33,7 +33,7 @@ func NewCache(client *redis.Client, duration time.Duration) things.Cache {
 	}
 }
 
-func (tc *thingCache) Save(ctx context.Context, thingKey string, thingID string) error {
+func (tc *thingCache) Save(ctx context.Context, thingKey, thingID string) error {
 	tkey := fmt.Sprintf("%s:%s", keyPrefix, thingKey)
 	if err := tc.client.Set(ctx, tkey, thingID, tc.keyDuration).Err(); err != nil {
 		return errors.Wrap(errors.ErrCreateEntity, err)

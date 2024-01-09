@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package things
@@ -6,12 +6,14 @@ package things
 import (
 	"context"
 
-	"github.com/mainflux/mainflux"
-	"github.com/mainflux/mainflux/pkg/clients"
+	"github.com/absmach/magistrala"
+	"github.com/absmach/magistrala/pkg/clients"
 )
 
 // Service specifies an API that must be fullfiled by the domain service
 // implementation, and all of its decorators (e.g. logging & metrics).
+//
+//go:generate mockery --name Service --filename service.go --quiet --note "Copyright (c) Abstract Machines"
 type Service interface {
 	// CreateThings creates new client. In case of the failed registration, a
 	// non-nil error value is returned.
@@ -19,6 +21,9 @@ type Service interface {
 
 	// ViewClient retrieves client info for a given client ID and an authorized token.
 	ViewClient(ctx context.Context, token, id string) (clients.Client, error)
+
+	// ViewClientPerms retrieves permissions on the client id for the given authorized token.
+	ViewClientPerms(ctx context.Context, token, id string) ([]string, error)
 
 	// ListClients retrieves clients list for a valid auth token.
 	ListClients(ctx context.Context, token string, reqUserID string, pm clients.Page) (clients.ClientsPage, error)
@@ -37,9 +42,6 @@ type Service interface {
 	// UpdateClientSecret updates the client's secret
 	UpdateClientSecret(ctx context.Context, token, id, key string) (clients.Client, error)
 
-	// UpdateClientOwner updates the client's owner.
-	UpdateClientOwner(ctx context.Context, token string, client clients.Client) (clients.Client, error)
-
 	// EnableClient logically enableds the client identified with the provided ID
 	EnableClient(ctx context.Context, token, id string) (clients.Client, error)
 
@@ -56,10 +58,15 @@ type Service interface {
 	Identify(ctx context.Context, key string) (string, error)
 
 	// Authorize used for AuthZ gRPC server implementation and Things authorization.
-	Authorize(ctx context.Context, req *mainflux.AuthorizeReq) (string, error)
+	Authorize(ctx context.Context, req *magistrala.AuthorizeReq) (string, error)
+
+	// DeleteClient deletes client with given ID.
+	DeleteClient(ctx context.Context, token, id string) error
 }
 
 // Cache contains thing caching interface.
+//
+//go:generate mockery --name Cache --filename cache.go --quiet --note "Copyright (c) Abstract Machines"
 type Cache interface {
 	// Save stores pair thing secret, thing id.
 	Save(ctx context.Context, thingSecret, thingID string) error

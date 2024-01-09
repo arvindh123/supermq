@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package keys_test
@@ -14,14 +14,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mainflux/mainflux/auth"
-	httpapi "github.com/mainflux/mainflux/auth/api/http"
-	"github.com/mainflux/mainflux/auth/jwt"
-	"github.com/mainflux/mainflux/auth/mocks"
-	"github.com/mainflux/mainflux/internal/apiutil"
-	"github.com/mainflux/mainflux/logger"
-	"github.com/mainflux/mainflux/pkg/uuid"
+	"github.com/absmach/magistrala/auth"
+	httpapi "github.com/absmach/magistrala/auth/api/http"
+	"github.com/absmach/magistrala/auth/jwt"
+	"github.com/absmach/magistrala/auth/mocks"
+	"github.com/absmach/magistrala/internal/apiutil"
+	mglog "github.com/absmach/magistrala/logger"
+	"github.com/absmach/magistrala/pkg/errors"
+	"github.com/absmach/magistrala/pkg/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 const (
@@ -31,6 +33,7 @@ const (
 	email           = "user@example.com"
 	loginDuration   = 30 * time.Minute
 	refreshDuration = 24 * time.Hour
+	invalidDuration = 7 * 24 * time.Hour
 )
 
 type issueRequest struct {
@@ -63,18 +66,19 @@ func (tr testRequest) make() (*http.Response, error) {
 	return tr.client.Do(req)
 }
 
-func newService() auth.Service {
-	krepo := new(mocks.Keys)
+func newService() (auth.Service, *mocks.KeyRepository) {
+	krepo := new(mocks.KeyRepository)
 	prepo := new(mocks.PolicyAgent)
+	drepo := new(mocks.DomainsRepository)
 	idProvider := uuid.NewMock()
 
 	t := jwt.New([]byte(secret))
 
-	return auth.New(krepo, idProvider, t, prepo, loginDuration, refreshDuration)
+	return auth.New(krepo, drepo, idProvider, t, prepo, loginDuration, refreshDuration, invalidDuration), krepo
 }
 
 func newServer(svc auth.Service) *httptest.Server {
-	logger := logger.NewMock()
+	logger := mglog.NewMock()
 	mux := httpapi.MakeHandler(svc, logger, "")
 	return httptest.NewServer(mux)
 }
@@ -88,7 +92,7 @@ func toJSON(data interface{}) string {
 }
 
 func TestIssue(t *testing.T) {
-	svc := newService()
+	svc, krepo := newService()
 	token, err := svc.Issue(context.Background(), "", auth.Key{Type: auth.AccessKey, IssuedAt: time.Now(), Subject: id})
 	assert.Nil(t, err, fmt.Sprintf("Issuing login key expected to succeed: %s", err))
 
@@ -188,20 +192,24 @@ func TestIssue(t *testing.T) {
 			token:       tc.token,
 			body:        strings.NewReader(tc.req),
 		}
+		repocall := krepo.On("Save", mock.Anything, mock.Anything).Return("", nil)
 		res, err := req.make()
 		assert.Nil(t, err, fmt.Sprintf("%s: unexpected error %s", tc.desc, err))
 		assert.Equal(t, tc.status, res.StatusCode, fmt.Sprintf("%s: expected status code %d got %d", tc.desc, tc.status, res.StatusCode))
+		repocall.Unset()
 	}
 }
 
 func TestRetrieve(t *testing.T) {
-	svc := newService()
+	svc, krepo := newService()
 	token, err := svc.Issue(context.Background(), "", auth.Key{Type: auth.AccessKey, IssuedAt: time.Now(), Subject: id})
 	assert.Nil(t, err, fmt.Sprintf("Issuing login key expected to succeed: %s", err))
 	key := auth.Key{Type: auth.APIKey, IssuedAt: time.Now(), Subject: id}
 
+	repocall := krepo.On("Save", mock.Anything, mock.Anything).Return(mock.Anything, nil)
 	k, err := svc.Issue(context.Background(), token.AccessToken, key)
 	assert.Nil(t, err, fmt.Sprintf("Issuing login key expected to succeed: %s", err))
+	repocall.Unset()
 
 	ts := newServer(svc)
 	defer ts.Close()
@@ -212,24 +220,28 @@ func TestRetrieve(t *testing.T) {
 		id     string
 		token  string
 		status int
+		err    error
 	}{
 		{
 			desc:   "retrieve an existing key",
 			id:     k.AccessToken,
 			token:  token.AccessToken,
 			status: http.StatusOK,
+			err:    nil,
 		},
 		{
 			desc:   "retrieve a non-existing key",
 			id:     "non-existing",
 			token:  token.AccessToken,
 			status: http.StatusNotFound,
+			err:    errors.ErrNotFound,
 		},
 		{
 			desc:   "retrieve a key with an invalid token",
 			id:     k.AccessToken,
 			token:  "wrong",
 			status: http.StatusUnauthorized,
+			err:    errors.ErrAuthentication,
 		},
 	}
 
@@ -240,20 +252,24 @@ func TestRetrieve(t *testing.T) {
 			url:    fmt.Sprintf("%s/keys/%s", ts.URL, tc.id),
 			token:  tc.token,
 		}
+		repocall := krepo.On("Retrieve", mock.Anything, mock.Anything, mock.Anything).Return(auth.Key{}, tc.err)
 		res, err := req.make()
 		assert.Nil(t, err, fmt.Sprintf("%s: unexpected error %s", tc.desc, err))
 		assert.Equal(t, tc.status, res.StatusCode, fmt.Sprintf("%s: expected status code %d got %d", tc.desc, tc.status, res.StatusCode))
+		repocall.Unset()
 	}
 }
 
 func TestRevoke(t *testing.T) {
-	svc := newService()
+	svc, krepo := newService()
 	token, err := svc.Issue(context.Background(), "", auth.Key{Type: auth.AccessKey, IssuedAt: time.Now(), Subject: id})
 	assert.Nil(t, err, fmt.Sprintf("Issuing login key expected to succeed: %s", err))
 	key := auth.Key{Type: auth.APIKey, IssuedAt: time.Now(), Subject: id}
 
+	repocall := krepo.On("Save", mock.Anything, mock.Anything).Return(mock.Anything, nil)
 	k, err := svc.Issue(context.Background(), token.AccessToken, key)
 	assert.Nil(t, err, fmt.Sprintf("Issuing login key expected to succeed: %s", err))
+	repocall.Unset()
 
 	ts := newServer(svc)
 	defer ts.Close()
@@ -292,8 +308,10 @@ func TestRevoke(t *testing.T) {
 			url:    fmt.Sprintf("%s/keys/%s", ts.URL, tc.id),
 			token:  tc.token,
 		}
+		repocall := krepo.On("Remove", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 		res, err := req.make()
 		assert.Nil(t, err, fmt.Sprintf("%s: unexpected error %s", tc.desc, err))
 		assert.Equal(t, tc.status, res.StatusCode, fmt.Sprintf("%s: expected status code %d got %d", tc.desc, tc.status, res.StatusCode))
+		repocall.Unset()
 	}
 }

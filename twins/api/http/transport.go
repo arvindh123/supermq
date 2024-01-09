@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package http
@@ -9,13 +9,14 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/absmach/magistrala"
+	"github.com/absmach/magistrala/internal/apiutil"
+	mglog "github.com/absmach/magistrala/logger"
+	"github.com/absmach/magistrala/pkg/errors"
+	svcerr "github.com/absmach/magistrala/pkg/errors/service"
+	"github.com/absmach/magistrala/twins"
+	"github.com/go-chi/chi/v5"
 	kithttp "github.com/go-kit/kit/transport/http"
-	"github.com/go-zoo/bone"
-	"github.com/mainflux/mainflux"
-	"github.com/mainflux/mainflux/internal/apiutil"
-	"github.com/mainflux/mainflux/logger"
-	"github.com/mainflux/mainflux/pkg/errors"
-	"github.com/mainflux/mainflux/twins"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
@@ -31,56 +32,53 @@ const (
 )
 
 // MakeHandler returns a HTTP handler for API endpoints.
-func MakeHandler(svc twins.Service, logger logger.Logger, instanceID string) http.Handler {
+func MakeHandler(svc twins.Service, logger mglog.Logger, instanceID string) http.Handler {
 	opts := []kithttp.ServerOption{
 		kithttp.ServerErrorEncoder(apiutil.LoggingErrorEncoder(logger, encodeError)),
 	}
 
-	r := bone.New()
+	r := chi.NewRouter()
 
-	r.Post("/twins", otelhttp.NewHandler(kithttp.NewServer(
-		addTwinEndpoint(svc),
-		decodeTwinCreation,
-		encodeResponse,
-		opts...,
-	), "add_twin"))
-
-	r.Put("/twins/:twinID", otelhttp.NewHandler(kithttp.NewServer(
-		updateTwinEndpoint(svc),
-		decodeTwinUpdate,
-		encodeResponse,
-		opts...,
-	), "update_twin"))
-
-	r.Get("/twins/:twinID", otelhttp.NewHandler(kithttp.NewServer(
-		viewTwinEndpoint(svc),
-		decodeView,
-		encodeResponse,
-		opts...,
-	), "view_twin"))
-
-	r.Delete("/twins/:twinID", otelhttp.NewHandler(kithttp.NewServer(
-		removeTwinEndpoint(svc),
-		decodeView,
-		encodeResponse,
-		opts...,
-	), "remove_twin"))
-
-	r.Get("/twins", otelhttp.NewHandler(kithttp.NewServer(
-		listTwinsEndpoint(svc),
-		decodeList,
-		encodeResponse,
-		opts...,
-	), "list_twins"))
-
-	r.Get("/states/:twinID", otelhttp.NewHandler(kithttp.NewServer(
+	r.Route("/twins", func(r chi.Router) {
+		r.Post("/", otelhttp.NewHandler(kithttp.NewServer(
+			addTwinEndpoint(svc),
+			decodeTwinCreation,
+			encodeResponse,
+			opts...,
+		), "add_twin").ServeHTTP)
+		r.Get("/", otelhttp.NewHandler(kithttp.NewServer(
+			listTwinsEndpoint(svc),
+			decodeList,
+			encodeResponse,
+			opts...,
+		), "list_twins").ServeHTTP)
+		r.Put("/{twinID}", otelhttp.NewHandler(kithttp.NewServer(
+			updateTwinEndpoint(svc),
+			decodeTwinUpdate,
+			encodeResponse,
+			opts...,
+		), "update_twin").ServeHTTP)
+		r.Get("/{twinID}", otelhttp.NewHandler(kithttp.NewServer(
+			viewTwinEndpoint(svc),
+			decodeView,
+			encodeResponse,
+			opts...,
+		), "view_twin").ServeHTTP)
+		r.Delete("/{twinID}", otelhttp.NewHandler(kithttp.NewServer(
+			removeTwinEndpoint(svc),
+			decodeView,
+			encodeResponse,
+			opts...,
+		), "remove_twin").ServeHTTP)
+	})
+	r.Get("/states/{twinID}", otelhttp.NewHandler(kithttp.NewServer(
 		listStatesEndpoint(svc),
 		decodeListStates,
 		encodeResponse,
 		opts...,
-	), "list_states"))
+	), "list_states").ServeHTTP)
 
-	r.GetFunc("/health", mainflux.Health("twins", instanceID))
+	r.Get("/health", magistrala.Health("twins", instanceID))
 	r.Handle("/metrics", promhttp.Handler())
 
 	return r
@@ -106,7 +104,7 @@ func decodeTwinUpdate(_ context.Context, r *http.Request) (interface{}, error) {
 
 	req := updateTwinReq{
 		token: apiutil.ExtractBearerToken(r),
-		id:    bone.GetValue(r, "twinID"),
+		id:    chi.URLParam(r, "twinID"),
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return nil, errors.Wrap(apiutil.ErrValidation, errors.Wrap(err, errors.ErrMalformedEntity))
@@ -118,19 +116,19 @@ func decodeTwinUpdate(_ context.Context, r *http.Request) (interface{}, error) {
 func decodeView(_ context.Context, r *http.Request) (interface{}, error) {
 	req := viewTwinReq{
 		token: apiutil.ExtractBearerToken(r),
-		id:    bone.GetValue(r, "twinID"),
+		id:    chi.URLParam(r, "twinID"),
 	}
 
 	return req, nil
 }
 
 func decodeList(_ context.Context, r *http.Request) (interface{}, error) {
-	l, err := apiutil.ReadUintQuery(r, limitKey, defLimit)
+	l, err := apiutil.ReadNumQuery[uint64](r, limitKey, defLimit)
 	if err != nil {
 		return nil, errors.Wrap(apiutil.ErrValidation, err)
 	}
 
-	o, err := apiutil.ReadUintQuery(r, offsetKey, defOffset)
+	o, err := apiutil.ReadNumQuery[uint64](r, offsetKey, defOffset)
 	if err != nil {
 		return nil, errors.Wrap(apiutil.ErrValidation, err)
 	}
@@ -157,12 +155,12 @@ func decodeList(_ context.Context, r *http.Request) (interface{}, error) {
 }
 
 func decodeListStates(_ context.Context, r *http.Request) (interface{}, error) {
-	l, err := apiutil.ReadUintQuery(r, limitKey, defLimit)
+	l, err := apiutil.ReadNumQuery[uint64](r, limitKey, defLimit)
 	if err != nil {
 		return nil, errors.Wrap(apiutil.ErrValidation, err)
 	}
 
-	o, err := apiutil.ReadUintQuery(r, offsetKey, defOffset)
+	o, err := apiutil.ReadNumQuery[uint64](r, offsetKey, defOffset)
 	if err != nil {
 		return nil, errors.Wrap(apiutil.ErrValidation, err)
 	}
@@ -171,7 +169,7 @@ func decodeListStates(_ context.Context, r *http.Request) (interface{}, error) {
 		token:  apiutil.ExtractBearerToken(r),
 		limit:  l,
 		offset: o,
-		id:     bone.GetValue(r, "twinID"),
+		id:     chi.URLParam(r, "twinID"),
 	}
 
 	return req, nil
@@ -180,7 +178,7 @@ func decodeListStates(_ context.Context, r *http.Request) (interface{}, error) {
 func encodeResponse(_ context.Context, w http.ResponseWriter, response interface{}) error {
 	w.Header().Set("Content-Type", contentType)
 
-	if ar, ok := response.(mainflux.Response); ok {
+	if ar, ok := response.(magistrala.Response); ok {
 		for k, v := range ar.Headers() {
 			w.Header().Set(k, v)
 		}
@@ -202,27 +200,27 @@ func encodeError(_ context.Context, err error, w http.ResponseWriter) {
 	}
 
 	switch {
-	case errors.Contains(err, errors.ErrAuthentication),
+	case errors.Contains(err, svcerr.ErrAuthentication),
 		errors.Contains(err, apiutil.ErrBearerToken):
 		w.WriteHeader(http.StatusUnauthorized)
 	case errors.Contains(err, apiutil.ErrInvalidQueryParams):
 		w.WriteHeader(http.StatusBadRequest)
 	case errors.Contains(err, apiutil.ErrUnsupportedContentType):
 		w.WriteHeader(http.StatusUnsupportedMediaType)
-	case errors.Contains(err, errors.ErrMalformedEntity),
+	case errors.Contains(err, svcerr.ErrMalformedEntity),
 		errors.Contains(err, apiutil.ErrMissingID),
 		errors.Contains(err, apiutil.ErrNameSize),
 		errors.Contains(err, apiutil.ErrLimitSize):
 		w.WriteHeader(http.StatusBadRequest)
-	case errors.Contains(err, errors.ErrNotFound):
+	case errors.Contains(err, svcerr.ErrNotFound):
 		w.WriteHeader(http.StatusNotFound)
-	case errors.Contains(err, errors.ErrConflict):
+	case errors.Contains(err, svcerr.ErrConflict):
 		w.WriteHeader(http.StatusConflict)
 
-	case errors.Contains(err, errors.ErrCreateEntity),
-		errors.Contains(err, errors.ErrUpdateEntity),
-		errors.Contains(err, errors.ErrViewEntity),
-		errors.Contains(err, errors.ErrRemoveEntity):
+	case errors.Contains(err, svcerr.ErrCreateEntity),
+		errors.Contains(err, svcerr.ErrUpdateEntity),
+		errors.Contains(err, svcerr.ErrViewEntity),
+		errors.Contains(err, svcerr.ErrRemoveEntity):
 		w.WriteHeader(http.StatusInternalServerError)
 
 	default:

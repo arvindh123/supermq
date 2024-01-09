@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package nats_test
@@ -12,9 +12,9 @@ import (
 	"syscall"
 	"testing"
 
-	mflog "github.com/mainflux/mainflux/logger"
-	"github.com/mainflux/mainflux/pkg/messaging"
-	"github.com/mainflux/mainflux/pkg/messaging/nats"
+	mglog "github.com/absmach/magistrala/logger"
+	"github.com/absmach/magistrala/pkg/messaging"
+	"github.com/absmach/magistrala/pkg/messaging/nats"
 	"github.com/ory/dockertest/v3"
 )
 
@@ -47,7 +47,7 @@ func TestMain(m *testing.M) {
 		log.Fatalf("Could not connect to docker: %s", err)
 	}
 
-	logger, err := mflog.New(os.Stdout, "error")
+	logger, err := mglog.New(os.Stdout, "error")
 	if err != nil {
 		log.Fatalf(err.Error())
 	}

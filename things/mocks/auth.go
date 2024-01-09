@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package mocks
@@ -6,26 +6,28 @@ package mocks
 import (
 	"context"
 
-	"github.com/mainflux/mainflux"
-	"github.com/mainflux/mainflux/pkg/errors"
+	"github.com/absmach/magistrala"
+	svcerr "github.com/absmach/magistrala/pkg/errors/service"
 	"github.com/stretchr/testify/mock"
 	"google.golang.org/grpc"
 )
 
-var _ mainflux.AuthzServiceClient = (*Service)(nil)
+const WrongID = "wrongID"
 
-type Service struct {
+var _ magistrala.AuthzServiceClient = (*ThingAuthzService)(nil)
+
+type ThingAuthzService struct {
 	mock.Mock
 }
 
-func (m *Service) Authorize(ctx context.Context, in *mainflux.AuthorizeReq, opts ...grpc.CallOption) (*mainflux.AuthorizeRes, error) {
+func (m *ThingAuthzService) Authorize(ctx context.Context, in *magistrala.AuthorizeReq, opts ...grpc.CallOption) (*magistrala.AuthorizeRes, error) {
 	ret := m.Called(ctx, in)
 	if in.GetSubject() == WrongID || in.GetSubject() == "" {
-		return &mainflux.AuthorizeRes{}, errors.ErrAuthorization
+		return &magistrala.AuthorizeRes{}, svcerr.ErrAuthorization
 	}
 	if in.GetObject() == WrongID || in.GetObject() == "" {
-		return &mainflux.AuthorizeRes{}, errors.ErrAuthorization
+		return &magistrala.AuthorizeRes{}, svcerr.ErrAuthorization
 	}
 
-	return ret.Get(0).(*mainflux.AuthorizeRes), ret.Error(1)
+	return ret.Get(0).(*magistrala.AuthorizeRes), ret.Error(1)
 }

@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package bootstrap
@@ -10,13 +10,14 @@ import (
 	"encoding/hex"
 	"time"
 
-	"github.com/mainflux/mainflux"
-	"github.com/mainflux/mainflux/pkg/errors"
-	mfsdk "github.com/mainflux/mainflux/pkg/sdk/go"
+	"github.com/absmach/magistrala"
+	"github.com/absmach/magistrala/pkg/errors"
+	svcerr "github.com/absmach/magistrala/pkg/errors/service"
+	mgsdk "github.com/absmach/magistrala/pkg/sdk/go"
 )
 
 var (
-	// ErrThings indicates failure to communicate with Mainflux Things service.
+	// ErrThings indicates failure to communicate with Magistrala Things service.
 	// It can be due to networking error or invalid/unauthenticated request.
 	ErrThings = errors.New("failed to receive response from Things service")
 
@@ -103,14 +104,14 @@ type ConfigReader interface {
 }
 
 type bootstrapService struct {
-	auth    mainflux.AuthServiceClient
+	auth    magistrala.AuthServiceClient
 	configs ConfigRepository
-	sdk     mfsdk.SDK
+	sdk     mgsdk.SDK
 	encKey  []byte
 }
 
 // New returns new Bootstrap service.
-func New(auth mainflux.AuthServiceClient, configs ConfigRepository, sdk mfsdk.SDK, encKey []byte) Service {
+func New(auth magistrala.AuthServiceClient, configs ConfigRepository, sdk mgsdk.SDK, encKey []byte) Service {
 	return &bootstrapService{
 		configs: configs,
 		sdk:     sdk,
@@ -122,7 +123,7 @@ func New(auth mainflux.AuthServiceClient, configs ConfigRepository, sdk mfsdk.SD
 func (bs bootstrapService) Add(ctx context.Context, token string, cfg Config) (Config, error) {
 	owner, err := bs.identify(ctx, token)
 	if err != nil {
-		return Config{}, err
+		return Config{}, errors.Wrap(svcerr.ErrAuthentication, err)
 	}
 
 	toConnect := bs.toIDList(cfg.Channels)
@@ -140,15 +141,15 @@ func (bs bootstrapService) Add(ctx context.Context, token string, cfg Config) (C
 	}
 
 	id := cfg.ThingID
-	mfThing, err := bs.thing(id, token)
+	mgThing, err := bs.thing(id, token)
 	if err != nil {
 		return Config{}, errors.Wrap(errThingNotFound, err)
 	}
 
-	cfg.ThingID = mfThing.ID
+	cfg.ThingID = mgThing.ID
 	cfg.Owner = owner
 	cfg.State = Inactive
-	cfg.ThingKey = mfThing.Credentials.Secret
+	cfg.ThingKey = mgThing.Credentials.Secret
 
 	saved, err := bs.configs.Save(ctx, cfg, toConnect)
 	if err != nil {
@@ -169,27 +170,32 @@ func (bs bootstrapService) Add(ctx context.Context, token string, cfg Config) (C
 func (bs bootstrapService) View(ctx context.Context, token, id string) (Config, error) {
 	owner, err := bs.identify(ctx, token)
 	if err != nil {
-		return Config{}, err
+		return Config{}, errors.Wrap(svcerr.ErrAuthentication, err)
 	}
-
-	return bs.configs.RetrieveByID(ctx, owner, id)
+	cfg, err := bs.configs.RetrieveByID(ctx, owner, id)
+	if err != nil {
+		return Config{}, errors.Wrap(svcerr.ErrViewEntity, err)
+	}
+	return cfg, nil
 }
 
 func (bs bootstrapService) Update(ctx context.Context, token string, cfg Config) error {
 	owner, err := bs.identify(ctx, token)
 	if err != nil {
-		return err
+		return errors.Wrap(svcerr.ErrAuthentication, err)
 	}
 
 	cfg.Owner = owner
-
-	return bs.configs.Update(ctx, cfg)
+	if err = bs.configs.Update(ctx, cfg); err != nil {
+		return errors.Wrap(errUpdateConnections, err)
+	}
+	return nil
 }
 
 func (bs bootstrapService) UpdateCert(ctx context.Context, token, thingID, clientCert, clientKey, caCert string) (Config, error) {
 	owner, err := bs.identify(ctx, token)
 	if err != nil {
-		return Config{}, err
+		return Config{}, errors.Wrap(svcerr.ErrAuthentication, err)
 	}
 	cfg, err := bs.configs.UpdateCert(ctx, owner, thingID, clientCert, clientKey, caCert)
 	if err != nil {
@@ -201,7 +207,7 @@ func (bs bootstrapService) UpdateCert(ctx context.Context, token, thingID, clien
 func (bs bootstrapService) UpdateConnections(ctx context.Context, token, id string, connections []string) error {
 	owner, err := bs.identify(ctx, token)
 	if err != nil {
-		return err
+		return errors.Wrap(svcerr.ErrAuthentication, err)
 	}
 
 	cfg, err := bs.configs.RetrieveByID(ctx, owner, id)
@@ -240,7 +246,7 @@ func (bs bootstrapService) UpdateConnections(ctx context.Context, token, id stri
 	}
 
 	for _, c := range connect {
-		conIDs := mfsdk.Connection{
+		conIDs := mgsdk.Connection{
 			ChannelID: c,
 			ThingID:   id,
 		}
@@ -248,23 +254,24 @@ func (bs bootstrapService) UpdateConnections(ctx context.Context, token, id stri
 			return ErrThings
 		}
 	}
-
-	return bs.configs.UpdateConnections(ctx, owner, id, channels, connections)
+	if err := bs.configs.UpdateConnections(ctx, owner, id, channels, connections); err != nil {
+		return errors.Wrap(errUpdateConnections, err)
+	}
+	return nil
 }
 
 func (bs bootstrapService) List(ctx context.Context, token string, filter Filter, offset, limit uint64) (ConfigsPage, error) {
 	owner, err := bs.identify(ctx, token)
 	if err != nil {
-		return ConfigsPage{}, err
+		return ConfigsPage{}, errors.Wrap(svcerr.ErrAuthentication, err)
 	}
-
 	return bs.configs.RetrieveAll(ctx, owner, filter, offset, limit), nil
 }
 
 func (bs bootstrapService) Remove(ctx context.Context, token, id string) error {
 	owner, err := bs.identify(ctx, token)
 	if err != nil {
-		return err
+		return errors.Wrap(svcerr.ErrAuthentication, err)
 	}
 	if err := bs.configs.Remove(ctx, owner, id); err != nil {
 		return errors.Wrap(errRemoveBootstrap, err)
@@ -294,7 +301,7 @@ func (bs bootstrapService) Bootstrap(ctx context.Context, externalKey, externalI
 func (bs bootstrapService) ChangeState(ctx context.Context, token, id string, state State) error {
 	owner, err := bs.identify(ctx, token)
 	if err != nil {
-		return err
+		return errors.Wrap(svcerr.ErrAuthentication, err)
 	}
 
 	cfg, err := bs.configs.RetrieveByID(ctx, owner, id)
@@ -309,7 +316,7 @@ func (bs bootstrapService) ChangeState(ctx context.Context, token, id string, st
 	switch state {
 	case Active:
 		for _, c := range cfg.Channels {
-			conIDs := mfsdk.Connection{
+			conIDs := mgsdk.Connection{
 				ChannelID: c.ID,
 				ThingID:   cfg.ThingID,
 			}
@@ -365,25 +372,25 @@ func (bs bootstrapService) identify(ctx context.Context, token string) (string, 
 	ctx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
 
-	res, err := bs.auth.Identify(ctx, &mainflux.IdentityReq{Token: token})
+	res, err := bs.auth.Identify(ctx, &magistrala.IdentityReq{Token: token})
 	if err != nil {
-		return "", errors.ErrAuthentication
+		return "", errors.Wrap(svcerr.ErrAuthentication, err)
 	}
 
 	return res.GetId(), nil
 }
 
-// Method thing retrieves Mainflux Thing creating one if an empty ID is passed.
-func (bs bootstrapService) thing(id, token string) (mfsdk.Thing, error) {
-	var thing mfsdk.Thing
+// Method thing retrieves Magistrala Thing creating one if an empty ID is passed.
+func (bs bootstrapService) thing(id, token string) (mgsdk.Thing, error) {
+	var thing mgsdk.Thing
 	var err error
 	var sdkErr errors.SDKError
 
 	thing.ID = id
 	if id == "" {
-		thing, sdkErr = bs.sdk.CreateThing(mfsdk.Thing{}, token)
+		thing, sdkErr = bs.sdk.CreateThing(mgsdk.Thing{}, token)
 		if err != nil {
-			return mfsdk.Thing{}, errors.Wrap(errCreateThing, errors.New(sdkErr.Err().Msg()))
+			return mgsdk.Thing{}, errors.Wrap(errCreateThing, errors.New(sdkErr.Err().Msg()))
 		}
 	}
 
@@ -395,7 +402,7 @@ func (bs bootstrapService) thing(id, token string) (mfsdk.Thing, error) {
 				err = errors.Wrap(errors.New(sdkErr.Msg()), errors.New(sdkErr2.Msg()))
 			}
 		}
-		return mfsdk.Thing{}, errors.Wrap(ErrThings, err)
+		return mgsdk.Thing{}, errors.Wrap(ErrThings, err)
 	}
 
 	return thing, nil

@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package influxdb_test
@@ -10,20 +10,20 @@ import (
 	"testing"
 	"time"
 
+	writer "github.com/absmach/magistrala/consumers/writers/influxdb"
+	mglog "github.com/absmach/magistrala/logger"
+	"github.com/absmach/magistrala/pkg/errors"
+	"github.com/absmach/magistrala/pkg/transformers/json"
+	"github.com/absmach/magistrala/pkg/transformers/senml"
+	"github.com/absmach/magistrala/pkg/uuid"
 	influxdata "github.com/influxdata/influxdb-client-go/v2"
-	writer "github.com/mainflux/mainflux/consumers/writers/influxdb"
-	mflog "github.com/mainflux/mainflux/logger"
-	"github.com/mainflux/mainflux/pkg/errors"
-	"github.com/mainflux/mainflux/pkg/transformers/json"
-	"github.com/mainflux/mainflux/pkg/transformers/senml"
-	"github.com/mainflux/mainflux/pkg/uuid"
 	"github.com/stretchr/testify/assert"
 )
 
 const valueFields = 5
 
 var (
-	testLog, _    = mflog.New(os.Stdout, mflog.Info.String())
+	testLog, _    = mglog.New(os.Stdout, mglog.Info.String())
 	streamsSize   = 250
 	rowCountSenml = fmt.Sprintf(`from(bucket: "%s") 
 	|> range(start: -1h, stop: 1h) 

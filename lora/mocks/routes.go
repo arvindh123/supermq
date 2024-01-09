@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package mocks
@@ -8,7 +8,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/mainflux/mainflux/lora"
+	"github.com/absmach/magistrala/lora"
 )
 
 type routeMapMock struct {
@@ -23,12 +23,12 @@ func NewRouteMap() lora.RouteMapRepository {
 	}
 }
 
-func (trm *routeMapMock) Save(_ context.Context, mfxID, extID string) error {
+func (trm *routeMapMock) Save(_ context.Context, mgxID, extID string) error {
 	trm.mu.Lock()
 	defer trm.mu.Unlock()
 
-	trm.routes[extID] = mfxID
-	trm.routes[mfxID] = extID
+	trm.routes[extID] = mgxID
+	trm.routes[mgxID] = extID
 	return nil
 }
 
@@ -48,16 +48,16 @@ func (trm *routeMapMock) Remove(_ context.Context, extID string) error {
 	trm.mu.Lock()
 	defer trm.mu.Unlock()
 
-	var mfxID string
+	var mgxID string
 	for i, val := range trm.routes {
 		if val == extID {
-			mfxID = val
+			mgxID = val
 			delete(trm.routes, i)
 		}
 	}
 
 	for i, val := range trm.routes {
-		if val == mfxID {
+		if val == mgxID {
 			delete(trm.routes, i)
 			return nil
 		}

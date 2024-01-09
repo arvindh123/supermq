@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package events
@@ -6,12 +6,10 @@ package events
 import (
 	"context"
 
-	"github.com/mainflux/mainflux/pkg/events"
-	"github.com/mainflux/mainflux/pkg/events/store"
-	"github.com/mainflux/mainflux/pkg/groups"
+	"github.com/absmach/magistrala/pkg/events"
+	"github.com/absmach/magistrala/pkg/events/store"
+	"github.com/absmach/magistrala/pkg/groups"
 )
-
-const streamID = "mainflux.users"
 
 var _ groups.Service = (*eventStore)(nil)
 
@@ -22,7 +20,7 @@ type eventStore struct {
 
 // NewEventStoreMiddleware returns wrapper around things service that sends
 // events to event store.
-func NewEventStoreMiddleware(ctx context.Context, svc groups.Service, url string) (groups.Service, error) {
+func NewEventStoreMiddleware(ctx context.Context, svc groups.Service, url, streamID string) (groups.Service, error) {
 	publisher, err := store.NewPublisher(ctx, url, streamID)
 	if err != nil {
 		return nil, err
@@ -34,8 +32,8 @@ func NewEventStoreMiddleware(ctx context.Context, svc groups.Service, url string
 	}, nil
 }
 
-func (es eventStore) CreateGroup(ctx context.Context, token string, group groups.Group) (groups.Group, error) {
-	group, err := es.svc.CreateGroup(ctx, token, group)
+func (es eventStore) CreateGroup(ctx context.Context, token, kind string, group groups.Group) (groups.Group, error) {
+	group, err := es.svc.CreateGroup(ctx, token, kind, group)
 	if err != nil {
 		return group, err
 	}
@@ -84,7 +82,23 @@ func (es eventStore) ViewGroup(ctx context.Context, token, id string) (groups.Gr
 	return group, nil
 }
 
-func (es eventStore) ListGroups(ctx context.Context, token string, memberKind string, memberID string, pm groups.Page) (groups.Page, error) {
+func (es eventStore) ViewGroupPerms(ctx context.Context, token, id string) ([]string, error) {
+	permissions, err := es.svc.ViewGroupPerms(ctx, token, id)
+	if err != nil {
+		return permissions, err
+	}
+	event := viewGroupPermsEvent{
+		permissions,
+	}
+
+	if err := es.Publish(ctx, event); err != nil {
+		return permissions, err
+	}
+
+	return permissions, nil
+}
+
+func (es eventStore) ListGroups(ctx context.Context, token, memberKind, memberID string, pm groups.Page) (groups.Page, error) {
 	gp, err := es.svc.ListGroups(ctx, token, memberKind, memberID, pm)
 	if err != nil {
 		return gp, err
@@ -122,14 +136,14 @@ func (es eventStore) EnableGroup(ctx context.Context, token, id string) (groups.
 		return group, err
 	}
 
-	return es.delete(ctx, group)
+	return es.changeStatus(ctx, group)
 }
 
 func (es eventStore) Assign(ctx context.Context, token, groupID, relation, memberKind string, memberIDs ...string) error {
 	return es.svc.Assign(ctx, token, groupID, relation, memberKind, memberIDs...)
 }
 
-func (es eventStore) Unassign(ctx context.Context, token, groupID string, relation string, memberKind string, memberIDs ...string) error {
+func (es eventStore) Unassign(ctx context.Context, token, groupID, relation, memberKind string, memberIDs ...string) error {
 	return es.svc.Unassign(ctx, token, groupID, relation, memberKind, memberIDs...)
 }
 
@@ -139,11 +153,11 @@ func (es eventStore) DisableGroup(ctx context.Context, token, id string) (groups
 		return group, err
 	}
 
-	return es.delete(ctx, group)
+	return es.changeStatus(ctx, group)
 }
 
-func (es eventStore) delete(ctx context.Context, group groups.Group) (groups.Group, error) {
-	event := removeGroupEvent{
+func (es eventStore) changeStatus(ctx context.Context, group groups.Group) (groups.Group, error) {
+	event := changeStatusGroupEvent{
 		id:        group.ID,
 		updatedAt: group.UpdatedAt,
 		updatedBy: group.UpdatedBy,
@@ -155,4 +169,14 @@ func (es eventStore) delete(ctx context.Context, group groups.Group) (groups.Gro
 	}
 
 	return group, nil
+}
+
+func (es eventStore) DeleteGroup(ctx context.Context, token, id string) error {
+	if err := es.svc.DeleteGroup(ctx, token, id); err != nil {
+		return err
+	}
+	if err := es.Publish(ctx, deleteGroupEvent{id}); err != nil {
+		return err
+	}
+	return nil
 }

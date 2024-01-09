@@ -1,3 +1,6 @@
+// Copyright (c) Abstract Machines
+// SPDX-License-Identifier: Apache-2.0
+
 // Package influxdb contains the domain concept definitions needed to
-// support Mainflux InfluxDB reader service functionality.
+// support Magistrala InfluxDB reader service functionality.
 package influxdb

@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package http
@@ -6,12 +6,13 @@ package http
 import (
 	"context"
 
+	"github.com/absmach/magistrala/auth"
+	"github.com/absmach/magistrala/internal/apiutil"
+	mgclients "github.com/absmach/magistrala/pkg/clients"
+	"github.com/absmach/magistrala/pkg/errors"
+	"github.com/absmach/magistrala/pkg/groups"
+	"github.com/absmach/magistrala/things"
 	"github.com/go-kit/kit/endpoint"
-	"github.com/mainflux/mainflux/internal/apiutil"
-	mfclients "github.com/mainflux/mainflux/pkg/clients"
-	"github.com/mainflux/mainflux/pkg/errors"
-	"github.com/mainflux/mainflux/pkg/groups"
-	"github.com/mainflux/mainflux/things"
 )
 
 func createClientEndpoint(svc things.Service) endpoint.Endpoint {
@@ -75,6 +76,22 @@ func viewClientEndpoint(svc things.Service) endpoint.Endpoint {
 	}
 }
 
+func viewClientPermsEndpoint(svc things.Service) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		req := request.(viewClientPermsReq)
+		if err := req.validate(); err != nil {
+			return nil, errors.Wrap(apiutil.ErrValidation, err)
+		}
+
+		p, err := svc.ViewClientPerms(ctx, req.token, req.id)
+		if err != nil {
+			return nil, err
+		}
+
+		return viewClientPermsRes{Permissions: p}, nil
+	}
+}
+
 func listClientsEndpoint(svc things.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(listClientsReq)
@@ -82,7 +99,7 @@ func listClientsEndpoint(svc things.Service) endpoint.Endpoint {
 			return nil, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		pm := mfclients.Page{
+		pm := mgclients.Page{
 			Status:     req.status,
 			Offset:     req.offset,
 			Limit:      req.limit,
@@ -91,6 +108,7 @@ func listClientsEndpoint(svc things.Service) endpoint.Endpoint {
 			Tag:        req.tag,
 			Permission: req.permission,
 			Metadata:   req.metadata,
+			ListPerms:  req.listPerms,
 		}
 		page, err := svc.ListClients(ctx, req.token, req.userID, pm)
 		if err != nil {
@@ -119,6 +137,7 @@ func listMembersEndpoint(svc things.Service) endpoint.Endpoint {
 		if err := req.validate(); err != nil {
 			return nil, errors.Wrap(apiutil.ErrValidation, err)
 		}
+
 		page, err := svc.ListClientsByGroup(ctx, req.token, req.groupID, req.Page)
 		if err != nil {
 			return nil, err
@@ -135,7 +154,7 @@ func updateClientEndpoint(svc things.Service) endpoint.Endpoint {
 			return nil, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		cli := mfclients.Client{
+		cli := mgclients.Client{
 			ID:       req.id,
 			Name:     req.Name,
 			Metadata: req.Metadata,
@@ -156,7 +175,7 @@ func updateClientTagsEndpoint(svc things.Service) endpoint.Endpoint {
 			return nil, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		cli := mfclients.Client{
+		cli := mgclients.Client{
 			ID:   req.id,
 			Tags: req.Tags,
 		}
@@ -185,26 +204,6 @@ func updateClientSecretEndpoint(svc things.Service) endpoint.Endpoint {
 	}
 }
 
-func updateClientOwnerEndpoint(svc things.Service) endpoint.Endpoint {
-	return func(ctx context.Context, request interface{}) (interface{}, error) {
-		req := request.(updateClientOwnerReq)
-		if err := req.validate(); err != nil {
-			return nil, errors.Wrap(apiutil.ErrValidation, err)
-		}
-
-		cli := mfclients.Client{
-			ID:    req.id,
-			Owner: req.Owner,
-		}
-		client, err := svc.UpdateClientOwner(ctx, req.token, cli)
-		if err != nil {
-			return nil, err
-		}
-
-		return updateClientRes{Client: client}, nil
-	}
-}
-
 func enableClientEndpoint(svc things.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(changeClientStatusReq)
@@ -217,7 +216,7 @@ func enableClientEndpoint(svc things.Service) endpoint.Endpoint {
 			return nil, err
 		}
 
-		return deleteClientRes{Client: client}, nil
+		return changeClientStatusRes{Client: client}, nil
 	}
 }
 
@@ -233,11 +232,11 @@ func disableClientEndpoint(svc things.Service) endpoint.Endpoint {
 			return nil, err
 		}
 
-		return deleteClientRes{Client: client}, nil
+		return changeClientStatusRes{Client: client}, nil
 	}
 }
 
-func buildClientsResponse(cp mfclients.MembersPage) clientsPageRes {
+func buildClientsResponse(cp mgclients.MembersPage) clientsPageRes {
 	res := clientsPageRes{
 		pageRes: pageRes{
 			Total:  cp.Total,
@@ -260,7 +259,7 @@ func assignUsersEndpoint(svc groups.Service) endpoint.Endpoint {
 			return nil, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		if err := svc.Assign(ctx, req.token, req.groupID, req.Relation, "users", req.UserIDs...); err != nil {
+		if err := svc.Assign(ctx, req.token, req.groupID, req.Relation, auth.UsersKind, req.UserIDs...); err != nil {
 			return nil, err
 		}
 
@@ -275,7 +274,7 @@ func unassignUsersEndpoint(svc groups.Service) endpoint.Endpoint {
 			return nil, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		if err := svc.Unassign(ctx, req.token, req.groupID, req.Relation, "users", req.UserIDs...); err != nil {
+		if err := svc.Unassign(ctx, req.token, req.groupID, req.Relation, auth.UsersKind, req.UserIDs...); err != nil {
 			return nil, err
 		}
 
@@ -290,7 +289,7 @@ func assignUserGroupsEndpoint(svc groups.Service) endpoint.Endpoint {
 			return nil, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		if err := svc.Assign(ctx, req.token, req.groupID, "parent_group", "groups", req.UserGroupIDs...); err != nil {
+		if err := svc.Assign(ctx, req.token, req.groupID, auth.ParentGroupRelation, auth.ChannelsKind, req.UserGroupIDs...); err != nil {
 			return nil, err
 		}
 
@@ -305,7 +304,7 @@ func unassignUserGroupsEndpoint(svc groups.Service) endpoint.Endpoint {
 			return nil, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		if err := svc.Unassign(ctx, req.token, req.groupID, "parent_group", "groups", req.UserGroupIDs...); err != nil {
+		if err := svc.Unassign(ctx, req.token, req.groupID, auth.ParentGroupRelation, auth.ChannelsKind, req.UserGroupIDs...); err != nil {
 			return nil, err
 		}
 
@@ -320,7 +319,7 @@ func connectChannelThingEndpoint(svc groups.Service) endpoint.Endpoint {
 			return nil, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		if err := svc.Assign(ctx, req.token, req.ChannelID, "group", "things", req.ThingID); err != nil {
+		if err := svc.Assign(ctx, req.token, req.ChannelID, auth.GroupRelation, auth.ThingsKind, req.ThingID); err != nil {
 			return nil, err
 		}
 
@@ -335,7 +334,7 @@ func disconnectChannelThingEndpoint(svc groups.Service) endpoint.Endpoint {
 			return nil, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		if err := svc.Unassign(ctx, req.token, req.ChannelID, "group", "things", req.ThingID); err != nil {
+		if err := svc.Unassign(ctx, req.token, req.ChannelID, auth.GroupRelation, auth.ThingsKind, req.ThingID); err != nil {
 			return nil, err
 		}
 
@@ -350,7 +349,7 @@ func connectEndpoint(svc groups.Service) endpoint.Endpoint {
 			return nil, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		if err := svc.Assign(ctx, req.token, req.ChannelID, "group", "things", req.ThingID); err != nil {
+		if err := svc.Assign(ctx, req.token, req.ChannelID, auth.GroupRelation, auth.ThingsKind, req.ThingID); err != nil {
 			return nil, err
 		}
 
@@ -365,7 +364,7 @@ func disconnectEndpoint(svc groups.Service) endpoint.Endpoint {
 			return nil, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		if err := svc.Unassign(ctx, req.token, req.ChannelID, "group", "things", req.ThingID); err != nil {
+		if err := svc.Unassign(ctx, req.token, req.ChannelID, auth.GroupRelation, auth.ThingsKind, req.ThingID); err != nil {
 			return nil, err
 		}
 
@@ -400,5 +399,20 @@ func thingUnshareEndpoint(svc things.Service) endpoint.Endpoint {
 		}
 
 		return thingUnshareRes{}, nil
+	}
+}
+
+func deleteClientEndpoint(svc things.Service) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		req := request.(deleteClientReq)
+		if err := req.validate(); err != nil {
+			return nil, errors.Wrap(apiutil.ErrValidation, err)
+		}
+
+		if err := svc.DeleteClient(ctx, req.token, req.id); err != nil {
+			return nil, err
+		}
+
+		return deleteClientRes{}, nil
 	}
 }

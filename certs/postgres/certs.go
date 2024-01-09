@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package postgres
@@ -9,13 +9,13 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/absmach/magistrala/certs"
+	"github.com/absmach/magistrala/internal/postgres"
+	mglog "github.com/absmach/magistrala/logger"
+	"github.com/absmach/magistrala/pkg/errors"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jmoiron/sqlx"
-	"github.com/mainflux/mainflux/certs"
-	"github.com/mainflux/mainflux/internal/postgres"
-	"github.com/mainflux/mainflux/logger"
-	"github.com/mainflux/mainflux/pkg/errors"
 )
 
 var _ certs.Repository = (*certsRepository)(nil)
@@ -29,12 +29,12 @@ type Cert struct {
 
 type certsRepository struct {
 	db  postgres.Database
-	log logger.Logger
+	log mglog.Logger
 }
 
 // NewRepository instantiates a PostgreSQL implementation of certs
 // repository.
-func NewRepository(db postgres.Database, log logger.Logger) certs.Repository {
+func NewRepository(db postgres.Database, log mglog.Logger) certs.Repository {
 	return &certsRepository{db: db, log: log}
 }
 

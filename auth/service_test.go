@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package auth_test
@@ -9,48 +9,59 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mainflux/mainflux/auth"
-	"github.com/mainflux/mainflux/auth/jwt"
-	"github.com/mainflux/mainflux/auth/mocks"
-	"github.com/mainflux/mainflux/pkg/errors"
-	"github.com/mainflux/mainflux/pkg/uuid"
+	"github.com/absmach/magistrala/auth"
+	"github.com/absmach/magistrala/auth/jwt"
+	"github.com/absmach/magistrala/auth/mocks"
+	"github.com/absmach/magistrala/pkg/errors"
+	svcerr "github.com/absmach/magistrala/pkg/errors/service"
+	"github.com/absmach/magistrala/pkg/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
-var idProvider = uuid.New()
-
 const (
 	secret      = "secret"
 	email       = "test@example.com"
 	id          = "testID"
-	groupName   = "mfx"
+	groupName   = "mgx"
 	description = "Description"
 
 	memberRelation  = "member"
 	authoritiesObj  = "authorities"
 	loginDuration   = 30 * time.Minute
 	refreshDuration = 24 * time.Hour
-	accessToken     = "access"
-
-	readPolicy   = "read"
-	writePolicy  = "write"
-	deletePolicy = "delete"
+	invalidDuration = 7 * 24 * time.Hour
 )
 
-func newService() (auth.Service, *mocks.Keys) {
-	krepo := new(mocks.Keys)
+var (
+	errIssueUser = errors.New("failed to issue new login key")
+	// ErrExpiry indicates that the token is expired.
+	ErrExpiry = errors.New("token is expired")
+)
+
+func newService() (auth.Service, *mocks.KeyRepository, string, *mocks.PolicyAgent) {
+	krepo := new(mocks.KeyRepository)
 	prepo := new(mocks.PolicyAgent)
+	drepo := new(mocks.DomainsRepository)
 	idProvider := uuid.NewMock()
 
 	t := jwt.New([]byte(secret))
+	key := auth.Key{
+		IssuedAt:  time.Now(),
+		ExpiresAt: time.Now().Add(refreshDuration),
+		Subject:   id,
+		Type:      auth.AccessKey,
+		User:      email,
+		Domain:    groupName,
+	}
+	token, _ := t.Issue(key)
 
-	return auth.New(krepo, idProvider, t, prepo, loginDuration, refreshDuration), krepo
+	return auth.New(krepo, drepo, idProvider, t, prepo, loginDuration, refreshDuration, invalidDuration), krepo, token, prepo
 }
 
 func TestIssue(t *testing.T) {
-	svc, krepo := newService()
+	svc, krepo, accessToken, _ := newService()
 
 	cases := []struct {
 		desc  string
@@ -68,14 +79,6 @@ func TestIssue(t *testing.T) {
 			err:   nil,
 		},
 		{
-			desc: "issue login key with no time",
-			key: auth.Key{
-				Type: auth.AccessKey,
-			},
-			token: accessToken,
-			err:   auth.ErrInvalidKeyIssuedAt,
-		},
-		{
 			desc: "issue API key",
 			key: auth.Key{
 				Type:     auth.APIKey,
@@ -91,15 +94,7 @@ func TestIssue(t *testing.T) {
 				IssuedAt: time.Now(),
 			},
 			token: "invalid",
-			err:   errors.ErrAuthentication,
-		},
-		{
-			desc: "issue API key with no time",
-			key: auth.Key{
-				Type: auth.APIKey,
-			},
-			token: accessToken,
-			err:   auth.ErrInvalidKeyIssuedAt,
+			err:   svcerr.ErrAuthentication,
 		},
 		{
 			desc: "issue recovery key",
@@ -109,14 +104,6 @@ func TestIssue(t *testing.T) {
 			},
 			token: "",
 			err:   nil,
-		},
-		{
-			desc: "issue recovery with no issue time",
-			key: auth.Key{
-				Type: auth.RecoveryKey,
-			},
-			token: accessToken,
-			err:   auth.ErrInvalidKeyIssuedAt,
 		},
 	}
 
@@ -129,9 +116,12 @@ func TestIssue(t *testing.T) {
 }
 
 func TestRevoke(t *testing.T) {
-	svc, _ := newService()
+	svc, krepo, _, _ := newService()
+	repocall := krepo.On("Save", mock.Anything, mock.Anything).Return(mock.Anything, errIssueUser)
 	secret, err := svc.Issue(context.Background(), "", auth.Key{Type: auth.AccessKey, IssuedAt: time.Now(), Subject: id})
+	repocall.Unset()
 	assert.Nil(t, err, fmt.Sprintf("Issuing login key expected to succeed: %s", err))
+	repocall1 := krepo.On("Save", mock.Anything, mock.Anything).Return(mock.Anything, nil)
 	key := auth.Key{
 		Type:     auth.APIKey,
 		IssuedAt: time.Now(),
@@ -139,6 +129,7 @@ func TestRevoke(t *testing.T) {
 	}
 	_, err = svc.Issue(context.Background(), secret.AccessToken, key)
 	assert.Nil(t, err, fmt.Sprintf("Issuing user's key expected to succeed: %s", err))
+	repocall1.Unset()
 
 	cases := []struct {
 		desc  string
@@ -162,20 +153,24 @@ func TestRevoke(t *testing.T) {
 			desc: "revoke with empty login key",
 			// id:    newKey.ID,
 			token: "",
-			err:   errors.ErrAuthentication,
+			err:   svcerr.ErrAuthentication,
 		},
 	}
 
 	for _, tc := range cases {
+		repocall := krepo.On("Remove", mock.Anything, mock.Anything, mock.Anything).Return(tc.err)
 		err := svc.Revoke(context.Background(), tc.token, tc.id)
 		assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s expected %s got %s\n", tc.desc, tc.err, err))
+		repocall.Unset()
 	}
 }
 
 func TestRetrieve(t *testing.T) {
-	svc, _ := newService()
+	svc, krepo, _, _ := newService()
+	repocall := krepo.On("Save", mock.Anything, mock.Anything).Return(mock.Anything, nil)
 	secret, err := svc.Issue(context.Background(), "", auth.Key{Type: auth.AccessKey, IssuedAt: time.Now(), Subject: id})
 	assert.Nil(t, err, fmt.Sprintf("Issuing login key expected to succeed: %s", err))
+	repocall.Unset()
 	key := auth.Key{
 		ID:       "id",
 		Type:     auth.APIKey,
@@ -183,14 +178,20 @@ func TestRetrieve(t *testing.T) {
 		IssuedAt: time.Now(),
 	}
 
+	repocall1 := krepo.On("Save", mock.Anything, mock.Anything).Return(mock.Anything, nil)
 	userToken, err := svc.Issue(context.Background(), "", auth.Key{Type: auth.AccessKey, IssuedAt: time.Now(), Subject: id})
 	assert.Nil(t, err, fmt.Sprintf("Issuing login key expected to succeed: %s", err))
+	repocall1.Unset()
 
+	repocall2 := krepo.On("Save", mock.Anything, mock.Anything).Return(mock.Anything, nil)
 	apiToken, err := svc.Issue(context.Background(), secret.AccessToken, key)
 	assert.Nil(t, err, fmt.Sprintf("Issuing login's key expected to succeed: %s", err))
+	repocall2.Unset()
 
+	repocall3 := krepo.On("Save", mock.Anything, mock.Anything).Return(mock.Anything, nil)
 	resetToken, err := svc.Issue(context.Background(), "", auth.Key{Type: auth.RecoveryKey, IssuedAt: time.Now()})
 	assert.Nil(t, err, fmt.Sprintf("Issuing reset key expected to succeed: %s", err))
+	repocall3.Unset()
 
 	cases := []struct {
 		desc  string
@@ -208,52 +209,61 @@ func TestRetrieve(t *testing.T) {
 			desc:  "retrieve non-existing login key",
 			id:    "invalid",
 			token: userToken.AccessToken,
-			err:   errors.ErrNotFound,
+			err:   svcerr.ErrNotFound,
 		},
 		{
 			desc: "retrieve with wrong login key",
 			// id:    apiKey.ID,
 			token: "wrong",
-			err:   errors.ErrAuthentication,
+			err:   svcerr.ErrAuthentication,
 		},
 		{
 			desc: "retrieve with API token",
 			// id:    apiKey.ID,
 			token: apiToken.AccessToken,
-			err:   errors.ErrAuthentication,
+			err:   svcerr.ErrAuthentication,
 		},
 		{
 			desc: "retrieve with reset token",
 			// id:    apiKey.ID,
 			token: resetToken.AccessToken,
-			err:   errors.ErrAuthentication,
+			err:   svcerr.ErrAuthentication,
 		},
 	}
 
 	for _, tc := range cases {
+		repocall := krepo.On("Retrieve", mock.Anything, mock.Anything, mock.Anything).Return(auth.Key{}, tc.err)
 		_, err := svc.RetrieveKey(context.Background(), tc.token, tc.id)
 		assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s expected %s got %s\n", tc.desc, tc.err, err))
+		repocall.Unset()
 	}
 }
 
 func TestIdentify(t *testing.T) {
-	svc, _ := newService()
+	svc, krepo, _, prepo := newService()
 
-	loginSecret, err := svc.Issue(context.Background(), "", auth.Key{Type: auth.AccessKey, IssuedAt: time.Now(), Subject: id})
+	repocall := krepo.On("Save", mock.Anything, mock.Anything).Return(mock.Anything, nil)
+	repocall1 := prepo.On("CheckPolicy", mock.Anything, mock.Anything).Return(nil)
+	loginSecret, err := svc.Issue(context.Background(), "", auth.Key{Type: auth.AccessKey, User: id, IssuedAt: time.Now(), Domain: groupName})
 	assert.Nil(t, err, fmt.Sprintf("Issuing login key expected to succeed: %s", err))
+	repocall.Unset()
+	repocall1.Unset()
 
+	repocall2 := krepo.On("Save", mock.Anything, mock.Anything).Return(mock.Anything, nil)
 	recoverySecret, err := svc.Issue(context.Background(), "", auth.Key{Type: auth.RecoveryKey, IssuedAt: time.Now(), Subject: id})
 	assert.Nil(t, err, fmt.Sprintf("Issuing reset key expected to succeed: %s", err))
+	repocall2.Unset()
 
+	repocall3 := krepo.On("Save", mock.Anything, mock.Anything).Return(mock.Anything, nil)
 	apiSecret, err := svc.Issue(context.Background(), loginSecret.AccessToken, auth.Key{Type: auth.APIKey, Subject: id, IssuedAt: time.Now(), ExpiresAt: time.Now().Add(time.Minute)})
 	assert.Nil(t, err, fmt.Sprintf("Issuing login key expected to succeed: %s", err))
+	repocall3.Unset()
 
+	repocall4 := krepo.On("Save", mock.Anything, mock.Anything).Return(mock.Anything, nil)
 	exp1 := time.Now().Add(-2 * time.Second)
 	expSecret, err := svc.Issue(context.Background(), loginSecret.AccessToken, auth.Key{Type: auth.APIKey, IssuedAt: time.Now(), ExpiresAt: exp1})
 	assert.Nil(t, err, fmt.Sprintf("Issuing expired login key expected to succeed: %s", err))
-
-	invalidSecret, err := svc.Issue(context.Background(), loginSecret.AccessToken, auth.Key{Type: 22, IssuedAt: time.Now()})
-	assert.Nil(t, err, fmt.Sprintf("Issuing login key expected to succeed: %s", err))
+	repocall4.Unset()
 
 	cases := []struct {
 		desc string
@@ -283,13 +293,7 @@ func TestIdentify(t *testing.T) {
 			desc: "identify expired API key",
 			key:  expSecret.AccessToken,
 			idt:  "",
-			err:  auth.ErrAPIKeyExpired,
-		},
-		{
-			desc: "identify expired key",
-			key:  invalidSecret.AccessToken,
-			idt:  "",
-			err:  errors.ErrAuthentication,
+			err:  ErrExpiry,
 		},
 		{
 			desc: "identify invalid key",
@@ -300,229 +304,75 @@ func TestIdentify(t *testing.T) {
 	}
 
 	for _, tc := range cases {
+		repocall := krepo.On("Retrieve", mock.Anything, mock.Anything, mock.Anything).Return(auth.Key{}, tc.err)
 		idt, err := svc.Identify(context.Background(), tc.key)
 		assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s expected %s got %s\n", tc.desc, tc.err, err))
-		assert.Equal(t, tc.idt, idt, fmt.Sprintf("%s expected %s got %s\n", tc.desc, tc.idt, idt))
+		assert.Equal(t, tc.idt, idt.Subject, fmt.Sprintf("%s expected %s got %s\n", tc.desc, tc.idt, idt))
+		repocall.Unset()
 	}
 }
 
 func TestAuthorize(t *testing.T) {
-	svc, _ := newService()
+	svc, _, _, prepo := newService()
 
+	repocall := prepo.On("CheckPolicy", mock.Anything, mock.Anything).Return(nil)
 	pr := auth.PolicyReq{Object: authoritiesObj, Relation: memberRelation, Subject: id}
 	err := svc.Authorize(context.Background(), pr)
 	require.Nil(t, err, fmt.Sprintf("authorizing initial %v policy expected to succeed: %s", pr, err))
+	repocall.Unset()
 }
 
 func TestAddPolicy(t *testing.T) {
-	svc, _ := newService()
+	svc, _, _, prepo := newService()
 
-	pr := auth.PolicyReq{Object: "obj", Relation: "rel", Subject: "sub"}
-	err := svc.AddPolicy(context.Background(), pr)
-	require.Nil(t, err, fmt.Sprintf("adding %v policy expected to succeed: %v", pr, err))
-
-	err = svc.Authorize(context.Background(), pr)
-	require.Nil(t, err, fmt.Sprintf("checking shared %v policy expected to be succeed: %#v", pr, err))
-}
-
-func TestDeletePolicy(t *testing.T) {
-	svc, _ := newService()
-
-	pr := auth.PolicyReq{Object: authoritiesObj, Relation: memberRelation, Subject: id}
-	err := svc.DeletePolicy(context.Background(), pr)
-	require.Nil(t, err, fmt.Sprintf("deleting %v policy expected to succeed: %s", pr, err))
-}
-
-func TestAddPolicies(t *testing.T) {
-	svc, _ := newService()
-	secret, err := svc.Issue(context.Background(), "", auth.Key{Type: auth.AccessKey, IssuedAt: time.Now(), Subject: id})
-	assert.Nil(t, err, fmt.Sprintf("Issuing login key expected to succeed: %s", err))
-
-	key := auth.Key{
-		ID:       "id",
-		Type:     auth.APIKey,
-		Subject:  id,
-		IssuedAt: time.Now(),
-	}
-
-	apiToken, err := svc.Issue(context.Background(), secret.AccessToken, key)
-	assert.Nil(t, err, fmt.Sprintf("Issuing user's key expected to succeed: %s", err))
-
-	thingID, err := idProvider.ID()
-	assert.Nil(t, err, fmt.Sprintf("got unexpected error: %s", err))
-
-	tmpID := "tmpid"
-
-	// Add read policy to users.
-	err = svc.AddPolicies(context.Background(), apiToken.AccessToken, thingID, []string{id, tmpID}, []string{readPolicy})
-	assert.Nil(t, err, fmt.Sprintf("adding policies expected to succeed: %s", err))
-
-	// Add write and delete policies to users.
-	err = svc.AddPolicies(context.Background(), apiToken.AccessToken, thingID, []string{id, tmpID}, []string{writePolicy, deletePolicy})
-	assert.Nil(t, err, fmt.Sprintf("adding multiple policies expected to succeed: %s", err))
-
-	cases := []struct {
-		desc   string
-		policy auth.PolicyReq
-		err    error
-	}{
-		{
-			desc:   "check valid 'read' policy of user with id",
-			policy: auth.PolicyReq{Object: thingID, Relation: readPolicy, Subject: id},
-			err:    nil,
-		},
-		{
-			desc:   "check valid 'write' policy of user with id",
-			policy: auth.PolicyReq{Object: thingID, Relation: writePolicy, Subject: id},
-			err:    nil,
-		},
-		{
-			desc:   "check valid 'delete' policy of user with id",
-			policy: auth.PolicyReq{Object: thingID, Relation: deletePolicy, Subject: id},
-			err:    nil,
-		},
-		{
-			desc:   "check valid 'read' policy of user with tmpid",
-			policy: auth.PolicyReq{Object: thingID, Relation: readPolicy, Subject: tmpID},
-			err:    nil,
-		},
-		{
-			desc:   "check valid 'write' policy of user with tmpid",
-			policy: auth.PolicyReq{Object: thingID, Relation: writePolicy, Subject: tmpID},
-			err:    nil,
-		},
-		{
-			desc:   "check valid 'delete' policy of user with tmpid",
-			policy: auth.PolicyReq{Object: thingID, Relation: deletePolicy, Subject: tmpID},
-			err:    nil,
-		},
-		{
-			desc:   "check invalid 'access' policy of user with id",
-			policy: auth.PolicyReq{Object: thingID, Relation: "access", Subject: id},
-			err:    errors.ErrAuthorization,
-		},
-		{
-			desc:   "check invalid 'access' policy of user with tmpid",
-			policy: auth.PolicyReq{Object: thingID, Relation: "access", Subject: tmpID},
-			err:    errors.ErrAuthorization,
-		},
-	}
-
-	for _, tc := range cases {
-		err := svc.Authorize(context.Background(), tc.policy)
-		assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s: expected %v, got %v", tc.desc, tc.err, err))
+	repocall := prepo.On("AddPolicies", mock.Anything, mock.Anything).Return(nil)
+	prs := []auth.PolicyReq{{Object: "obj", ObjectType: "object", Relation: "rel", Subject: "sub", SubjectType: "subject"}}
+	err := svc.AddPolicies(context.Background(), prs)
+	require.Nil(t, err, fmt.Sprintf("adding %v policies expected to succeed: %v", prs, err))
+	repocall.Unset()
+	for _, pr := range prs {
+		repocall := prepo.On("CheckPolicy", mock.Anything, mock.Anything).Return(nil)
+		err = svc.Authorize(context.Background(), pr)
+		require.Nil(t, err, fmt.Sprintf("checking shared %v policy expected to be succeed: %#v", pr, err))
+		repocall.Unset()
 	}
 }
 
 func TestDeletePolicies(t *testing.T) {
-	svc, _ := newService()
-	secret, err := svc.Issue(context.Background(), "", auth.Key{Type: auth.AccessKey, IssuedAt: time.Now(), Subject: id})
-	assert.Nil(t, err, fmt.Sprintf("Issuing login key expected to succeed: %s", err))
+	svc, _, _, prepo := newService()
 
-	key := auth.Key{
-		ID:       "id",
-		Type:     auth.APIKey,
-		Subject:  id,
-		IssuedAt: time.Now(),
-	}
-
-	apiToken, err := svc.Issue(context.Background(), secret.AccessToken, key)
-	assert.Nil(t, err, fmt.Sprintf("Issuing user's key expected to succeed: %s", err))
-
-	thingID, err := idProvider.ID()
-	assert.Nil(t, err, fmt.Sprintf("got unexpected error: %s", err))
-
-	tmpID := "tmpid"
-	memberPolicy := "member"
-
-	// Add read, write and delete policies to users.
-	err = svc.AddPolicies(context.Background(), apiToken.AccessToken, thingID, []string{id, tmpID}, []string{readPolicy, writePolicy, deletePolicy, memberPolicy})
-	assert.Nil(t, err, fmt.Sprintf("adding policies expected to succeed: %s", err))
-
-	// Delete multiple policies from single user.
-	err = svc.DeletePolicies(context.Background(), apiToken.AccessToken, thingID, []string{id}, []string{readPolicy, writePolicy})
-	assert.Nil(t, err, fmt.Sprintf("deleting policies from single user expected to succeed: %s", err))
-
-	// Delete multiple policies from multiple user.
-	err = svc.DeletePolicies(context.Background(), apiToken.AccessToken, thingID, []string{id, tmpID}, []string{deletePolicy, memberPolicy})
-	assert.Nil(t, err, fmt.Sprintf("deleting policies from multiple user expected to succeed: %s", err))
-
-	cases := []struct {
-		desc   string
-		policy auth.PolicyReq
-		err    error
-	}{
-		{
-			desc:   "check non-existing 'read' policy of user with id",
-			policy: auth.PolicyReq{Object: thingID, Relation: readPolicy, Subject: id},
-			err:    errors.ErrAuthorization,
-		},
-		{
-			desc:   "check non-existing 'write' policy of user with id",
-			policy: auth.PolicyReq{Object: thingID, Relation: writePolicy, Subject: id},
-			err:    errors.ErrAuthorization,
-		},
-		{
-			desc:   "check non-existing 'delete' policy of user with id",
-			policy: auth.PolicyReq{Object: thingID, Relation: deletePolicy, Subject: id},
-			err:    errors.ErrAuthorization,
-		},
-		{
-			desc:   "check non-existing 'member' policy of user with id",
-			policy: auth.PolicyReq{Object: thingID, Relation: memberPolicy, Subject: id},
-			err:    errors.ErrAuthorization,
-		},
-		{
-			desc:   "check non-existing 'delete' policy of user with tmpid",
-			policy: auth.PolicyReq{Object: thingID, Relation: deletePolicy, Subject: tmpID},
-			err:    errors.ErrAuthorization,
-		},
-		{
-			desc:   "check non-existing 'member' policy of user with tmpid",
-			policy: auth.PolicyReq{Object: thingID, Relation: memberPolicy, Subject: tmpID},
-			err:    errors.ErrAuthorization,
-		},
-		{
-			desc:   "check valid 'read' policy of user with tmpid",
-			policy: auth.PolicyReq{Object: thingID, Relation: readPolicy, Subject: tmpID},
-			err:    nil,
-		},
-		{
-			desc:   "check valid 'write' policy of user with tmpid",
-			policy: auth.PolicyReq{Object: thingID, Relation: writePolicy, Subject: tmpID},
-			err:    nil,
-		},
-	}
-
-	for _, tc := range cases {
-		err := svc.Authorize(context.Background(), tc.policy)
-		assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s: expected %v, got %v", tc.desc, tc.err, err))
-	}
+	repocall := prepo.On("DeletePolicies", mock.Anything, mock.Anything).Return(nil)
+	prs := []auth.PolicyReq{{Object: "obj", ObjectType: "object", Relation: "rel", Subject: "sub", SubjectType: "subject"}}
+	err := svc.DeletePolicies(context.Background(), prs)
+	require.Nil(t, err, fmt.Sprintf("adding %v policies expected to succeed: %v", prs, err))
+	repocall.Unset()
 }
 
 func TestListPolicies(t *testing.T) {
-	svc, _ := newService()
-	secret, err := svc.Issue(context.Background(), "", auth.Key{Type: auth.AccessKey, IssuedAt: time.Now(), Subject: id})
-	assert.Nil(t, err, fmt.Sprintf("Issuing login key expected to succeed: %s", err))
+	svc, _, _, prepo := newService()
 
-	key := auth.Key{
-		ID:       "id",
-		Type:     auth.APIKey,
-		Subject:  id,
-		IssuedAt: time.Now(),
-	}
-
-	apiToken, err := svc.Issue(context.Background(), secret.AccessToken, key)
-	assert.Nil(t, err, fmt.Sprintf("Issuing user's key expected to succeed: %s", err))
 	pageLen := 15
 
 	// Add arbitrary policies to the user.
+	var prs []auth.PolicyReq
 	for i := 0; i < pageLen; i++ {
-		err = svc.AddPolicies(context.Background(), apiToken.AccessToken, fmt.Sprintf("thing-%d", i), []string{id}, []string{readPolicy})
-		assert.Nil(t, err, fmt.Sprintf("adding policies expected to succeed: %s", err))
+		prs = append(prs, auth.PolicyReq{
+			Subject:     id,
+			SubjectType: auth.UserType,
+			Relation:    auth.ViewerRelation,
+			Object:      fmt.Sprintf("thing-%d", i),
+			ObjectType:  auth.ThingType,
+		})
 	}
+	repocall := prepo.On("AddPolicies", mock.Anything, mock.Anything).Return(nil)
+	err := svc.AddPolicies(context.Background(), prs)
+	assert.Nil(t, err, fmt.Sprintf("adding policies expected to succeed: %s", err))
+	repocall.Unset()
 
-	page, err := svc.ListObjects(context.Background(), auth.PolicyReq{Subject: id, Relation: readPolicy}, "", 100)
+	expectedPolicies := make([]auth.PolicyRes, pageLen)
+	repocall2 := prepo.On("RetrieveObjects", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(expectedPolicies, mock.Anything, nil)
+	page, err := svc.ListObjects(context.Background(), auth.PolicyReq{Subject: id, SubjectType: auth.UserType, ObjectType: auth.ThingType, Permission: auth.ViewPermission}, "", 100)
 	assert.Nil(t, err, fmt.Sprintf("listing policies expected to succeed: %s", err))
 	assert.Equal(t, pageLen, len(page.Policies), fmt.Sprintf("unexpected listing page size, expected %d, got %d: %v", pageLen, len(page.Policies), err))
+	repocall2.Unset()
 }

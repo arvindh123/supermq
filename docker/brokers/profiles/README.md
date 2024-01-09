@@ -1,6 +1,6 @@
 # Nats Docker Profiles
 
-This directory contains 2 docker-compose profiles for running Nats as an MQTT broker. It is separated from the main profile at `../docker-compose.yml` because of name conflicts with the Nats message broker.
+This directory contains the docker-compose profiles for running Nats as an MQTT broker. It is separated from the main profile at `../docker-compose.yml` because of name conflicts with the Nats message broker.
 
 The configuration is the same as for the main profile, except that the MQTT broker is set to `nats` instead of `vernemq`.
 
@@ -14,11 +14,11 @@ They are automatically included in the main profile, so you can run them dependi
 The following command will run Nats as an MQTT broker and Nats as a message broker:
 
 ```bash
-MF_MQTT_BROKER_TYPE=nats MF_MESSAGE_BROKER_TYPE=nats make run
+MG_MQTT_BROKER_TYPE=nats MG_MESSAGE_BROKER_TYPE=nats make run
 ```
 
 The following command will run Nats as an MQTT broker and RabbitMQ as a message broker:
 
 ```bash
-MF_MQTT_BROKER_TYPE=nats MF_MESSAGE_BROKER_TYPE=rabbit make run
+MG_MQTT_BROKER_TYPE=nats MG_MESSAGE_BROKER_TYPE=rabbit make run
 ```

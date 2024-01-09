@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 //go:build !nats && !rabbitmq
@@ -10,9 +10,9 @@ import (
 	"context"
 	"log"
 
-	mflog "github.com/mainflux/mainflux/logger"
-	"github.com/mainflux/mainflux/pkg/events"
-	"github.com/mainflux/mainflux/pkg/events/redis"
+	mglog "github.com/absmach/magistrala/logger"
+	"github.com/absmach/magistrala/pkg/events"
+	"github.com/absmach/magistrala/pkg/events/redis"
 )
 
 func init() {
@@ -28,7 +28,7 @@ func NewPublisher(ctx context.Context, url, stream string) (events.Publisher, er
 	return pb, nil
 }
 
-func NewSubscriber(_ context.Context, url, stream, consumer string, logger mflog.Logger) (events.Subscriber, error) {
+func NewSubscriber(_ context.Context, url, stream, consumer string, logger mglog.Logger) (events.Subscriber, error) {
 	pb, err := redis.NewSubscriber(url, stream, consumer, logger)
 	if err != nil {
 		return nil, err

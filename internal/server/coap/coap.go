@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package coap
@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/mainflux/mainflux/internal/server"
-	"github.com/mainflux/mainflux/logger"
+	"github.com/absmach/magistrala/internal/server"
+	mglog "github.com/absmach/magistrala/logger"
 	gocoap "github.com/plgd-dev/go-coap/v2"
 	"github.com/plgd-dev/go-coap/v2/mux"
 )
@@ -26,7 +26,7 @@ type Server struct {
 
 var _ server.Server = (*Server)(nil)
 
-func New(ctx context.Context, cancel context.CancelFunc, name string, config server.Config, handler mux.HandlerFunc, logger logger.Logger) server.Server {
+func New(ctx context.Context, cancel context.CancelFunc, name string, config server.Config, handler mux.HandlerFunc, logger mglog.Logger) server.Server {
 	listenFullAddress := fmt.Sprintf("%s:%s", config.Host, config.Port)
 	return &Server{
 		BaseServer: server.BaseServer{

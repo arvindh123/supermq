@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 //go:build !nats && !rabbitmq
@@ -11,15 +11,15 @@ import (
 	"errors"
 	"fmt"
 
+	mglog "github.com/absmach/magistrala/logger"
+	"github.com/absmach/magistrala/pkg/events"
 	"github.com/go-redis/redis/v8"
-	mflog "github.com/mainflux/mainflux/logger"
-	"github.com/mainflux/mainflux/pkg/events"
 )
 
 const (
 	eventCount = 100
 	exists     = "BUSYGROUP Consumer Group name already exists"
-	group      = "mainflux"
+	group      = "magistrala"
 )
 
 var _ events.Subscriber = (*subEventStore)(nil)
@@ -36,10 +36,10 @@ type subEventStore struct {
 	client   *redis.Client
 	stream   string
 	consumer string
-	logger   mflog.Logger
+	logger   mglog.Logger
 }
 
-func NewSubscriber(url, stream, consumer string, logger mflog.Logger) (events.Subscriber, error) {
+func NewSubscriber(url, stream, consumer string, logger mglog.Logger) (events.Subscriber, error) {
 	if stream == "" {
 		return nil, ErrEmptyStream
 	}

@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package rabbitmq_test
@@ -11,9 +11,9 @@ import (
 	"syscall"
 	"testing"
 
-	mflog "github.com/mainflux/mainflux/logger"
-	"github.com/mainflux/mainflux/pkg/messaging"
-	"github.com/mainflux/mainflux/pkg/messaging/rabbitmq"
+	mglog "github.com/absmach/magistrala/logger"
+	"github.com/absmach/magistrala/pkg/messaging"
+	"github.com/absmach/magistrala/pkg/messaging/rabbitmq"
 	"github.com/ory/dockertest/v3"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/assert"
@@ -23,13 +23,13 @@ import (
 const (
 	port          = "5672/tcp"
 	brokerName    = "rabbitmq"
-	brokerVersion = "3.9.20"
+	brokerVersion = "3.12.10-alpine"
 )
 
 var (
 	publisher messaging.Publisher
 	pubsub    messaging.PubSub
-	logger    mflog.Logger
+	logger    mglog.Logger
 	address   string
 )
 
@@ -53,7 +53,7 @@ func TestMain(m *testing.M) {
 		log.Fatalf("Could not connect to docker: %s", err)
 	}
 
-	logger, err = mflog.New(os.Stdout, mflog.Debug.String())
+	logger, err = mglog.New(os.Stdout, mglog.Debug.String())
 	if err != nil {
 		log.Fatalf(err.Error())
 	}
@@ -97,7 +97,7 @@ func rabbitHandler(deliveries <-chan amqp.Delivery, h messaging.MessageHandler) 
 			return
 		}
 		if err := h.Handle(&msg); err != nil {
-			logger.Warn(fmt.Sprintf("Failed to handle Mainflux message: %s", err))
+			logger.Warn(fmt.Sprintf("Failed to handle Magistrala message: %s", err))
 			return
 		}
 	}

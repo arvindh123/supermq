@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package http
@@ -11,12 +11,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mainflux/mainflux"
-	"github.com/mainflux/mainflux/internal/apiutil"
-	"github.com/mainflux/mainflux/logger"
-	"github.com/mainflux/mainflux/pkg/errors"
-	"github.com/mainflux/mainflux/pkg/messaging"
-	"github.com/mainflux/mproxy/pkg/session"
+	"github.com/absmach/magistrala"
+	"github.com/absmach/magistrala/auth"
+	"github.com/absmach/magistrala/internal/apiutil"
+	mglog "github.com/absmach/magistrala/logger"
+	"github.com/absmach/magistrala/pkg/errors"
+	"github.com/absmach/magistrala/pkg/messaging"
+	"github.com/absmach/mproxy/pkg/session"
 )
 
 var _ session.Handler = (*handler)(nil)
@@ -42,7 +43,7 @@ var (
 	ErrFailedPublish             = errors.New("failed to publish")
 	ErrFailedParseSubtopic       = errors.New("failed to parse subtopic")
 	ErrFailedPublishConnectEvent = errors.New("failed to publish connect event")
-	ErrFailedPublishToMsgBroker  = errors.New("failed to publish to mainflux message broker")
+	ErrFailedPublishToMsgBroker  = errors.New("failed to publish to magistrala message broker")
 )
 
 var channelRegExp = regexp.MustCompile(`^\/?channels\/([\w\-]+)\/messages(\/[^?]*)?(\?.*)?$`)
@@ -50,16 +51,16 @@ var channelRegExp = regexp.MustCompile(`^\/?channels\/([\w\-]+)\/messages(\/[^?]
 // Event implements events.Event interface.
 type handler struct {
 	publisher messaging.Publisher
-	auth      mainflux.AuthzServiceClient
-	logger    logger.Logger
+	auth      magistrala.AuthzServiceClient
+	logger    mglog.Logger
 }
 
 // NewHandler creates new Handler entity.
-func NewHandler(publisher messaging.Publisher, logger logger.Logger, auth mainflux.AuthzServiceClient) session.Handler {
+func NewHandler(publisher messaging.Publisher, logger mglog.Logger, authClient magistrala.AuthzServiceClient) session.Handler {
 	return &handler{
 		logger:    logger,
 		publisher: publisher,
-		auth:      auth,
+		auth:      authClient,
 	}
 }
 
@@ -143,13 +144,12 @@ func (h *handler) Publish(ctx context.Context, topic *string, payload *[]byte) e
 	default:
 		tok = string(s.Password)
 	}
-	ar := &mainflux.AuthorizeReq{
+	ar := &magistrala.AuthorizeReq{
 		Subject:     tok,
 		Object:      msg.Channel,
-		Namespace:   "",
-		SubjectType: "thing",
-		Permission:  "publish",
-		ObjectType:  "group",
+		SubjectType: auth.ThingType,
+		Permission:  auth.PublishPermission,
+		ObjectType:  auth.GroupType,
 	}
 	res, err := h.auth.Authorize(ctx, ar)
 	if err != nil {

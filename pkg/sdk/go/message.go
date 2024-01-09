@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package sdk
@@ -9,13 +9,13 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/mainflux/mainflux/internal/apiutil"
-	"github.com/mainflux/mainflux/pkg/errors"
+	"github.com/absmach/magistrala/internal/apiutil"
+	"github.com/absmach/magistrala/pkg/errors"
 )
 
 const channelParts = 2
 
-func (sdk mfSDK) SendMessage(chanName, msg, key string) errors.SDKError {
+func (sdk mgSDK) SendMessage(chanName, msg, key string) errors.SDKError {
 	chanNameParts := strings.SplitN(chanName, ".", channelParts)
 	chanID := chanNameParts[0]
 	subtopicPart := ""
@@ -30,7 +30,7 @@ func (sdk mfSDK) SendMessage(chanName, msg, key string) errors.SDKError {
 	return err
 }
 
-func (sdk mfSDK) ReadMessages(chanName, token string) (MessagesPage, errors.SDKError) {
+func (sdk mgSDK) ReadMessages(chanName, token string) (MessagesPage, errors.SDKError) {
 	chanNameParts := strings.SplitN(chanName, ".", channelParts)
 	chanID := chanNameParts[0]
 	subtopicPart := ""
@@ -56,7 +56,7 @@ func (sdk mfSDK) ReadMessages(chanName, token string) (MessagesPage, errors.SDKE
 	return mp, nil
 }
 
-func (sdk *mfSDK) SetContentType(ct ContentType) errors.SDKError {
+func (sdk *mgSDK) SetContentType(ct ContentType) errors.SDKError {
 	if ct != CTJSON && ct != CTJSONSenML && ct != CTBinary {
 		return errors.NewSDKError(apiutil.ErrUnsupportedContentType)
 	}

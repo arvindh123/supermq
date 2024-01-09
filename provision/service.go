@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package provision
@@ -7,9 +7,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	mflog "github.com/mainflux/mainflux/logger"
-	"github.com/mainflux/mainflux/pkg/errors"
-	sdk "github.com/mainflux/mainflux/pkg/sdk/go"
+	mglog "github.com/absmach/magistrala/logger"
+	"github.com/absmach/magistrala/pkg/errors"
+	sdk "github.com/absmach/magistrala/pkg/sdk/go"
 )
 
 const (
@@ -46,6 +46,8 @@ var (
 var _ Service = (*provisionService)(nil)
 
 // Service specifies Provision service API.
+//
+//go:generate mockery --name Service --output=./mocks --filename service.go --quiet --note "Copyright (c) Abstract Machines"
 type Service interface {
 	// Provision is the only method this API specifies. Depending on the configuration,
 	// the following actions will can be executed:
@@ -68,7 +70,7 @@ type Service interface {
 }
 
 type provisionService struct {
-	logger mflog.Logger
+	logger mglog.Logger
 	sdk    sdk.SDK
 	conf   Config
 }
@@ -85,26 +87,25 @@ type Result struct {
 }
 
 // New returns new provision service.
-func New(cfg Config, sdk sdk.SDK, logger mflog.Logger) Service {
+func New(cfg Config, mgsdk sdk.SDK, logger mglog.Logger) Service {
 	return &provisionService{
 		logger: logger,
 		conf:   cfg,
-		sdk:    sdk,
+		sdk:    mgsdk,
 	}
 }
 
 // Mapping retrieves current configuration.
 func (ps *provisionService) Mapping(token string) (map[string]interface{}, error) {
-	userFilter := sdk.PageMetadata{
-		Email:    "",
-		Offset:   uint64(offset),
-		Limit:    uint64(limit),
-		Metadata: make(map[string]interface{}),
+	pm := sdk.PageMetadata{
+		Offset: uint64(offset),
+		Limit:  uint64(limit),
 	}
 
-	if _, err := ps.sdk.Users(userFilter, token); err != nil {
+	if _, err := ps.sdk.Users(pm, token); err != nil {
 		return map[string]interface{}{}, errors.Wrap(ErrUnauthorized, err)
 	}
+
 	return ps.conf.Bootstrap.Content, nil
 }
 
@@ -117,7 +118,7 @@ func (ps *provisionService) Provision(token, name, externalID, externalKey strin
 
 	token, err = ps.createTokenIfEmpty(token)
 	if err != nil {
-		return res, err
+		return res, errors.Wrap(ErrFailedToCreateToken, err)
 	}
 
 	if len(ps.conf.Things) == 0 {
@@ -162,7 +163,7 @@ func (ps *provisionService) Provision(token, name, externalID, externalKey strin
 		}
 		ch, err := ps.sdk.CreateChannel(ch, token)
 		if err != nil {
-			return res, err
+			return res, errors.Wrap(ErrFailedChannelCreation, err)
 		}
 		ch, err = ps.sdk.Channel(ch.ID, token)
 		if err != nil {
@@ -257,7 +258,7 @@ func (ps *provisionService) Provision(token, name, externalID, externalKey strin
 func (ps *provisionService) Cert(token, thingID, ttl string) (string, string, error) {
 	token, err := ps.createTokenIfEmpty(token)
 	if err != nil {
-		return "", "", err
+		return "", "", errors.Wrap(ErrFailedToCreateToken, err)
 	}
 
 	th, err := ps.sdk.Thing(thingID, token)
@@ -275,20 +276,19 @@ func (ps *provisionService) createTokenIfEmpty(token string) (string, error) {
 
 	// If no token in request is provided
 	// use API key provided in config file or env
-	if ps.conf.Server.MfAPIKey != "" {
-		return ps.conf.Server.MfAPIKey, nil
+	if ps.conf.Server.MgAPIKey != "" {
+		return ps.conf.Server.MgAPIKey, nil
 	}
 
 	// If no API key use username and password provided to create access token.
-	if ps.conf.Server.MfUser == "" || ps.conf.Server.MfPass == "" {
+	if ps.conf.Server.MgUser == "" || ps.conf.Server.MgPass == "" {
 		return token, ErrMissingCredentials
 	}
 
-	u := sdk.User{
-		Credentials: sdk.Credentials{
-			Identity: ps.conf.Server.MfUser,
-			Secret:   ps.conf.Server.MfPass,
-		},
+	u := sdk.Login{
+		Identity: ps.conf.Server.MgUser,
+		Secret:   ps.conf.Server.MgPass,
+		DomainID: ps.conf.Server.MgDomainID,
 	}
 	tkn, err := ps.sdk.CreateToken(u)
 	if err != nil {

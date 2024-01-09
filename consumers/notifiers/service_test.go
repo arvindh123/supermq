@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package notifiers_test
@@ -8,34 +8,38 @@ import (
 	"fmt"
 	"testing"
 
-	authmocks "github.com/mainflux/mainflux/auth/mocks"
-	"github.com/mainflux/mainflux/consumers/notifiers"
-	"github.com/mainflux/mainflux/consumers/notifiers/mocks"
-	"github.com/mainflux/mainflux/pkg/errors"
-	"github.com/mainflux/mainflux/pkg/messaging"
-	"github.com/mainflux/mainflux/pkg/uuid"
+	"github.com/absmach/magistrala"
+	authmocks "github.com/absmach/magistrala/auth/mocks"
+	"github.com/absmach/magistrala/consumers/notifiers"
+	"github.com/absmach/magistrala/consumers/notifiers/mocks"
+	"github.com/absmach/magistrala/internal/testsutil"
+	"github.com/absmach/magistrala/pkg/errors"
+	svcerr "github.com/absmach/magistrala/pkg/errors/service"
+	"github.com/absmach/magistrala/pkg/messaging"
+	"github.com/absmach/magistrala/pkg/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
 const (
 	total        = 100
-	exampleUser1 = "email1@example.com"
-	exampleUser2 = "email2@example.com"
-	invalidUser  = "invalid@example.com"
+	exampleUser1 = "token1"
+	exampleUser2 = "token2"
+	validID      = "d4ebb847-5d0e-4e46-bdd9-b6aceaaa3a22"
 )
 
-func newService() notifiers.Service {
+func newService() (notifiers.Service, *authmocks.Service) {
 	repo := mocks.NewRepo(make(map[string]notifiers.Subscription))
 	auth := new(authmocks.Service)
 	notifier := mocks.NewNotifier()
 	idp := uuid.NewMock()
 	from := "exampleFrom"
-	return notifiers.New(auth, repo, idp, notifier, from)
+	return notifiers.New(auth, repo, idp, notifier, from), auth
 }
 
 func TestCreateSubscription(t *testing.T) {
-	svc := newService()
+	svc, auth := newService()
 
 	cases := []struct {
 		desc  string
@@ -56,31 +60,35 @@ func TestCreateSubscription(t *testing.T) {
 			token: exampleUser1,
 			sub:   notifiers.Subscription{Contact: exampleUser1, Topic: "valid.topic"},
 			id:    "",
-			err:   errors.ErrConflict,
+			err:   svcerr.ErrConflict,
 		},
 		{
 			desc:  "test with empty token",
 			token: "",
 			sub:   notifiers.Subscription{Contact: exampleUser1, Topic: "valid.topic"},
 			id:    "",
-			err:   errors.ErrAuthentication,
+			err:   svcerr.ErrAuthentication,
 		},
 	}
 
 	for _, tc := range cases {
+		repoCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: tc.token}).Return(&magistrala.IdentityRes{Id: testsutil.GenerateUUID(t)}, nil)
 		id, err := svc.CreateSubscription(context.Background(), tc.token, tc.sub)
 		assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s: expected %s got %s\n", tc.desc, tc.err, err))
 		assert.Equal(t, tc.id, id, fmt.Sprintf("%s: expected %s got %s\n", tc.desc, tc.id, id))
+		repoCall.Unset()
 	}
 }
 
 func TestViewSubscription(t *testing.T) {
-	svc := newService()
+	svc, auth := newService()
 	sub := notifiers.Subscription{Contact: exampleUser1, Topic: "valid.topic"}
+	repoCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: exampleUser1}).Return(&magistrala.IdentityRes{Id: validID}, nil)
 	id, err := svc.CreateSubscription(context.Background(), exampleUser1, sub)
 	require.Nil(t, err, "Saving a Subscription must succeed")
+	repoCall.Unset()
 	sub.ID = id
-	sub.OwnerID = exampleUser1
+	sub.OwnerID = validID
 
 	cases := []struct {
 		desc  string
@@ -101,26 +109,28 @@ func TestViewSubscription(t *testing.T) {
 			token: exampleUser1,
 			id:    "not_exist",
 			sub:   notifiers.Subscription{},
-			err:   errors.ErrNotFound,
+			err:   svcerr.ErrNotFound,
 		},
 		{
 			desc:  "test with empty token",
 			token: "",
 			id:    id,
 			sub:   notifiers.Subscription{},
-			err:   errors.ErrAuthentication,
+			err:   svcerr.ErrAuthentication,
 		},
 	}
 
 	for _, tc := range cases {
+		repoCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: tc.token}).Return(&magistrala.IdentityRes{Id: validID}, nil)
 		sub, err := svc.ViewSubscription(context.Background(), tc.token, tc.id)
 		assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s: expected %s got %s\n", tc.desc, tc.err, err))
 		assert.Equal(t, tc.sub, sub, fmt.Sprintf("%s: expected %v got %v\n", tc.desc, tc.sub, sub))
+		repoCall.Unset()
 	}
 }
 
 func TestListSubscriptions(t *testing.T) {
-	svc := newService()
+	svc, auth := newService()
 	sub := notifiers.Subscription{Contact: exampleUser1, OwnerID: exampleUser1}
 	topic := "topic.subtopic"
 	var subs []notifiers.Subscription
@@ -133,9 +143,12 @@ func TestListSubscriptions(t *testing.T) {
 			token = exampleUser2
 		}
 		tmp.Topic = fmt.Sprintf("%s.%d", topic, i)
+		repoCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: token}).Return(&magistrala.IdentityRes{Id: validID}, nil)
 		id, err := svc.CreateSubscription(context.Background(), token, tmp)
 		require.Nil(t, err, "Saving a Subscription must succeed")
+		repoCall.Unset()
 		tmp.ID = id
+		tmp.OwnerID = validID
 		subs = append(subs, tmp)
 	}
 
@@ -176,7 +189,7 @@ func TestListSubscriptions(t *testing.T) {
 				Contact: "empty@example.com",
 			},
 			page: notifiers.Page{},
-			err:  errors.ErrNotFound,
+			err:  svcerr.ErrNotFound,
 		},
 		{
 			desc:  "test with empty token",
@@ -187,7 +200,7 @@ func TestListSubscriptions(t *testing.T) {
 				Topic:  "topic.subtopic.13",
 			},
 			page: notifiers.Page{},
-			err:  errors.ErrAuthentication,
+			err:  svcerr.ErrAuthentication,
 		},
 		{
 			desc:  "test with topic",
@@ -228,19 +241,23 @@ func TestListSubscriptions(t *testing.T) {
 	}
 
 	for _, tc := range cases {
+		repoCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: tc.token}).Return(&magistrala.IdentityRes{Id: validID}, nil)
 		page, err := svc.ListSubscriptions(context.Background(), tc.token, tc.pageMeta)
 		assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s: expected %s got %s\n", tc.desc, tc.err, err))
 		assert.Equal(t, tc.page, page, fmt.Sprintf("%s: got unexpected page\n", tc.desc))
+		repoCall.Unset()
 	}
 }
 
 func TestRemoveSubscription(t *testing.T) {
-	svc := newService()
+	svc, auth := newService()
 	sub := notifiers.Subscription{Contact: exampleUser1, Topic: "valid.topic"}
+	repoCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: exampleUser1}).Return(&magistrala.IdentityRes{Id: validID}, nil)
 	id, err := svc.CreateSubscription(context.Background(), exampleUser1, sub)
 	require.Nil(t, err, "Saving a Subscription must succeed")
+	repoCall.Unset()
 	sub.ID = id
-	sub.OwnerID = exampleUser1
+	sub.OwnerID = validID
 
 	cases := []struct {
 		desc  string
@@ -258,27 +275,29 @@ func TestRemoveSubscription(t *testing.T) {
 			desc:  "test not existing",
 			token: exampleUser1,
 			id:    "not_exist",
-			err:   errors.ErrNotFound,
+			err:   svcerr.ErrNotFound,
 		},
 		{
 			desc:  "test with empty token",
 			token: "",
 			id:    id,
-			err:   errors.ErrAuthentication,
+			err:   svcerr.ErrAuthentication,
 		},
 	}
 
 	for _, tc := range cases {
+		repoCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: tc.token}).Return(&magistrala.IdentityRes{Id: validID}, nil)
 		err := svc.RemoveSubscription(context.Background(), tc.token, tc.id)
 		assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s: expected %s got %s\n", tc.desc, tc.err, err))
+		repoCall.Unset()
 	}
 }
 
 func TestConsume(t *testing.T) {
-	svc := newService()
+	svc, auth := newService()
 	sub := notifiers.Subscription{
 		Contact: exampleUser1,
-		OwnerID: exampleUser1,
+		OwnerID: validID,
 		Topic:   "topic.subtopic",
 	}
 	for i := 0; i < total; i++ {
@@ -287,14 +306,18 @@ func TestConsume(t *testing.T) {
 		if i%2 == 0 {
 			tmp.Topic = fmt.Sprintf("%s-2", sub.Topic)
 		}
+		repoCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: exampleUser1}).Return(&magistrala.IdentityRes{Id: validID}, nil)
 		_, err := svc.CreateSubscription(context.Background(), exampleUser1, tmp)
 		require.Nil(t, err, "Saving a Subscription must succeed")
+		repoCall.Unset()
 	}
 
-	sub.Contact = invalidUser
+	sub.Contact = mocks.InvalidSender
 	sub.Topic = fmt.Sprintf("%s-2", sub.Topic)
+	repoCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: exampleUser1}).Return(&magistrala.IdentityRes{Id: validID}, nil)
 	_, err := svc.CreateSubscription(context.Background(), exampleUser1, sub)
 	require.Nil(t, err, "Saving a Subscription must succeed")
+	repoCall.Unset()
 
 	msg := messaging.Message{
 		Channel:  "topic",

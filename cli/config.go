@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package cli
@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/mainflux/mainflux/pkg/errors"
-	mfxsdk "github.com/mainflux/mainflux/pkg/sdk/go"
+	"github.com/absmach/magistrala/pkg/errors"
+	mgxsdk "github.com/absmach/magistrala/pkg/sdk/go"
 	"github.com/pelletier/go-toml"
 	"github.com/spf13/cobra"
 )
@@ -74,7 +74,7 @@ func read(file string) (config, error) {
 }
 
 // ParseConfig - parses the config file.
-func ParseConfig(sdkConf mfxsdk.Config) (mfxsdk.Config, error) {
+func ParseConfig(sdkConf mgxsdk.Config) (mgxsdk.Config, error) {
 	if ConfigPath == "" {
 		ConfigPath = defaultConfigPath
 	}
@@ -170,7 +170,7 @@ func NewConfigCmd() *cobra.Command {
 	}
 }
 
-func setConfigValue(key string, value string) error {
+func setConfigValue(key, value string) error {
 	config, err := read(ConfigPath)
 	if err != nil {
 		return err

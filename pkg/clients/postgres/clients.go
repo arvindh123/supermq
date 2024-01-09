@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package postgres
@@ -11,11 +11,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/absmach/magistrala/internal/api"
+	"github.com/absmach/magistrala/internal/postgres"
+	"github.com/absmach/magistrala/pkg/clients"
+	"github.com/absmach/magistrala/pkg/errors"
+	repoerr "github.com/absmach/magistrala/pkg/errors/repository"
+	"github.com/absmach/magistrala/pkg/groups"
 	"github.com/jackc/pgtype"
-	"github.com/mainflux/mainflux/internal/postgres"
-	"github.com/mainflux/mainflux/pkg/clients"
-	"github.com/mainflux/mainflux/pkg/errors"
-	"github.com/mainflux/mainflux/pkg/groups"
 )
 
 type ClientRepository struct {
@@ -76,6 +78,14 @@ func (repo ClientRepository) UpdateOwner(ctx context.Context, client clients.Cli
 	return repo.update(ctx, client, q)
 }
 
+func (repo ClientRepository) UpdateRole(ctx context.Context, client clients.Client) (clients.Client, error) {
+	q := `UPDATE clients SET role = :role, updated_at = :updated_at, updated_by = :updated_by
+        WHERE id = :id AND status = :status
+        RETURNING id, name, tags, identity, metadata, COALESCE(owner_id, '') AS owner_id, status, created_at, updated_at, updated_by`
+
+	return repo.update(ctx, client, q)
+}
+
 func (repo ClientRepository) ChangeStatus(ctx context.Context, client clients.Client) (clients.Client, error) {
 	q := `UPDATE clients SET status = :status WHERE id = :id
         RETURNING id, name, tags, identity, metadata, COALESCE(owner_id, '') AS owner_id, status, created_at, updated_at, updated_by`
@@ -94,16 +104,16 @@ func (repo ClientRepository) RetrieveByID(ctx context.Context, id string) (clien
 	row, err := repo.DB.NamedQueryContext(ctx, q, dbc)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return clients.Client{}, errors.Wrap(errors.ErrNotFound, err)
+			return clients.Client{}, errors.Wrap(repoerr.ErrNotFound, err)
 		}
-		return clients.Client{}, errors.Wrap(errors.ErrViewEntity, err)
+		return clients.Client{}, errors.Wrap(repoerr.ErrViewEntity, err)
 	}
 
 	defer row.Close()
 	row.Next()
 	dbc = DBClient{}
 	if err := row.StructScan(&dbc); err != nil {
-		return clients.Client{}, errors.Wrap(errors.ErrNotFound, err)
+		return clients.Client{}, errors.Wrap(repoerr.ErrNotFound, err)
 	}
 
 	return ToClient(dbc)
@@ -121,31 +131,31 @@ func (repo ClientRepository) RetrieveByIdentity(ctx context.Context, identity st
 	row, err := repo.DB.NamedQueryContext(ctx, q, dbc)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return clients.Client{}, errors.Wrap(errors.ErrNotFound, err)
+			return clients.Client{}, errors.Wrap(repoerr.ErrNotFound, err)
 		}
-		return clients.Client{}, errors.Wrap(errors.ErrViewEntity, err)
+		return clients.Client{}, postgres.HandleError(repoerr.ErrViewEntity, err)
 	}
 
 	defer row.Close()
 	row.Next()
 	dbc = DBClient{}
 	if err := row.StructScan(&dbc); err != nil {
-		return clients.Client{}, errors.Wrap(errors.ErrNotFound, err)
+		return clients.Client{}, errors.Wrap(repoerr.ErrNotFound, err)
 	}
 
 	return ToClient(dbc)
 }
 
 func (repo ClientRepository) RetrieveAll(ctx context.Context, pm clients.Page) (clients.ClientsPage, error) {
-	query, err := pageQuery(pm)
+	query, err := PageQuery(pm)
 	if err != nil {
-		return clients.ClientsPage{}, errors.Wrap(errors.ErrViewEntity, err)
+		return clients.ClientsPage{}, errors.Wrap(repoerr.ErrViewEntity, err)
 	}
 
 	q := fmt.Sprintf(`SELECT c.id, c.name, c.tags, c.identity, c.metadata, COALESCE(c.owner_id, '') AS owner_id, c.status,
 					c.created_at, c.updated_at, COALESCE(c.updated_by, '') AS updated_by FROM clients c %s ORDER BY c.created_at LIMIT :limit OFFSET :offset;`, query)
 
-	dbPage, err := toDBClientsPage(pm)
+	dbPage, err := ToDBClientsPage(pm)
 	if err != nil {
 		return clients.ClientsPage{}, errors.Wrap(postgres.ErrFailedToRetrieveAll, err)
 	}
@@ -159,7 +169,7 @@ func (repo ClientRepository) RetrieveAll(ctx context.Context, pm clients.Page) (
 	for rows.Next() {
 		dbc := DBClient{}
 		if err := rows.StructScan(&dbc); err != nil {
-			return clients.ClientsPage{}, errors.Wrap(errors.ErrViewEntity, err)
+			return clients.ClientsPage{}, errors.Wrap(repoerr.ErrViewEntity, err)
 		}
 
 		c, err := ToClient(dbc)
@@ -173,7 +183,56 @@ func (repo ClientRepository) RetrieveAll(ctx context.Context, pm clients.Page) (
 
 	total, err := postgres.Total(ctx, repo.DB, cq, dbPage)
 	if err != nil {
-		return clients.ClientsPage{}, errors.Wrap(errors.ErrViewEntity, err)
+		return clients.ClientsPage{}, errors.Wrap(repoerr.ErrViewEntity, err)
+	}
+
+	page := clients.ClientsPage{
+		Clients: items,
+		Page: clients.Page{
+			Total:  total,
+			Offset: pm.Offset,
+			Limit:  pm.Limit,
+		},
+	}
+
+	return page, nil
+}
+
+func (repo ClientRepository) RetrieveAllBasicInfo(ctx context.Context, pm clients.Page) (clients.ClientsPage, error) {
+	sq, tq := constructSearchQuery(pm)
+
+	q := fmt.Sprintf(`SELECT c.id, c.name, c.created_at, c.updated_at FROM clients c %s LIMIT :limit OFFSET :offset;`, sq)
+
+	dbPage, err := ToDBClientsPage(pm)
+	if err != nil {
+		return clients.ClientsPage{}, errors.Wrap(postgres.ErrFailedToRetrieveAll, err)
+	}
+
+	rows, err := repo.DB.NamedQueryContext(ctx, q, dbPage)
+	if err != nil {
+		return clients.ClientsPage{}, errors.Wrap(postgres.ErrFailedToRetrieveAll, err)
+	}
+	defer rows.Close()
+
+	var items []clients.Client
+	for rows.Next() {
+		dbc := DBClient{}
+		if err := rows.StructScan(&dbc); err != nil {
+			return clients.ClientsPage{}, errors.Wrap(repoerr.ErrViewEntity, err)
+		}
+
+		c, err := ToClient(dbc)
+		if err != nil {
+			return clients.ClientsPage{}, err
+		}
+
+		items = append(items, c)
+	}
+
+	cq := fmt.Sprintf(`SELECT COUNT(*) FROM clients c %s;`, tq)
+	total, err := postgres.Total(ctx, repo.DB, cq, dbPage)
+	if err != nil {
+		return clients.ClientsPage{}, errors.Wrap(repoerr.ErrViewEntity, err)
 	}
 
 	page := clients.ClientsPage{
@@ -189,20 +248,20 @@ func (repo ClientRepository) RetrieveAll(ctx context.Context, pm clients.Page) (
 }
 
 func (repo ClientRepository) RetrieveAllByIDs(ctx context.Context, pm clients.Page) (clients.ClientsPage, error) {
-	if len(pm.IDs) <= 0 {
+	if (len(pm.IDs) <= 0) && (pm.Owner == "") {
 		return clients.ClientsPage{
 			Page: clients.Page{Total: pm.Total, Offset: pm.Offset, Limit: pm.Limit},
 		}, nil
 	}
-	query, err := pageQuery(pm)
+	query, err := PageQuery(pm)
 	if err != nil {
-		return clients.ClientsPage{}, errors.Wrap(errors.ErrViewEntity, err)
+		return clients.ClientsPage{}, errors.Wrap(repoerr.ErrViewEntity, err)
 	}
 
 	q := fmt.Sprintf(`SELECT c.id, c.name, c.tags, c.identity, c.metadata, COALESCE(c.owner_id, '') AS owner_id, c.status,
 					c.created_at, c.updated_at, COALESCE(c.updated_by, '') AS updated_by FROM clients c %s ORDER BY c.created_at LIMIT :limit OFFSET :offset;`, query)
 
-	dbPage, err := toDBClientsPage(pm)
+	dbPage, err := ToDBClientsPage(pm)
 	if err != nil {
 		return clients.ClientsPage{}, errors.Wrap(postgres.ErrFailedToRetrieveAll, err)
 	}
@@ -216,7 +275,7 @@ func (repo ClientRepository) RetrieveAllByIDs(ctx context.Context, pm clients.Pa
 	for rows.Next() {
 		dbc := DBClient{}
 		if err := rows.StructScan(&dbc); err != nil {
-			return clients.ClientsPage{}, errors.Wrap(errors.ErrViewEntity, err)
+			return clients.ClientsPage{}, errors.Wrap(repoerr.ErrViewEntity, err)
 		}
 
 		c, err := ToClient(dbc)
@@ -230,7 +289,7 @@ func (repo ClientRepository) RetrieveAllByIDs(ctx context.Context, pm clients.Pa
 
 	total, err := postgres.Total(ctx, repo.DB, cq, dbPage)
 	if err != nil {
-		return clients.ClientsPage{}, errors.Wrap(errors.ErrViewEntity, err)
+		return clients.ClientsPage{}, errors.Wrap(repoerr.ErrViewEntity, err)
 	}
 
 	page := clients.ClientsPage{
@@ -249,12 +308,12 @@ func (repo ClientRepository) RetrieveAllByIDs(ctx context.Context, pm clients.Pa
 func (repo ClientRepository) update(ctx context.Context, client clients.Client, query string) (clients.Client, error) {
 	dbc, err := ToDBClient(client)
 	if err != nil {
-		return clients.Client{}, errors.Wrap(errors.ErrUpdateEntity, err)
+		return clients.Client{}, errors.Wrap(repoerr.ErrUpdateEntity, err)
 	}
 
 	row, err := repo.DB.NamedQueryContext(ctx, query, dbc)
 	if err != nil {
-		return clients.Client{}, postgres.HandleError(err, errors.ErrUpdateEntity)
+		return clients.Client{}, postgres.HandleError(repoerr.ErrUpdateEntity, err)
 	}
 
 	defer row.Close()
@@ -277,12 +336,12 @@ type DBClient struct {
 	Owner     *string          `db:"owner_id,omitempty"` // nullable
 	Secret    string           `db:"secret"`
 	Metadata  []byte           `db:"metadata,omitempty"`
-	CreatedAt time.Time        `db:"created_at"`
+	CreatedAt time.Time        `db:"created_at,omitempty"`
 	UpdatedAt sql.NullTime     `db:"updated_at,omitempty"`
 	UpdatedBy *string          `db:"updated_by,omitempty"`
 	Groups    []groups.Group   `db:"groups,omitempty"`
-	Status    clients.Status   `db:"status"`
-	Role      clients.Role     `db:"role,omitempty"`
+	Status    clients.Status   `db:"status,omitempty"`
+	Role      *clients.Role    `db:"role,omitempty"`
 }
 
 func ToDBClient(c clients.Client) (DBClient, error) {
@@ -290,7 +349,7 @@ func ToDBClient(c clients.Client) (DBClient, error) {
 	if len(c.Metadata) > 0 {
 		b, err := json.Marshal(c.Metadata)
 		if err != nil {
-			return DBClient{}, errors.Wrap(errors.ErrMalformedEntity, err)
+			return DBClient{}, errors.Wrap(repoerr.ErrMalformedEntity, err)
 		}
 		data = b
 	}
@@ -323,7 +382,7 @@ func ToDBClient(c clients.Client) (DBClient, error) {
 		UpdatedAt: updatedAt,
 		UpdatedBy: updatedBy,
 		Status:    c.Status,
-		Role:      c.Role,
+		Role:      &c.Role,
 	}, nil
 }
 
@@ -351,7 +410,7 @@ func ToClient(c DBClient) (clients.Client, error) {
 		updatedAt = c.UpdatedAt.Time
 	}
 
-	return clients.Client{
+	cli := clients.Client{
 		ID:    c.ID,
 		Name:  c.Name,
 		Tags:  tags,
@@ -365,13 +424,21 @@ func ToClient(c DBClient) (clients.Client, error) {
 		UpdatedAt: updatedAt,
 		UpdatedBy: updatedBy,
 		Status:    c.Status,
-	}, nil
+	}
+	if c.Role != nil {
+		cli.Role = *c.Role
+	}
+	return cli, nil
 }
 
-func toDBClientsPage(pm clients.Page) (dbClientsPage, error) {
+func ToDBClientsPage(pm clients.Page) (dbClientsPage, error) {
 	_, data, err := postgres.CreateMetadataQuery("", pm.Metadata)
 	if err != nil {
-		return dbClientsPage{}, errors.Wrap(errors.ErrViewEntity, err)
+		return dbClientsPage{}, errors.Wrap(repoerr.ErrViewEntity, err)
+	}
+	var role clients.Role
+	if pm.Role != nil {
+		role = *pm.Role
 	}
 	return dbClientsPage{
 		Name:     pm.Name,
@@ -383,6 +450,7 @@ func toDBClientsPage(pm clients.Page) (dbClientsPage, error) {
 		Limit:    pm.Limit,
 		Status:   pm.Status,
 		Tag:      pm.Tag,
+		Role:     uint8(role),
 	}, nil
 }
 
@@ -397,12 +465,13 @@ type dbClientsPage struct {
 	Tag      string         `db:"tag"`
 	Status   clients.Status `db:"status"`
 	GroupID  string         `db:"group_id"`
+	Role     uint8          `db:"role"`
 }
 
-func pageQuery(pm clients.Page) (string, error) {
+func PageQuery(pm clients.Page) (string, error) {
 	mq, _, err := postgres.CreateMetadataQuery("", pm.Metadata)
 	if err != nil {
-		return "", errors.Wrap(errors.ErrViewEntity, err)
+		return "", errors.Wrap(repoerr.ErrViewEntity, err)
 	}
 	var query []string
 	var emq string
@@ -429,8 +498,40 @@ func pageQuery(pm clients.Page) (string, error) {
 		query = append(query, "c.owner_id = :owner_id")
 	}
 
+	if pm.Role != nil {
+		query = append(query, "c.role = :role")
+	}
 	if len(query) > 0 {
 		emq = fmt.Sprintf("WHERE %s", strings.Join(query, " AND "))
 	}
 	return emq, nil
+}
+
+func constructSearchQuery(pm clients.Page) (string, string) {
+	var query []string
+	var emq string
+	var tq string
+
+	if pm.Name != "" {
+		query = append(query, "name ~ :name")
+	}
+	if pm.Identity != "" {
+		query = append(query, "identity ~ :identity")
+	}
+
+	if len(query) > 0 {
+		emq = fmt.Sprintf("WHERE %s", strings.Join(query, " AND "))
+	}
+
+	tq = emq
+
+	switch pm.Order {
+	case "name", "identity", "created_at", "updated_at":
+		emq = fmt.Sprintf("%s ORDER BY %s", emq, pm.Order)
+		if pm.Dir == api.AscDir || pm.Dir == api.DescDir {
+			emq = fmt.Sprintf("%s %s", emq, pm.Dir)
+		}
+	}
+
+	return emq, tq
 }

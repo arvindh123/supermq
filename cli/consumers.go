@@ -1,10 +1,10 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package cli
 
 import (
-	mfxsdk "github.com/mainflux/mainflux/pkg/sdk/go"
+	mgxsdk "github.com/absmach/magistrala/pkg/sdk/go"
 	"github.com/spf13/cobra"
 )
 
@@ -39,7 +39,7 @@ var cmdSubscription = []cobra.Command{
 				logUsage(cmd.Use)
 				return
 			}
-			pageMetadata := mfxsdk.PageMetadata{
+			pageMetadata := mgxsdk.PageMetadata{
 				Offset:  Offset,
 				Limit:   Limit,
 				Topic:   Topic,

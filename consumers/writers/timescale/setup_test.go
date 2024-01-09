@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 // Package timescale_test contains tests for TimescaleSQL repository
@@ -11,9 +11,9 @@ import (
 	"os"
 	"testing"
 
+	"github.com/absmach/magistrala/consumers/writers/timescale"
+	pgclient "github.com/absmach/magistrala/internal/clients/postgres"
 	"github.com/jmoiron/sqlx"
-	"github.com/mainflux/mainflux/consumers/writers/timescale"
-	pgclient "github.com/mainflux/mainflux/internal/clients/postgres"
 	"github.com/ory/dockertest/v3"
 )
 
@@ -60,7 +60,7 @@ func TestMain(m *testing.M) {
 		SSLRootCert: "",
 	}
 
-	db, err = pgclient.SetupDB(dbConfig, *timescale.Migration())
+	db, err = pgclient.Setup(dbConfig, *timescale.Migration())
 	if err != nil {
 		log.Fatalf("Could not setup test DB connection: %s", err)
 	}

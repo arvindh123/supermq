@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package twins
@@ -10,11 +10,12 @@ import (
 	"math"
 	"time"
 
-	"github.com/mainflux/mainflux"
-	"github.com/mainflux/mainflux/logger"
-	"github.com/mainflux/mainflux/pkg/errors"
-	"github.com/mainflux/mainflux/pkg/messaging"
-	"github.com/mainflux/senml"
+	"github.com/absmach/magistrala"
+	mglog "github.com/absmach/magistrala/logger"
+	"github.com/absmach/magistrala/pkg/errors"
+	svcerr "github.com/absmach/magistrala/pkg/errors/service"
+	"github.com/absmach/magistrala/pkg/messaging"
+	"github.com/absmach/senml"
 )
 
 const publisher = "twins"
@@ -73,19 +74,19 @@ var crudOp = map[string]string{
 
 type twinsService struct {
 	publisher  messaging.Publisher
-	auth       mainflux.AuthServiceClient
+	auth       magistrala.AuthServiceClient
 	twins      TwinRepository
 	states     StateRepository
-	idProvider mainflux.IDProvider
+	idProvider magistrala.IDProvider
 	channelID  string
 	twinCache  TwinCache
-	logger     logger.Logger
+	logger     mglog.Logger
 }
 
 var _ Service = (*twinsService)(nil)
 
 // New instantiates the twins service implementation.
-func New(publisher messaging.Publisher, auth mainflux.AuthServiceClient, twins TwinRepository, tcache TwinCache, sr StateRepository, idp mainflux.IDProvider, chann string, logger logger.Logger) Service {
+func New(publisher messaging.Publisher, auth magistrala.AuthServiceClient, twins TwinRepository, tcache TwinCache, sr StateRepository, idp magistrala.IDProvider, chann string, logger mglog.Logger) Service {
 	return &twinsService{
 		publisher:  publisher,
 		auth:       auth,
@@ -102,14 +103,14 @@ func (ts *twinsService) AddTwin(ctx context.Context, token string, twin Twin, de
 	var id string
 	var b []byte
 	defer ts.publish(ctx, &id, &err, crudOp["createSucc"], crudOp["createFail"], &b)
-	res, err := ts.auth.Identify(ctx, &mainflux.IdentityReq{Token: token})
+	res, err := ts.auth.Identify(ctx, &magistrala.IdentityReq{Token: token})
 	if err != nil {
-		return Twin{}, err
+		return Twin{}, errors.Wrap(svcerr.ErrAuthentication, err)
 	}
 
 	twin.ID, err = ts.idProvider.ID()
 	if err != nil {
-		return Twin{}, err
+		return Twin{}, errors.Wrap(svcerr.ErrUniqueID, err)
 	}
 
 	twin.Owner = res.GetId()
@@ -131,7 +132,7 @@ func (ts *twinsService) AddTwin(ctx context.Context, token string, twin Twin, de
 
 	twin.Revision = 0
 	if _, err = ts.twins.Save(ctx, twin); err != nil {
-		return Twin{}, err
+		return Twin{}, errors.Wrap(svcerr.ErrCreateEntity, err)
 	}
 
 	id = twin.ID
@@ -145,14 +146,14 @@ func (ts *twinsService) UpdateTwin(ctx context.Context, token string, twin Twin,
 	var id string
 	defer ts.publish(ctx, &id, &err, crudOp["updateSucc"], crudOp["updateFail"], &b)
 
-	_, err = ts.auth.Identify(ctx, &mainflux.IdentityReq{Token: token})
+	_, err = ts.auth.Identify(ctx, &magistrala.IdentityReq{Token: token})
 	if err != nil {
-		return errors.ErrAuthentication
+		return errors.Wrap(svcerr.ErrAuthentication, err)
 	}
 
 	tw, err := ts.twins.RetrieveByID(ctx, twin.ID)
 	if err != nil {
-		return err
+		return errors.Wrap(svcerr.ErrNotFound, err)
 	}
 
 	revision := false
@@ -182,7 +183,7 @@ func (ts *twinsService) UpdateTwin(ctx context.Context, token string, twin Twin,
 	tw.Revision++
 
 	if err := ts.twins.Update(ctx, tw); err != nil {
-		return err
+		return errors.Wrap(svcerr.ErrUpdateEntity, err)
 	}
 
 	id = twin.ID
@@ -195,14 +196,14 @@ func (ts *twinsService) ViewTwin(ctx context.Context, token, twinID string) (tw 
 	var b []byte
 	defer ts.publish(ctx, &twinID, &err, crudOp["getSucc"], crudOp["getFail"], &b)
 
-	_, err = ts.auth.Identify(ctx, &mainflux.IdentityReq{Token: token})
+	_, err = ts.auth.Identify(ctx, &magistrala.IdentityReq{Token: token})
 	if err != nil {
-		return Twin{}, err
+		return Twin{}, errors.Wrap(svcerr.ErrAuthorization, err)
 	}
 
 	twin, err := ts.twins.RetrieveByID(ctx, twinID)
 	if err != nil {
-		return Twin{}, err
+		return Twin{}, errors.Wrap(svcerr.ErrNotFound, err)
 	}
 
 	b, err = json.Marshal(twin)
@@ -214,31 +215,31 @@ func (ts *twinsService) RemoveTwin(ctx context.Context, token, twinID string) (e
 	var b []byte
 	defer ts.publish(ctx, &twinID, &err, crudOp["removeSucc"], crudOp["removeFail"], &b)
 
-	_, err = ts.auth.Identify(ctx, &mainflux.IdentityReq{Token: token})
+	_, err = ts.auth.Identify(ctx, &magistrala.IdentityReq{Token: token})
 	if err != nil {
-		return errors.ErrAuthentication
+		return errors.Wrap(svcerr.ErrAuthentication, err)
 	}
 
 	if err := ts.twins.Remove(ctx, twinID); err != nil {
-		return err
+		return errors.Wrap(svcerr.ErrRemoveEntity, err)
 	}
 
 	return ts.twinCache.Remove(ctx, twinID)
 }
 
-func (ts *twinsService) ListTwins(ctx context.Context, token string, offset uint64, limit uint64, name string, metadata Metadata) (Page, error) {
-	res, err := ts.auth.Identify(ctx, &mainflux.IdentityReq{Token: token})
+func (ts *twinsService) ListTwins(ctx context.Context, token string, offset, limit uint64, name string, metadata Metadata) (Page, error) {
+	res, err := ts.auth.Identify(ctx, &magistrala.IdentityReq{Token: token})
 	if err != nil {
-		return Page{}, errors.ErrAuthentication
+		return Page{}, errors.Wrap(svcerr.ErrAuthentication, err)
 	}
 
 	return ts.twins.RetrieveAll(ctx, res.GetId(), offset, limit, name, metadata)
 }
 
-func (ts *twinsService) ListStates(ctx context.Context, token string, offset uint64, limit uint64, twinID string) (StatesPage, error) {
-	_, err := ts.auth.Identify(ctx, &mainflux.IdentityReq{Token: token})
+func (ts *twinsService) ListStates(ctx context.Context, token string, offset, limit uint64, twinID string) (StatesPage, error) {
+	_, err := ts.auth.Identify(ctx, &magistrala.IdentityReq{Token: token})
 	if err != nil {
-		return StatesPage{}, errors.ErrAuthentication
+		return StatesPage{}, svcerr.ErrAuthentication
 	}
 
 	return ts.states.RetrieveAll(ctx, offset, limit, twinID)

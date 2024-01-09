@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 // Package main contains users main function to start the users service.
@@ -8,68 +8,70 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"regexp"
 	"time"
 
+	"github.com/absmach/magistrala"
+	authSvc "github.com/absmach/magistrala/auth"
+	"github.com/absmach/magistrala/internal"
+	jaegerclient "github.com/absmach/magistrala/internal/clients/jaeger"
+	pgclient "github.com/absmach/magistrala/internal/clients/postgres"
+	"github.com/absmach/magistrala/internal/email"
+	mggroups "github.com/absmach/magistrala/internal/groups"
+	gapi "github.com/absmach/magistrala/internal/groups/api"
+	gevents "github.com/absmach/magistrala/internal/groups/events"
+	gpostgres "github.com/absmach/magistrala/internal/groups/postgres"
+	gtracing "github.com/absmach/magistrala/internal/groups/tracing"
+	"github.com/absmach/magistrala/internal/postgres"
+	"github.com/absmach/magistrala/internal/server"
+	httpserver "github.com/absmach/magistrala/internal/server/http"
+	mglog "github.com/absmach/magistrala/logger"
+	"github.com/absmach/magistrala/pkg/auth"
+	mgclients "github.com/absmach/magistrala/pkg/clients"
+	"github.com/absmach/magistrala/pkg/errors"
+	"github.com/absmach/magistrala/pkg/groups"
+	"github.com/absmach/magistrala/pkg/uuid"
+	"github.com/absmach/magistrala/users"
+	capi "github.com/absmach/magistrala/users/api"
+	"github.com/absmach/magistrala/users/emailer"
+	uevents "github.com/absmach/magistrala/users/events"
+	"github.com/absmach/magistrala/users/hasher"
+	clientspg "github.com/absmach/magistrala/users/postgres"
+	ctracing "github.com/absmach/magistrala/users/tracing"
+	"github.com/caarlos0/env/v10"
 	"github.com/go-chi/chi/v5"
 	"github.com/jmoiron/sqlx"
 	chclient "github.com/mainflux/callhome/pkg/client"
-	"github.com/mainflux/mainflux"
-	"github.com/mainflux/mainflux/internal"
-	authclient "github.com/mainflux/mainflux/internal/clients/grpc/auth"
-	jaegerclient "github.com/mainflux/mainflux/internal/clients/jaeger"
-	pgclient "github.com/mainflux/mainflux/internal/clients/postgres"
-	"github.com/mainflux/mainflux/internal/email"
-	"github.com/mainflux/mainflux/internal/env"
-	mfgroups "github.com/mainflux/mainflux/internal/groups"
-	gapi "github.com/mainflux/mainflux/internal/groups/api"
-	gevents "github.com/mainflux/mainflux/internal/groups/events"
-	gpostgres "github.com/mainflux/mainflux/internal/groups/postgres"
-	gtracing "github.com/mainflux/mainflux/internal/groups/tracing"
-	"github.com/mainflux/mainflux/internal/postgres"
-	"github.com/mainflux/mainflux/internal/server"
-	httpserver "github.com/mainflux/mainflux/internal/server/http"
-	mflog "github.com/mainflux/mainflux/logger"
-	mfclients "github.com/mainflux/mainflux/pkg/clients"
-	"github.com/mainflux/mainflux/pkg/groups"
-	"github.com/mainflux/mainflux/pkg/uuid"
-	"github.com/mainflux/mainflux/users"
-	capi "github.com/mainflux/mainflux/users/api"
-	"github.com/mainflux/mainflux/users/emailer"
-	uevents "github.com/mainflux/mainflux/users/events"
-	"github.com/mainflux/mainflux/users/hasher"
-	clientspg "github.com/mainflux/mainflux/users/postgres"
-	ctracing "github.com/mainflux/mainflux/users/tracing"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 )
 
 const (
 	svcName        = "users"
-	envPrefixDB    = "MF_USERS_DB_"
-	envPrefixHTTP  = "MF_USERS_HTTP_"
-	envPrefixGrpc  = "MF_USERS_GRPC_"
+	envPrefixDB    = "MG_USERS_DB_"
+	envPrefixHTTP  = "MG_USERS_HTTP_"
+	envPrefixAuth  = "MG_AUTH_GRPC_"
 	defDB          = "users"
 	defSvcHTTPPort = "9002"
-	defSvcGRPCPort = "9192"
+
+	streamID = "magistrala.users"
 )
 
 type config struct {
-	LogLevel        string  `env:"MF_USERS_LOG_LEVEL"              envDefault:"info"`
-	SecretKey       string  `env:"MF_USERS_SECRET_KEY"             envDefault:"secret"`
-	AdminEmail      string  `env:"MF_USERS_ADMIN_EMAIL"            envDefault:""`
-	AdminPassword   string  `env:"MF_USERS_ADMIN_PASSWORD"         envDefault:""`
-	PassRegexText   string  `env:"MF_USERS_PASS_REGEX"             envDefault:"^.{8,}$"`
-	AccessDuration  string  `env:"MF_USERS_ACCESS_TOKEN_DURATION"  envDefault:"15m"`
-	RefreshDuration string  `env:"MF_USERS_REFRESH_TOKEN_DURATION" envDefault:"24h"`
-	ResetURL        string  `env:"MF_TOKEN_RESET_ENDPOINT"         envDefault:"/reset-request"`
-	JaegerURL       string  `env:"MF_JAEGER_URL"                   envDefault:"http://jaeger:14268/api/traces"`
-	SendTelemetry   bool    `env:"MF_SEND_TELEMETRY"               envDefault:"true"`
-	InstanceID      string  `env:"MF_USERS_INSTANCE_ID"            envDefault:""`
-	ESURL           string  `env:"MF_USERS_ES_URL"                 envDefault:"redis://localhost:6379/0"`
-	TraceRatio      float64 `env:"MF_JAEGER_TRACE_RATIO"           envDefault:"1.0"`
-	PassRegex       *regexp.Regexp
+	LogLevel      string  `env:"MG_USERS_LOG_LEVEL"              envDefault:"info"`
+	AdminEmail    string  `env:"MG_USERS_ADMIN_EMAIL"            envDefault:"admin@example.com"`
+	AdminPassword string  `env:"MG_USERS_ADMIN_PASSWORD"         envDefault:"12345678"`
+	PassRegexText string  `env:"MG_USERS_PASS_REGEX"             envDefault:"^.{8,}$"`
+	ResetURL      string  `env:"MG_TOKEN_RESET_ENDPOINT"         envDefault:"/reset-request"`
+	JaegerURL     url.URL `env:"MG_JAEGER_URL"                   envDefault:"http://localhost:14268/api/traces"`
+	SendTelemetry bool    `env:"MG_SEND_TELEMETRY"               envDefault:"true"`
+	InstanceID    string  `env:"MG_USERS_INSTANCE_ID"            envDefault:""`
+	ESURL         string  `env:"MG_ES_URL"                       envDefault:"nats://localhost:4222"`
+	TraceRatio    float64 `env:"MG_JAEGER_TRACE_RATIO"           envDefault:"1.0"`
+	SelfRegister  bool    `env:"MG_USERS_ALLOW_SELF_REGISTER"    envDefault:"false"`
+	PassRegex     *regexp.Regexp
 }
 
 func main() {
@@ -86,13 +88,13 @@ func main() {
 	}
 	cfg.PassRegex = passRegex
 
-	logger, err := mflog.New(os.Stdout, cfg.LogLevel)
+	logger, err := mglog.New(os.Stdout, cfg.LogLevel)
 	if err != nil {
 		logger.Fatal(fmt.Sprintf("failed to init logger: %s", err.Error()))
 	}
 
 	var exitCode int
-	defer mflog.ExitWithError(&exitCode)
+	defer mglog.ExitWithError(&exitCode)
 
 	if cfg.InstanceID == "" {
 		if cfg.InstanceID, err = uuid.New().ID(); err != nil {
@@ -110,16 +112,15 @@ func main() {
 	}
 
 	dbConfig := pgclient.Config{Name: defDB}
-	if err := dbConfig.LoadEnv(envPrefixDB); err != nil {
-		logger.Error(fmt.Sprintf("failed to load %s database configuration : %s", svcName, err.Error()))
+	if err := env.ParseWithOptions(&dbConfig, env.Options{Prefix: envPrefixDB}); err != nil {
+		logger.Error(err.Error())
 		exitCode = 1
 		return
 	}
-
 	cm := clientspg.Migration()
 	gm := gpostgres.Migration()
 	cm.Migrations = append(cm.Migrations, gm.Migrations...)
-	db, err := pgclient.SetupWithConfig(envPrefixDB, *cm, dbConfig)
+	db, err := pgclient.Setup(dbConfig, *cm)
 	if err != nil {
 		logger.Error(err.Error())
 		exitCode = 1
@@ -127,7 +128,7 @@ func main() {
 	}
 	defer db.Close()
 
-	tp, err := jaegerclient.NewProvider(svcName, cfg.JaegerURL, cfg.InstanceID, cfg.TraceRatio)
+	tp, err := jaegerclient.NewProvider(ctx, svcName, cfg.JaegerURL, cfg.InstanceID, cfg.TraceRatio)
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to init Jaeger: %s", err))
 		exitCode = 1
@@ -140,7 +141,14 @@ func main() {
 	}()
 	tracer := tp.Tracer(svcName)
 
-	auth, authHandler, err := authclient.Setup(svcName)
+	authConfig := auth.Config{}
+	if err := env.ParseWithOptions(&authConfig, env.Options{Prefix: envPrefixAuth}); err != nil {
+		logger.Error(fmt.Sprintf("failed to load %s auth configuration : %s", svcName, err))
+		exitCode = 1
+		return
+	}
+
+	authClient, authHandler, err := auth.Setup(authConfig)
 	if err != nil {
 		logger.Error(err.Error())
 		exitCode = 1
@@ -149,7 +157,7 @@ func main() {
 	defer authHandler.Close()
 	logger.Info("Successfully connected to auth grpc server " + authHandler.Secure())
 
-	csvc, gsvc, err := newService(ctx, auth, db, dbConfig, tracer, cfg, ec, logger)
+	csvc, gsvc, err := newService(ctx, authClient, db, dbConfig, tracer, cfg, ec, logger)
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to setup service: %s", err))
 		exitCode = 1
@@ -157,7 +165,7 @@ func main() {
 	}
 
 	httpServerConfig := server.Config{Port: defSvcHTTPPort}
-	if err := env.Parse(&httpServerConfig, env.Options{Prefix: envPrefixHTTP}); err != nil {
+	if err := env.ParseWithOptions(&httpServerConfig, env.Options{Prefix: envPrefixHTTP}); err != nil {
 		logger.Error(fmt.Sprintf("failed to load %s HTTP server configuration : %s", svcName, err.Error()))
 		exitCode = 1
 		return
@@ -167,7 +175,7 @@ func main() {
 	httpSrv := httpserver.New(ctx, cancel, svcName, httpServerConfig, capi.MakeHandler(csvc, gsvc, mux, logger, cfg.InstanceID), logger)
 
 	if cfg.SendTelemetry {
-		chc := chclient.New(svcName, mainflux.Version, logger, cancel)
+		chc := chclient.New(svcName, magistrala.Version, logger, cancel)
 		go chc.CallHome(ctx)
 	}
 
@@ -184,7 +192,7 @@ func main() {
 	}
 }
 
-func newService(ctx context.Context, auth mainflux.AuthServiceClient, db *sqlx.DB, dbConfig pgclient.Config, tracer trace.Tracer, c config, ec email.Config, logger mflog.Logger) (users.Service, groups.Service, error) {
+func newService(ctx context.Context, authClient magistrala.AuthServiceClient, db *sqlx.DB, dbConfig pgclient.Config, tracer trace.Tracer, c config, ec email.Config, logger mglog.Logger) (users.Service, groups.Service, error) {
 	database := postgres.NewDatabase(db, dbConfig, tracer)
 	cRepo := clientspg.NewRepository(database)
 	gRepo := gpostgres.New(database)
@@ -192,19 +200,19 @@ func newService(ctx context.Context, auth mainflux.AuthServiceClient, db *sqlx.D
 	idp := uuid.New()
 	hsr := hasher.New()
 
-	emailer, err := emailer.New(c.ResetURL, &ec)
+	emailerClient, err := emailer.New(c.ResetURL, &ec)
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to configure e-mailing util: %s", err.Error()))
 	}
 
-	csvc := users.NewService(cRepo, auth, emailer, hsr, idp, c.PassRegex)
-	gsvc := mfgroups.NewService(gRepo, idp, auth)
+	csvc := users.NewService(cRepo, authClient, emailerClient, hsr, idp, c.PassRegex, c.SelfRegister)
+	gsvc := mggroups.NewService(gRepo, idp, authClient)
 
 	csvc, err = uevents.NewEventStoreMiddleware(ctx, csvc, c.ESURL)
 	if err != nil {
 		return nil, nil, err
 	}
-	gsvc, err = gevents.NewEventStoreMiddleware(ctx, gsvc, c.ESURL)
+	gsvc, err = gevents.NewEventStoreMiddleware(ctx, gsvc, c.ESURL, streamID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -219,50 +227,78 @@ func newService(ctx context.Context, auth mainflux.AuthServiceClient, db *sqlx.D
 	counter, latency = internal.MakeMetrics("groups", "api")
 	gsvc = gapi.MetricsMiddleware(gsvc, counter, latency)
 
-	if err := createAdmin(ctx, c, cRepo, hsr, csvc); err != nil {
+	clientID, err := createAdmin(ctx, c, cRepo, hsr, csvc)
+	if err != nil {
 		logger.Error(fmt.Sprintf("failed to create admin client: %s", err))
 	}
-
+	if err := createAdminPolicy(ctx, clientID, authClient); err != nil {
+		return nil, nil, err
+	}
 	return csvc, gsvc, err
 }
 
-func createAdmin(ctx context.Context, c config, crepo clientspg.Repository, hsr users.Hasher, svc users.Service) error {
+func createAdmin(ctx context.Context, c config, crepo clientspg.Repository, hsr users.Hasher, svc users.Service) (string, error) {
 	id, err := uuid.New().ID()
 	if err != nil {
-		return err
+		return "", err
 	}
 	hash, err := hsr.Hash(c.AdminPassword)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	client := mfclients.Client{
+	client := mgclients.Client{
 		ID:   id,
 		Name: "admin",
-		Credentials: mfclients.Credentials{
+		Credentials: mgclients.Credentials{
 			Identity: c.AdminEmail,
 			Secret:   hash,
 		},
-		Metadata: mfclients.Metadata{
+		Metadata: mgclients.Metadata{
 			"role": "admin",
 		},
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
-		Role:      mfclients.AdminRole,
-		Status:    mfclients.EnabledStatus,
+		Role:      mgclients.AdminRole,
+		Status:    mgclients.EnabledStatus,
 	}
 
-	if _, err := crepo.RetrieveByIdentity(ctx, client.Credentials.Identity); err == nil {
-		return nil
+	if c, err := crepo.RetrieveByIdentity(ctx, client.Credentials.Identity); err == nil {
+		return c.ID, nil
 	}
 
 	// Create an admin
 	if _, err = crepo.Save(ctx, client); err != nil {
-		return err
+		return "", err
 	}
-	if _, err = svc.IssueToken(ctx, c.AdminEmail, c.AdminPassword); err != nil {
-		return err
+	if _, err = svc.IssueToken(ctx, c.AdminEmail, c.AdminPassword, ""); err != nil {
+		return "", err
 	}
+	return client.ID, nil
+}
 
+func createAdminPolicy(ctx context.Context, clientID string, authClient magistrala.AuthServiceClient) error {
+	res, err := authClient.Authorize(ctx, &magistrala.AuthorizeReq{
+		SubjectType: authSvc.UserType,
+		Subject:     clientID,
+		Permission:  authSvc.AdministratorRelation,
+		Object:      authSvc.MagistralaObject,
+		ObjectType:  authSvc.PlatformType,
+	})
+	if err != nil || !res.Authorized {
+		addPolicyRes, err := authClient.AddPolicy(ctx, &magistrala.AddPolicyReq{
+			SubjectType: authSvc.UserType,
+			Subject:     clientID,
+			Relation:    authSvc.AdministratorRelation,
+			Object:      authSvc.MagistralaObject,
+			ObjectType:  authSvc.PlatformType,
+		})
+		if err != nil {
+			return err
+		}
+		if !addPolicyRes.Authorized {
+			return errors.ErrAuthorization
+		}
+	}
 	return nil
 }

@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package events
@@ -6,13 +6,13 @@ package events
 import (
 	"context"
 
-	"github.com/mainflux/mainflux/pkg/events"
-	"github.com/mainflux/mainflux/pkg/events/store"
-	"github.com/mainflux/mainflux/pkg/messaging"
-	"github.com/mainflux/mainflux/twins"
+	"github.com/absmach/magistrala/pkg/events"
+	"github.com/absmach/magistrala/pkg/events/store"
+	"github.com/absmach/magistrala/pkg/messaging"
+	"github.com/absmach/magistrala/twins"
 )
 
-const streamID = "mainflux.twins"
+const streamID = "magistrala.twins"
 
 var _ twins.Service = (*eventStore)(nil)
 
@@ -101,7 +101,7 @@ func (es eventStore) RemoveTwin(ctx context.Context, token, id string) error {
 	return nil
 }
 
-func (es eventStore) ListTwins(ctx context.Context, token string, offset uint64, limit uint64, name string, metadata twins.Metadata) (twins.Page, error) {
+func (es eventStore) ListTwins(ctx context.Context, token string, offset, limit uint64, name string, metadata twins.Metadata) (twins.Page, error) {
 	tp, err := es.svc.ListTwins(ctx, token, offset, limit, name, metadata)
 	if err != nil {
 		return tp, err
@@ -120,7 +120,7 @@ func (es eventStore) ListTwins(ctx context.Context, token string, offset uint64,
 	return tp, nil
 }
 
-func (es eventStore) ListStates(ctx context.Context, token string, offset uint64, limit uint64, id string) (twins.StatesPage, error) {
+func (es eventStore) ListStates(ctx context.Context, token string, offset, limit uint64, id string) (twins.StatesPage, error) {
 	sp, err := es.svc.ListStates(ctx, token, offset, limit, id)
 	if err != nil {
 		return sp, err

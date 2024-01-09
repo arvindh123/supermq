@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package api_test
@@ -11,24 +11,24 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mainflux/mainflux"
-	authmocks "github.com/mainflux/mainflux/auth/mocks"
-	server "github.com/mainflux/mainflux/http"
-	"github.com/mainflux/mainflux/http/api"
-	"github.com/mainflux/mainflux/http/mocks"
-	"github.com/mainflux/mainflux/internal/apiutil"
-	"github.com/mainflux/mainflux/logger"
-	mproxy "github.com/mainflux/mproxy/pkg/http"
-	"github.com/mainflux/mproxy/pkg/session"
+	"github.com/absmach/magistrala"
+	authmocks "github.com/absmach/magistrala/auth/mocks"
+	server "github.com/absmach/magistrala/http"
+	"github.com/absmach/magistrala/http/api"
+	"github.com/absmach/magistrala/http/mocks"
+	"github.com/absmach/magistrala/internal/apiutil"
+	mglog "github.com/absmach/magistrala/logger"
+	mproxy "github.com/absmach/mproxy/pkg/http"
+	"github.com/absmach/mproxy/pkg/session"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
 
 const instanceID = "5de9b29a-feb9-11ed-be56-0242ac120002"
 
-func newService(auth mainflux.AuthzServiceClient) session.Handler {
+func newService(auth magistrala.AuthzServiceClient) session.Handler {
 	pub := mocks.NewPublisher()
-	return server.NewHandler(pub, logger.NewMock(), auth)
+	return server.NewHandler(pub, mglog.NewMock(), auth)
 }
 
 func newTargetHTTPServer() *httptest.Server {
@@ -37,7 +37,7 @@ func newTargetHTTPServer() *httptest.Server {
 }
 
 func newProxyHTPPServer(svc session.Handler, targetServer *httptest.Server) (*httptest.Server, error) {
-	mp, err := mproxy.NewProxy("", targetServer.URL, svc, logger.NewMock())
+	mp, err := mproxy.NewProxy("", targetServer.URL, svc, mglog.NewMock())
 	if err != nil {
 		return nil, err
 	}
@@ -91,14 +91,8 @@ func TestPublish(t *testing.T) {
 
 	defer ts.Close()
 
-	auth.On("Authorize", mock.Anything, &mainflux.AuthorizeReq{
-		Subject:     thingKey,
-		Object:      chanID,
-		Namespace:   "",
-		SubjectType: "thing",
-		Permission:  "publish",
-		ObjectType:  "group"}).Return(&mainflux.AuthorizeRes{Authorized: true, Id: ""}, nil)
-	auth.On("Authorize", mock.Anything, mock.Anything).Return(&mainflux.AuthorizeRes{Authorized: false, Id: ""}, nil)
+	auth.On("Authorize", mock.Anything, &magistrala.AuthorizeReq{Subject: thingKey, Object: chanID, Domain: "", SubjectType: "thing", Permission: "publish", ObjectType: "group"}).Return(&magistrala.AuthorizeRes{Authorized: true, Id: ""}, nil)
+	auth.On("Authorize", mock.Anything, mock.Anything).Return(&magistrala.AuthorizeRes{Authorized: false, Id: ""}, nil)
 
 	cases := map[string]struct {
 		chanID      string

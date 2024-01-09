@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package mocks
@@ -6,112 +6,122 @@ package mocks
 import (
 	context "context"
 
-	"github.com/mainflux/mainflux"
-	"github.com/mainflux/mainflux/pkg/errors"
+	"github.com/absmach/magistrala"
+	"github.com/absmach/magistrala/pkg/errors"
+	svcerr "github.com/absmach/magistrala/pkg/errors/service"
 	"github.com/stretchr/testify/mock"
 	"google.golang.org/grpc"
 )
 
 const InvalidValue = "invalid"
 
-var _ mainflux.AuthServiceClient = (*Service)(nil)
+var _ magistrala.AuthServiceClient = (*Service)(nil)
 
 type Service struct {
 	mock.Mock
 }
 
-func (m *Service) Issue(ctx context.Context, in *mainflux.IssueReq, opts ...grpc.CallOption) (*mainflux.Token, error) {
+func (m *Service) Issue(ctx context.Context, in *magistrala.IssueReq, opts ...grpc.CallOption) (*magistrala.Token, error) {
 	ret := m.Called(ctx, in)
-	if in.GetId() == InvalidValue || in.GetId() == "" {
-		return &mainflux.Token{}, errors.ErrAuthentication
+	if in.GetUserId() == InvalidValue || in.GetUserId() == "" {
+		return &magistrala.Token{}, svcerr.ErrAuthentication
 	}
 
-	return ret.Get(0).(*mainflux.Token), ret.Error(1)
+	return ret.Get(0).(*magistrala.Token), ret.Error(1)
 }
 
-func (m *Service) Login(ctx context.Context, in *mainflux.LoginReq, opts ...grpc.CallOption) (*mainflux.Token, error) {
+func (m *Service) Refresh(ctx context.Context, in *magistrala.RefreshReq, opts ...grpc.CallOption) (*magistrala.Token, error) {
 	ret := m.Called(ctx, in)
-	if in.GetId() == InvalidValue || in.GetId() == "" {
-		return &mainflux.Token{}, errors.ErrAuthentication
+	if in.GetRefreshToken() == InvalidValue || in.GetRefreshToken() == "" {
+		return &magistrala.Token{}, svcerr.ErrAuthentication
 	}
 
-	return ret.Get(0).(*mainflux.Token), ret.Error(1)
+	return ret.Get(0).(*magistrala.Token), ret.Error(1)
 }
 
-func (m *Service) Refresh(ctx context.Context, in *mainflux.RefreshReq, opts ...grpc.CallOption) (*mainflux.Token, error) {
-	ret := m.Called(ctx, in)
-	if in.GetValue() == InvalidValue || in.GetValue() == "" {
-		return &mainflux.Token{}, errors.ErrAuthentication
-	}
-
-	return ret.Get(0).(*mainflux.Token), ret.Error(1)
-}
-
-func (m *Service) Identify(ctx context.Context, in *mainflux.IdentityReq, opts ...grpc.CallOption) (*mainflux.IdentityRes, error) {
+func (m *Service) Identify(ctx context.Context, in *magistrala.IdentityReq, opts ...grpc.CallOption) (*magistrala.IdentityRes, error) {
 	ret := m.Called(ctx, in)
 	if in.GetToken() == InvalidValue || in.GetToken() == "" {
-		return &mainflux.IdentityRes{}, errors.ErrAuthentication
+		return &magistrala.IdentityRes{}, svcerr.ErrAuthentication
 	}
 
-	return ret.Get(0).(*mainflux.IdentityRes), ret.Error(1)
+	return ret.Get(0).(*magistrala.IdentityRes), ret.Error(1)
 }
 
-func (m *Service) Authorize(ctx context.Context, in *mainflux.AuthorizeReq, opts ...grpc.CallOption) (*mainflux.AuthorizeRes, error) {
+func (m *Service) Authorize(ctx context.Context, in *magistrala.AuthorizeReq, opts ...grpc.CallOption) (*magistrala.AuthorizeRes, error) {
 	ret := m.Called(ctx, in)
 	if in.GetSubject() == InvalidValue || in.GetSubject() == "" {
-		return &mainflux.AuthorizeRes{Authorized: false}, errors.ErrAuthorization
+		return &magistrala.AuthorizeRes{Authorized: false}, svcerr.ErrAuthorization
 	}
 	if in.GetObject() == InvalidValue || in.GetObject() == "" {
-		return &mainflux.AuthorizeRes{Authorized: false}, errors.ErrAuthorization
+		return &magistrala.AuthorizeRes{Authorized: false}, errors.ErrAuthorization
 	}
 
-	return ret.Get(0).(*mainflux.AuthorizeRes), ret.Error(1)
+	return ret.Get(0).(*magistrala.AuthorizeRes), ret.Error(1)
 }
 
-func (m *Service) AddPolicy(ctx context.Context, in *mainflux.AddPolicyReq, opts ...grpc.CallOption) (*mainflux.AddPolicyRes, error) {
+func (m *Service) AddPolicy(ctx context.Context, in *magistrala.AddPolicyReq, opts ...grpc.CallOption) (*magistrala.AddPolicyRes, error) {
 	ret := m.Called(ctx, in)
 
-	return ret.Get(0).(*mainflux.AddPolicyRes), ret.Error(1)
+	return ret.Get(0).(*magistrala.AddPolicyRes), ret.Error(1)
 }
 
-func (m *Service) DeletePolicy(ctx context.Context, in *mainflux.DeletePolicyReq, opts ...grpc.CallOption) (*mainflux.DeletePolicyRes, error) {
+func (m *Service) AddPolicies(ctx context.Context, in *magistrala.AddPoliciesReq, opts ...grpc.CallOption) (*magistrala.AddPoliciesRes, error) {
 	ret := m.Called(ctx, in)
 
-	return ret.Get(0).(*mainflux.DeletePolicyRes), ret.Error(1)
+	return ret.Get(0).(*magistrala.AddPoliciesRes), ret.Error(1)
 }
 
-func (m *Service) ListObjects(ctx context.Context, in *mainflux.ListObjectsReq, opts ...grpc.CallOption) (*mainflux.ListObjectsRes, error) {
+func (m *Service) DeletePolicy(ctx context.Context, in *magistrala.DeletePolicyReq, opts ...grpc.CallOption) (*magistrala.DeletePolicyRes, error) {
 	ret := m.Called(ctx, in)
 
-	return ret.Get(0).(*mainflux.ListObjectsRes), ret.Error(1)
+	return ret.Get(0).(*magistrala.DeletePolicyRes), ret.Error(1)
 }
 
-func (m *Service) ListAllObjects(ctx context.Context, in *mainflux.ListObjectsReq, opts ...grpc.CallOption) (*mainflux.ListObjectsRes, error) {
+func (m *Service) DeletePolicies(ctx context.Context, in *magistrala.DeletePoliciesReq, opts ...grpc.CallOption) (*magistrala.DeletePoliciesRes, error) {
 	ret := m.Called(ctx, in)
 
-	return ret.Get(0).(*mainflux.ListObjectsRes), ret.Error(1)
+	return ret.Get(0).(*magistrala.DeletePoliciesRes), ret.Error(1)
 }
 
-func (m *Service) CountObjects(ctx context.Context, in *mainflux.CountObjectsReq, opts ...grpc.CallOption) (*mainflux.CountObjectsRes, error) {
+func (m *Service) ListObjects(ctx context.Context, in *magistrala.ListObjectsReq, opts ...grpc.CallOption) (*magistrala.ListObjectsRes, error) {
 	ret := m.Called(ctx, in)
 
-	return ret.Get(0).(*mainflux.CountObjectsRes), ret.Error(1)
+	return ret.Get(0).(*magistrala.ListObjectsRes), ret.Error(1)
 }
 
-func (m *Service) ListSubjects(ctx context.Context, in *mainflux.ListSubjectsReq, opts ...grpc.CallOption) (*mainflux.ListSubjectsRes, error) {
+func (m *Service) ListAllObjects(ctx context.Context, in *magistrala.ListObjectsReq, opts ...grpc.CallOption) (*magistrala.ListObjectsRes, error) {
 	ret := m.Called(ctx, in)
 
-	return ret.Get(0).(*mainflux.ListSubjectsRes), ret.Error(1)
+	return ret.Get(0).(*magistrala.ListObjectsRes), ret.Error(1)
 }
 
-func (m *Service) ListAllSubjects(ctx context.Context, in *mainflux.ListSubjectsReq, opts ...grpc.CallOption) (*mainflux.ListSubjectsRes, error) {
+func (m *Service) CountObjects(ctx context.Context, in *magistrala.CountObjectsReq, opts ...grpc.CallOption) (*magistrala.CountObjectsRes, error) {
 	ret := m.Called(ctx, in)
 
-	return ret.Get(0).(*mainflux.ListSubjectsRes), ret.Error(1)
+	return ret.Get(0).(*magistrala.CountObjectsRes), ret.Error(1)
 }
 
-func (m *Service) CountSubjects(ctx context.Context, in *mainflux.CountSubjectsReq, opts ...grpc.CallOption) (*mainflux.CountSubjectsRes, error) {
+func (m *Service) ListSubjects(ctx context.Context, in *magistrala.ListSubjectsReq, opts ...grpc.CallOption) (*magistrala.ListSubjectsRes, error) {
 	ret := m.Called(ctx, in)
 
-	return ret.Get(0).(*mainflux.CountSubjectsRes), ret.Error(1)
+	return ret.Get(0).(*magistrala.ListSubjectsRes), ret.Error(1)
+}
+
+func (m *Service) ListAllSubjects(ctx context.Context, in *magistrala.ListSubjectsReq, opts ...grpc.CallOption) (*magistrala.ListSubjectsRes, error) {
+	ret := m.Called(ctx, in)
+
+	return ret.Get(0).(*magistrala.ListSubjectsRes), ret.Error(1)
+}
+
+func (m *Service) CountSubjects(ctx context.Context, in *magistrala.CountSubjectsReq, opts ...grpc.CallOption) (*magistrala.CountSubjectsRes, error) {
+	ret := m.Called(ctx, in)
+
+	return ret.Get(0).(*magistrala.CountSubjectsRes), ret.Error(1)
+}
+
+func (m *Service) ListPermissions(ctx context.Context, in *magistrala.ListPermissionsReq, opts ...grpc.CallOption) (*magistrala.ListPermissionsRes, error) {
+	ret := m.Called(ctx, in)
+
+	return ret.Get(0).(*magistrala.ListPermissionsRes), ret.Error(1)
 }

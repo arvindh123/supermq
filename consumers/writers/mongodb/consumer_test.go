@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package mongodb_test
@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/absmach/magistrala/consumers/writers/mongodb"
+	mglog "github.com/absmach/magistrala/logger"
+	"github.com/absmach/magistrala/pkg/transformers/json"
+	"github.com/absmach/magistrala/pkg/transformers/senml"
 	"github.com/gofrs/uuid"
-	"github.com/mainflux/mainflux/consumers/writers/mongodb"
-	mflog "github.com/mainflux/mainflux/logger"
-	"github.com/mainflux/mainflux/pkg/transformers/json"
-	"github.com/mainflux/mainflux/pkg/transformers/senml"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
@@ -25,7 +25,7 @@ import (
 var (
 	port        string
 	addr        string
-	testLog, _  = mflog.New(os.Stdout, mflog.Info.String())
+	testLog, _  = mglog.New(os.Stdout, mglog.Info.String())
 	testDB      = "test"
 	collection  = "messages"
 	msgsNum     = 100

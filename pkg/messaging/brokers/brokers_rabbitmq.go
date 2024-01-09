@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 //go:build rabbitmq
@@ -10,9 +10,9 @@ import (
 	"context"
 	"log"
 
-	mflog "github.com/mainflux/mainflux/logger"
-	"github.com/mainflux/mainflux/pkg/messaging"
-	"github.com/mainflux/mainflux/pkg/messaging/rabbitmq"
+	mglog "github.com/absmach/magistrala/logger"
+	"github.com/absmach/magistrala/pkg/messaging"
+	"github.com/absmach/magistrala/pkg/messaging/rabbitmq"
 )
 
 // SubjectAllChannels represents subject to subscribe for all the channels.
@@ -31,7 +31,7 @@ func NewPublisher(_ context.Context, url string, opts ...messaging.Option) (mess
 	return pb, nil
 }
 
-func NewPubSub(_ context.Context, url string, logger mflog.Logger, opts ...messaging.Option) (messaging.PubSub, error) {
+func NewPubSub(_ context.Context, url string, logger mglog.Logger, opts ...messaging.Option) (messaging.PubSub, error) {
 	pb, err := rabbitmq.NewPubSub(url, logger, opts...)
 	if err != nil {
 		return nil, err

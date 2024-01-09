@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package sdk
@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/mainflux/mainflux/pkg/errors"
+	"github.com/absmach/magistrala/pkg/errors"
 )
 
 // HealthInfo contains version endpoint response.
@@ -29,7 +29,7 @@ type HealthInfo struct {
 	BuildTime string `json:"build_time"`
 }
 
-func (sdk mfSDK) Health(service string) (HealthInfo, errors.SDKError) {
+func (sdk mgSDK) Health(service string) (HealthInfo, errors.SDKError) {
 	var url string
 	switch service {
 	case "things":

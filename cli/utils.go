@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package cli
@@ -20,8 +20,8 @@ var (
 	Offset uint64 = 0
 	// Name query parameter.
 	Name string = ""
-	// Email query parameter.
-	Email string = ""
+	// Identity query parameter.
+	Identity string = ""
 	// Metadata query parameter.
 	Metadata string = ""
 	// Status query parameter.

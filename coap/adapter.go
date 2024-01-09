@@ -1,19 +1,19 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 // Package coap contains the domain concept definitions needed to support
-// Mainflux CoAP adapter service functionality. All constant values are taken
+// Magistrala CoAP adapter service functionality. All constant values are taken
 // from RFC, and could be adjusted based on specific use case.
 package coap
 
 import (
 	"context"
 	"fmt"
-	"sync"
 
-	"github.com/mainflux/mainflux"
-	"github.com/mainflux/mainflux/pkg/errors"
-	"github.com/mainflux/mainflux/pkg/messaging"
+	"github.com/absmach/magistrala"
+	"github.com/absmach/magistrala/auth"
+	"github.com/absmach/magistrala/pkg/errors"
+	"github.com/absmach/magistrala/pkg/messaging"
 )
 
 const chansPrefix = "channels"
@@ -39,30 +39,27 @@ var _ Service = (*adapterService)(nil)
 
 // Observers is a map of maps,.
 type adapterService struct {
-	auth    mainflux.AuthzServiceClient
-	pubsub  messaging.PubSub
-	obsLock sync.Mutex
+	auth   magistrala.AuthzServiceClient
+	pubsub messaging.PubSub
 }
 
 // New instantiates the CoAP adapter implementation.
-func New(auth mainflux.AuthzServiceClient, pubsub messaging.PubSub) Service {
+func New(authClient magistrala.AuthzServiceClient, pubsub messaging.PubSub) Service {
 	as := &adapterService{
-		auth:    auth,
-		pubsub:  pubsub,
-		obsLock: sync.Mutex{},
+		auth:   authClient,
+		pubsub: pubsub,
 	}
 
 	return as
 }
 
 func (svc *adapterService) Publish(ctx context.Context, key string, msg *messaging.Message) error {
-	ar := &mainflux.AuthorizeReq{
-		Namespace:   "",
-		SubjectType: "thing",
-		Permission:  "publish",
+	ar := &magistrala.AuthorizeReq{
+		SubjectType: auth.ThingType,
+		Permission:  auth.PublishPermission,
 		Subject:     key,
 		Object:      msg.Channel,
-		ObjectType:  "group",
+		ObjectType:  auth.GroupType,
 	}
 	res, err := svc.auth.Authorize(ctx, ar)
 	if err != nil {
@@ -77,13 +74,12 @@ func (svc *adapterService) Publish(ctx context.Context, key string, msg *messagi
 }
 
 func (svc *adapterService) Subscribe(ctx context.Context, key, chanID, subtopic string, c Client) error {
-	ar := &mainflux.AuthorizeReq{
-		Namespace:   "",
-		SubjectType: "thing",
-		Permission:  "subscribe",
+	ar := &magistrala.AuthorizeReq{
+		SubjectType: auth.ThingType,
+		Permission:  auth.SubscribePermission,
 		Subject:     key,
 		Object:      chanID,
-		ObjectType:  "group",
+		ObjectType:  auth.GroupType,
 	}
 	res, err := svc.auth.Authorize(ctx, ar)
 	if err != nil {
@@ -105,13 +101,13 @@ func (svc *adapterService) Subscribe(ctx context.Context, key, chanID, subtopic 
 }
 
 func (svc *adapterService) Unsubscribe(ctx context.Context, key, chanID, subtopic, token string) error {
-	ar := &mainflux.AuthorizeReq{
-		Namespace:   "",
-		SubjectType: "thing",
-		Permission:  "subscribe",
+	ar := &magistrala.AuthorizeReq{
+		Domain:      "",
+		SubjectType: auth.ThingType,
+		Permission:  auth.SubscribePermission,
 		Subject:     key,
 		Object:      chanID,
-		ObjectType:  "group",
+		ObjectType:  auth.GroupType,
 	}
 	res, err := svc.auth.Authorize(ctx, ar)
 	if err != nil {

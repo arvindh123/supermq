@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 // Package main contains certs main function to start the certs service.
@@ -8,57 +8,58 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 
+	"github.com/absmach/magistrala"
+	"github.com/absmach/magistrala/certs"
+	"github.com/absmach/magistrala/certs/api"
+	vault "github.com/absmach/magistrala/certs/pki"
+	certspg "github.com/absmach/magistrala/certs/postgres"
+	"github.com/absmach/magistrala/certs/tracing"
+	"github.com/absmach/magistrala/internal"
+	jaegerclient "github.com/absmach/magistrala/internal/clients/jaeger"
+	pgclient "github.com/absmach/magistrala/internal/clients/postgres"
+	"github.com/absmach/magistrala/internal/postgres"
+	"github.com/absmach/magistrala/internal/server"
+	httpserver "github.com/absmach/magistrala/internal/server/http"
+	mglog "github.com/absmach/magistrala/logger"
+	"github.com/absmach/magistrala/pkg/auth"
+	mgsdk "github.com/absmach/magistrala/pkg/sdk/go"
+	"github.com/absmach/magistrala/pkg/uuid"
+	"github.com/caarlos0/env/v10"
 	"github.com/jmoiron/sqlx"
 	chclient "github.com/mainflux/callhome/pkg/client"
-	"github.com/mainflux/mainflux"
-	"github.com/mainflux/mainflux/certs"
-	"github.com/mainflux/mainflux/certs/api"
-	vault "github.com/mainflux/mainflux/certs/pki"
-	certspg "github.com/mainflux/mainflux/certs/postgres"
-	"github.com/mainflux/mainflux/certs/tracing"
-	"github.com/mainflux/mainflux/internal"
-	authclient "github.com/mainflux/mainflux/internal/clients/grpc/auth"
-	jaegerclient "github.com/mainflux/mainflux/internal/clients/jaeger"
-	pgclient "github.com/mainflux/mainflux/internal/clients/postgres"
-	"github.com/mainflux/mainflux/internal/env"
-	"github.com/mainflux/mainflux/internal/postgres"
-	"github.com/mainflux/mainflux/internal/server"
-	httpserver "github.com/mainflux/mainflux/internal/server/http"
-	mflog "github.com/mainflux/mainflux/logger"
-	mfsdk "github.com/mainflux/mainflux/pkg/sdk/go"
-	"github.com/mainflux/mainflux/pkg/uuid"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 )
 
 const (
 	svcName        = "certs"
-	envPrefixDB    = "MF_CERTS_DB_"
-	envPrefixHTTP  = "MF_CERTS_HTTP_"
+	envPrefixDB    = "MG_CERTS_DB_"
+	envPrefixHTTP  = "MG_CERTS_HTTP_"
+	envPrefixAuth  = "MG_AUTH_GRPC_"
 	defDB          = "certs"
 	defSvcHTTPPort = "9019"
 )
 
 type config struct {
-	LogLevel      string  `env:"MF_CERTS_LOG_LEVEL"        envDefault:"info"`
-	CertsURL      string  `env:"MF_SDK_CERTS_URL"          envDefault:"http://localhost"`
-	ThingsURL     string  `env:"MF_THINGS_URL"             envDefault:"http://things:9000"`
-	JaegerURL     string  `env:"MF_JAEGER_URL"             envDefault:"http://jaeger:14268/api/traces"`
-	SendTelemetry bool    `env:"MF_SEND_TELEMETRY"         envDefault:"true"`
-	InstanceID    string  `env:"MF_CERTS_INSTANCE_ID"      envDefault:""`
-	TraceRatio    float64 `env:"MF_JAEGER_TRACE_RATIO"     envDefault:"1.0"`
+	LogLevel      string  `env:"MG_CERTS_LOG_LEVEL"        envDefault:"info"`
+	ThingsURL     string  `env:"MG_THINGS_URL"             envDefault:"http://localhost:9000"`
+	JaegerURL     url.URL `env:"MG_JAEGER_URL"             envDefault:"http://localhost:14268/api/traces"`
+	SendTelemetry bool    `env:"MG_SEND_TELEMETRY"         envDefault:"true"`
+	InstanceID    string  `env:"MG_CERTS_INSTANCE_ID"      envDefault:""`
+	TraceRatio    float64 `env:"MG_JAEGER_TRACE_RATIO"     envDefault:"1.0"`
 
 	// Sign and issue certificates without 3rd party PKI
-	SignCAPath    string `env:"MF_CERTS_SIGN_CA_PATH"        envDefault:"ca.crt"`
-	SignCAKeyPath string `env:"MF_CERTS_SIGN_CA_KEY_PATH"    envDefault:"ca.key"`
+	SignCAPath    string `env:"MG_CERTS_SIGN_CA_PATH"        envDefault:"ca.crt"`
+	SignCAKeyPath string `env:"MG_CERTS_SIGN_CA_KEY_PATH"    envDefault:"ca.key"`
 
 	// 3rd party PKI API access settings
-	PkiHost  string `env:"MF_CERTS_VAULT_HOST"    envDefault:""`
-	PkiPath  string `env:"MF_VAULT_PKI_INT_PATH"  envDefault:"pki_int"`
-	PkiRole  string `env:"MF_VAULT_CA_ROLE_NAME"  envDefault:"mainflux"`
-	PkiToken string `env:"MF_VAULT_TOKEN"         envDefault:""`
+	PkiHost  string `env:"MG_CERTS_VAULT_HOST"    envDefault:""`
+	PkiPath  string `env:"MG_VAULT_PKI_INT_PATH"  envDefault:"pki_int"`
+	PkiRole  string `env:"MG_VAULT_CA_ROLE_NAME"  envDefault:"magistrala"`
+	PkiToken string `env:"MG_VAULT_TOKEN"         envDefault:""`
 }
 
 func main() {
@@ -70,13 +71,13 @@ func main() {
 		log.Fatalf("failed to load %s configuration : %s", svcName, err)
 	}
 
-	logger, err := mflog.New(os.Stdout, cfg.LogLevel)
+	logger, err := mglog.New(os.Stdout, cfg.LogLevel)
 	if err != nil {
 		log.Fatalf("failed to init logger: %s", err)
 	}
 
 	var exitCode int
-	defer mflog.ExitWithError(&exitCode)
+	defer mglog.ExitWithError(&exitCode)
 
 	if cfg.InstanceID == "" {
 		if cfg.InstanceID, err = uuid.New().ID(); err != nil {
@@ -100,10 +101,10 @@ func main() {
 	}
 
 	dbConfig := pgclient.Config{Name: defDB}
-	if err := dbConfig.LoadEnv(envPrefixDB); err != nil {
-		logger.Fatal(fmt.Sprintf("failed to load %s database configuration : %s", svcName, err))
+	if err := env.ParseWithOptions(&dbConfig, env.Options{Prefix: envPrefixDB}); err != nil {
+		logger.Fatal(err.Error())
 	}
-	db, err := pgclient.SetupWithConfig(envPrefixDB, *certspg.Migration(), dbConfig)
+	db, err := pgclient.Setup(dbConfig, *certspg.Migration())
 	if err != nil {
 		logger.Error(err.Error())
 		exitCode = 1
@@ -111,7 +112,14 @@ func main() {
 	}
 	defer db.Close()
 
-	auth, authHandler, err := authclient.Setup(svcName)
+	authConfig := auth.Config{}
+	if err := env.ParseWithOptions(&authConfig, env.Options{Prefix: envPrefixAuth}); err != nil {
+		logger.Error(fmt.Sprintf("failed to load %s auth configuration : %s", svcName, err))
+		exitCode = 1
+		return
+	}
+
+	authClient, authHandler, err := auth.Setup(authConfig)
 	if err != nil {
 		logger.Error(err.Error())
 		exitCode = 1
@@ -121,7 +129,7 @@ func main() {
 
 	logger.Info("Successfully connected to auth grpc server " + authHandler.Secure())
 
-	tp, err := jaegerclient.NewProvider(svcName, cfg.JaegerURL, cfg.InstanceID, cfg.TraceRatio)
+	tp, err := jaegerclient.NewProvider(ctx, svcName, cfg.JaegerURL, cfg.InstanceID, cfg.TraceRatio)
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to init Jaeger: %s", err))
 		exitCode = 1
@@ -134,10 +142,10 @@ func main() {
 	}()
 	tracer := tp.Tracer(svcName)
 
-	svc := newService(auth, db, tracer, logger, cfg, dbConfig, pkiclient)
+	svc := newService(authClient, db, tracer, logger, cfg, dbConfig, pkiclient)
 
 	httpServerConfig := server.Config{Port: defSvcHTTPPort}
-	if err := env.Parse(&httpServerConfig, env.Options{Prefix: envPrefixHTTP}); err != nil {
+	if err := env.ParseWithOptions(&httpServerConfig, env.Options{Prefix: envPrefixHTTP}); err != nil {
 		logger.Error(fmt.Sprintf("failed to load %s HTTP server configuration : %s", svcName, err))
 		exitCode = 1
 		return
@@ -145,7 +153,7 @@ func main() {
 	hs := httpserver.New(ctx, cancel, svcName, httpServerConfig, api.MakeHandler(svc, logger, cfg.InstanceID), logger)
 
 	if cfg.SendTelemetry {
-		chc := chclient.New(svcName, mainflux.Version, logger, cancel)
+		chc := chclient.New(svcName, magistrala.Version, logger, cancel)
 		go chc.CallHome(ctx)
 	}
 
@@ -162,15 +170,14 @@ func main() {
 	}
 }
 
-func newService(auth mainflux.AuthServiceClient, db *sqlx.DB, tracer trace.Tracer, logger mflog.Logger, cfg config, dbConfig pgclient.Config, pkiAgent vault.Agent) certs.Service {
+func newService(authClient magistrala.AuthServiceClient, db *sqlx.DB, tracer trace.Tracer, logger mglog.Logger, cfg config, dbConfig pgclient.Config, pkiAgent vault.Agent) certs.Service {
 	database := postgres.NewDatabase(db, dbConfig, tracer)
 	certsRepo := certspg.NewRepository(database, logger)
-	config := mfsdk.Config{
-		CertsURL:  cfg.CertsURL,
+	config := mgsdk.Config{
 		ThingsURL: cfg.ThingsURL,
 	}
-	sdk := mfsdk.NewSDK(config)
-	svc := certs.New(auth, certsRepo, sdk, pkiAgent)
+	sdk := mgsdk.NewSDK(config)
+	svc := certs.New(authClient, certsRepo, sdk, pkiAgent)
 	svc = api.LoggingMiddleware(svc, logger)
 	counter, latency := internal.MakeMetrics(svcName, "api")
 	svc = api.MetricsMiddleware(svc, counter, latency)

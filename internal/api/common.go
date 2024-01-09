@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package api
@@ -8,12 +8,13 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/absmach/magistrala"
+	"github.com/absmach/magistrala/internal/apiutil"
+	"github.com/absmach/magistrala/internal/postgres"
+	mgclients "github.com/absmach/magistrala/pkg/clients"
+	"github.com/absmach/magistrala/pkg/errors"
+	svcerr "github.com/absmach/magistrala/pkg/errors/service"
 	"github.com/gofrs/uuid"
-	"github.com/mainflux/mainflux"
-	"github.com/mainflux/mainflux/internal/apiutil"
-	"github.com/mainflux/mainflux/internal/postgres"
-	mfclients "github.com/mainflux/mainflux/pkg/clients"
-	"github.com/mainflux/mainflux/pkg/errors"
 )
 
 const (
@@ -22,6 +23,7 @@ const (
 	RelationKey      = "relation"
 	StatusKey        = "status"
 	OffsetKey        = "offset"
+	OrderKey         = "order"
 	LimitKey         = "limit"
 	MetadataKey      = "metadata"
 	ParentKey        = "parent_id"
@@ -38,17 +40,21 @@ const (
 	LevelKey         = "level"
 	TreeKey          = "tree"
 	DirKey           = "dir"
+	ListPerms        = "list_perms"
 	VisibilityKey    = "visibility"
 	SharedByKey      = "shared_by"
 	TokenKey         = "token"
 	DefPermission    = "view"
 	DefTotal         = uint64(100)
 	DefOffset        = 0
+	DefOrder         = "updated_at"
+	DefDir           = "asc"
 	DefLimit         = 10
 	DefLevel         = 0
 	DefStatus        = "enabled"
-	DefClientStatus  = mfclients.Enabled
-	DefGroupStatus   = mfclients.Enabled
+	DefClientStatus  = mgclients.Enabled
+	DefGroupStatus   = mgclients.Enabled
+	DefListPerms     = false
 	SharedVisibility = "shared"
 	MyVisibility     = "mine"
 	AllVisibility    = "all"
@@ -76,7 +82,7 @@ func ValidateUUID(extID string) (err error) {
 
 // EncodeResponse encodes successful response.
 func EncodeResponse(_ context.Context, w http.ResponseWriter, response interface{}) error {
-	if ar, ok := response.(mainflux.Response); ok {
+	if ar, ok := response.(magistrala.Response); ok {
 		for k, v := range ar.Headers() {
 			w.Header().Set(k, v)
 		}
@@ -101,29 +107,36 @@ func EncodeError(_ context.Context, err error, w http.ResponseWriter) {
 	w.Header().Set("Content-Type", ContentType)
 	switch {
 	case errors.Contains(err, apiutil.ErrInvalidSecret),
+		errors.Contains(err, svcerr.ErrMalformedEntity),
 		errors.Contains(err, errors.ErrMalformedEntity),
 		errors.Contains(err, apiutil.ErrMissingID),
 		errors.Contains(err, apiutil.ErrEmptyList),
 		errors.Contains(err, apiutil.ErrMissingMemberType),
 		errors.Contains(err, apiutil.ErrMissingMemberKind),
+		errors.Contains(err, apiutil.ErrLimitSize),
+		errors.Contains(err, apiutil.ErrBearerKey),
 		errors.Contains(err, apiutil.ErrNameSize):
 		w.WriteHeader(http.StatusBadRequest)
-	case errors.Contains(err, errors.ErrAuthentication):
+	case errors.Contains(err, svcerr.ErrAuthentication),
+		errors.Contains(err, errors.ErrAuthentication),
+		errors.Contains(err, apiutil.ErrBearerToken):
 		w.WriteHeader(http.StatusUnauthorized)
-	case errors.Contains(err, errors.ErrNotFound):
+	case errors.Contains(err, svcerr.ErrNotFound):
 		w.WriteHeader(http.StatusNotFound)
-	case errors.Contains(err, errors.ErrConflict):
+	case errors.Contains(err, svcerr.ErrConflict),
+		errors.Contains(err, postgres.ErrMemberAlreadyAssigned),
+		errors.Contains(err, errors.ErrConflict):
 		w.WriteHeader(http.StatusConflict)
-	case errors.Contains(err, errors.ErrAuthorization):
+	case errors.Contains(err, svcerr.ErrAuthorization),
+		errors.Contains(err, errors.ErrAuthorization),
+		errors.Contains(err, errors.ErrDomainAuthorization):
 		w.WriteHeader(http.StatusForbidden)
-	case errors.Contains(err, postgres.ErrMemberAlreadyAssigned):
-		w.WriteHeader(http.StatusConflict)
 	case errors.Contains(err, apiutil.ErrUnsupportedContentType):
 		w.WriteHeader(http.StatusUnsupportedMediaType)
-	case errors.Contains(err, errors.ErrCreateEntity),
-		errors.Contains(err, errors.ErrUpdateEntity),
-		errors.Contains(err, errors.ErrViewEntity),
-		errors.Contains(err, errors.ErrRemoveEntity):
+	case errors.Contains(err, svcerr.ErrCreateEntity),
+		errors.Contains(err, svcerr.ErrUpdateEntity),
+		errors.Contains(err, svcerr.ErrViewEntity),
+		errors.Contains(err, svcerr.ErrRemoveEntity):
 		w.WriteHeader(http.StatusInternalServerError)
 	default:
 		w.WriteHeader(http.StatusInternalServerError)

@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package mocks
@@ -10,7 +10,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/mainflux/mainflux/twins"
+	"github.com/absmach/magistrala/twins"
 )
 
 var _ twins.StateRepository = (*stateRepositoryMock)(nil)
@@ -52,7 +52,7 @@ func (srm *stateRepositoryMock) Count(ctx context.Context, tw twins.Twin) (int64
 	return int64(len(srm.states)), nil
 }
 
-func (srm *stateRepositoryMock) RetrieveAll(ctx context.Context, offset uint64, limit uint64, twinID string) (twins.StatesPage, error) {
+func (srm *stateRepositoryMock) RetrieveAll(ctx context.Context, offset, limit uint64, twinID string) (twins.StatesPage, error) {
 	srm.mu.Lock()
 	defer srm.mu.Unlock()
 

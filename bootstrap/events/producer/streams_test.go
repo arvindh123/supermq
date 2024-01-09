@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package producer_test
@@ -7,37 +7,32 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http/httptest"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/go-chi/chi/v5"
+	"github.com/absmach/magistrala"
+	authmocks "github.com/absmach/magistrala/auth/mocks"
+	"github.com/absmach/magistrala/bootstrap"
+	"github.com/absmach/magistrala/bootstrap/events/producer"
+	"github.com/absmach/magistrala/bootstrap/mocks"
+	"github.com/absmach/magistrala/internal/testsutil"
+	"github.com/absmach/magistrala/pkg/errors"
+	svcerr "github.com/absmach/magistrala/pkg/errors/service"
+	"github.com/absmach/magistrala/pkg/events/store"
+	mgsdk "github.com/absmach/magistrala/pkg/sdk/go"
+	sdkmocks "github.com/absmach/magistrala/pkg/sdk/mocks"
 	"github.com/go-redis/redis/v8"
-	"github.com/mainflux/mainflux"
-	authmocks "github.com/mainflux/mainflux/auth/mocks"
-	"github.com/mainflux/mainflux/bootstrap"
-	"github.com/mainflux/mainflux/bootstrap/events/producer"
-	"github.com/mainflux/mainflux/bootstrap/mocks"
-	"github.com/mainflux/mainflux/internal/groups"
-	chmocks "github.com/mainflux/mainflux/internal/groups/mocks"
-	mflog "github.com/mainflux/mainflux/logger"
-	"github.com/mainflux/mainflux/pkg/errors"
-	mfgroups "github.com/mainflux/mainflux/pkg/groups"
-	mfsdk "github.com/mainflux/mainflux/pkg/sdk/go"
-	"github.com/mainflux/mainflux/pkg/uuid"
-	"github.com/mainflux/mainflux/things"
-	thapi "github.com/mainflux/mainflux/things/api/http"
-	thmocks "github.com/mainflux/mainflux/things/mocks"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
 const (
-	streamID      = "mainflux.bootstrap"
+	streamID      = "magistrala.bootstrap"
 	email         = "user@example.com"
-	validToken    = "validToken"
+	validToken    = "token"
 	channelsNum   = 3
 	defaultTimout = 5
 
@@ -54,12 +49,12 @@ const (
 	thingUpdateConnections = thingPrefix + "update_connections"
 	thingDisconnect        = thingPrefix + "disconnect"
 
-	channelPrefix        = "channel."
+	channelPrefix        = "group."
 	channelHandlerRemove = channelPrefix + "remove_handler"
 	channelUpdateHandler = channelPrefix + "update_handler"
 
 	certUpdate = "cert.update"
-
+	validID    = "d4ebb847-5d0e-4e46-bdd9-b6aceaaa3a22"
 	instanceID = "5de9b29a-feb9-11ed-be56-0242ac120002"
 )
 
@@ -67,56 +62,39 @@ var (
 	encKey = []byte("1234567891011121")
 
 	channel = bootstrap.Channel{
-		ID:       "1",
+		ID:       testsutil.GenerateUUID(&testing.T{}),
 		Name:     "name",
 		Metadata: map[string]interface{}{"name": "value"},
 	}
 
 	config = bootstrap.Config{
-		ExternalID:  "external_id",
-		ExternalKey: "external_key",
+		ThingID:     testsutil.GenerateUUID(&testing.T{}),
+		ThingKey:    testsutil.GenerateUUID(&testing.T{}),
+		ExternalID:  testsutil.GenerateUUID(&testing.T{}),
+		ExternalKey: testsutil.GenerateUUID(&testing.T{}),
 		Channels:    []bootstrap.Channel{channel},
 		Content:     "config",
 	}
 )
 
-func newService(url string, auth mainflux.AuthServiceClient) bootstrap.Service {
-	configs := mocks.NewConfigsRepository()
-	config := mfsdk.Config{
-		ThingsURL: url,
-	}
-
-	sdk := mfsdk.NewSDK(config)
-	return bootstrap.New(auth, configs, sdk, encKey)
-}
-
-func newThingsService() (things.Service, mfgroups.Service, mainflux.AuthServiceClient) {
+func newService(t *testing.T, url string) (bootstrap.Service, *authmocks.Service, *sdkmocks.SDK) {
+	things := mocks.NewConfigsRepository()
 	auth := new(authmocks.Service)
-	thingCache := thmocks.NewCache()
-	idProvider := uuid.NewMock()
-	cRepo := new(thmocks.Repository)
-	gRepo := new(chmocks.Repository)
+	sdk := new(sdkmocks.SDK)
 
-	return things.NewService(auth, cRepo, gRepo, thingCache, idProvider), groups.NewService(gRepo, idProvider, auth), auth
-}
+	svc := bootstrap.New(auth, things, sdk, encKey)
+	publisher, err := store.NewPublisher(context.Background(), url, streamID)
+	require.Nil(t, err, fmt.Sprintf("got unexpected error: %s", err))
+	svc = producer.NewEventStoreMiddleware(svc, publisher)
 
-func newThingsServer(tsvc things.Service, gsvc mfgroups.Service) *httptest.Server {
-	logger := mflog.NewMock()
-	mux := chi.NewRouter()
-	thapi.MakeHandler(tsvc, gsvc, mux, logger, instanceID)
-
-	return httptest.NewServer(mux)
+	return svc, auth, sdk
 }
 
 func TestAdd(t *testing.T) {
 	err := redisClient.FlushAll(context.Background()).Err()
 	assert.Nil(t, err, fmt.Sprintf("got unexpected error: %s", err))
 
-	tsvc, gsvc, auth := newThingsService()
-	ts := newThingsServer(tsvc, gsvc)
-	svc := newService(ts.URL, auth)
-	svc, err = producer.NewEventStoreMiddleware(context.Background(), svc, redisURL)
-	assert.Nil(t, err, fmt.Sprintf("go unexpected error on creating event store middleware: %s", err))
+	svc, auth, sdk := newService(t, redisURL)
 
 	var channels []string
 	for _, ch := range config.Channels {
@@ -154,13 +132,16 @@ func TestAdd(t *testing.T) {
 			desc:   "create invalid config",
 			config: invalidConfig,
 			token:  validToken,
-			err:    errors.ErrMalformedEntity,
+			err:    svcerr.ErrMalformedEntity,
 			event:  nil,
 		},
 	}
 
 	lastID := "0"
 	for _, tc := range cases {
+		repoCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: tc.token}).Return(&magistrala.IdentityRes{Id: validID}, nil)
+		repoCall1 := sdk.On("Thing", mock.Anything, mock.Anything).Return(mgsdk.Thing{ID: tc.config.ThingID, Credentials: mgsdk.Credentials{Secret: tc.config.ThingKey}}, errors.NewSDKError(tc.err))
+		repoCall2 := sdk.On("Channel", mock.Anything, mock.Anything).Return(toChannel(tc.config.Channels[0]), errors.NewSDKError(tc.err))
 		_, err := svc.Add(context.Background(), tc.token, tc.config)
 		assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s: expected %s got %s\n", tc.desc, tc.err, err))
 
@@ -177,22 +158,32 @@ func TestAdd(t *testing.T) {
 		}
 
 		test(t, tc.event, event, tc.desc)
+
+		repoCall.Unset()
+		repoCall1.Unset()
+		repoCall2.Unset()
 	}
 }
 
 func TestView(t *testing.T) {
-	tsvc, gsvc, auth := newThingsService()
-	ts := newThingsServer(tsvc, gsvc)
-	svc := newService(ts.URL, auth)
+	svc, auth, sdk := newService(t, redisURL)
 
+	repoCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: validToken}).Return(&magistrala.IdentityRes{Id: validID}, nil)
+	repoCall1 := sdk.On("Thing", mock.Anything, mock.Anything).Return(mgsdk.Thing{ID: config.ThingID, Credentials: mgsdk.Credentials{Secret: config.ThingKey}}, nil)
+	repoCall2 := sdk.On("Channel", mock.Anything, mock.Anything).Return(toChannel(config.Channels[0]), nil)
 	saved, err := svc.Add(context.Background(), validToken, config)
 	assert.Nil(t, err, fmt.Sprintf("Saving config expected to succeed: %s.\n", err))
+	repoCall.Unset()
+	repoCall1.Unset()
+	repoCall2.Unset()
 
+	repoCall = auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: validToken}).Return(&magistrala.IdentityRes{Id: validID}, nil)
 	svcConfig, svcErr := svc.View(context.Background(), validToken, saved.ThingID)
+	repoCall.Unset()
 
-	svc, err = producer.NewEventStoreMiddleware(context.Background(), svc, redisURL)
-	assert.Nil(t, err, fmt.Sprintf("go unexpected error on creating event store middleware: %s", err))
+	repoCall = auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: validToken}).Return(&magistrala.IdentityRes{Id: validID}, nil)
 	esConfig, esErr := svc.View(context.Background(), validToken, saved.ThingID)
+	repoCall.Unset()
 
 	assert.Equal(t, svcConfig, esConfig, fmt.Sprintf("event sourcing changed service behavior: expected %v got %v", svcConfig, esConfig))
 	assert.Equal(t, svcErr, esErr, fmt.Sprintf("event sourcing changed service behavior: expected %v got %v", svcErr, esErr))
@@ -202,19 +193,21 @@ func TestUpdate(t *testing.T) {
 	err := redisClient.FlushAll(context.Background()).Err()
 	assert.Nil(t, err, fmt.Sprintf("got unexpected error: %s", err))
 
-	tsvc, gsvc, auth := newThingsService()
-	ts := newThingsServer(tsvc, gsvc)
-	svc := newService(ts.URL, auth)
-	svc, err = producer.NewEventStoreMiddleware(context.Background(), svc, redisURL)
-	assert.Nil(t, err, fmt.Sprintf("go unexpected error on creating event store middleware: %s", err))
+	svc, auth, sdk := newService(t, redisURL)
 
 	c := config
 
 	ch := channel
-	ch.ID = "2"
+	ch.ID = testsutil.GenerateUUID(t)
 	c.Channels = append(c.Channels, ch)
+	repoCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: validToken}).Return(&magistrala.IdentityRes{Id: validID}, nil)
+	repoCall1 := sdk.On("Thing", mock.Anything, mock.Anything).Return(mgsdk.Thing{ID: c.ThingID, Credentials: mgsdk.Credentials{Secret: c.ThingKey}}, nil)
+	repoCall2 := sdk.On("Channel", mock.Anything, mock.Anything).Return(toChannel(c.Channels[0]), nil)
 	saved, err := svc.Add(context.Background(), validToken, c)
-	require.Nil(t, err, fmt.Sprintf("Saving config expected to succeed: %s.\n", err))
+	assert.Nil(t, err, fmt.Sprintf("Saving config expected to succeed: %s.\n", err))
+	repoCall.Unset()
+	repoCall1.Unset()
+	repoCall2.Unset()
 
 	err = redisClient.FlushAll(context.Background()).Err()
 	assert.Nil(t, err, fmt.Sprintf("got unexpected error: %s", err))
@@ -225,6 +218,10 @@ func TestUpdate(t *testing.T) {
 
 	nonExisting := config
 	nonExisting.ThingID = "unknown"
+
+	channels := []string{modified.Channels[0].ID, modified.Channels[1].ID}
+	chs, err := json.Marshal(channels)
+	assert.Nil(t, err, fmt.Sprintf("got unexpected error: %s", err))
 
 	cases := []struct {
 		desc   string
@@ -243,10 +240,10 @@ func TestUpdate(t *testing.T) {
 				"content":     modified.Content,
 				"timestamp":   time.Now().UnixNano(),
 				"operation":   configUpdate,
-				"channels":    "[1, 2]",
-				"external_id": "external_id",
-				"thing_id":    "1",
-				"owner":       email,
+				"channels":    string(chs),
+				"external_id": modified.ExternalID,
+				"thing_id":    modified.ThingID,
+				"owner":       validID,
 				"state":       "0",
 				"occurred_at": time.Now().UnixNano(),
 			},
@@ -255,15 +252,16 @@ func TestUpdate(t *testing.T) {
 			desc:   "update non-existing config",
 			config: nonExisting,
 			token:  validToken,
-			err:    errors.ErrNotFound,
+			err:    svcerr.ErrNotFound,
 			event:  nil,
 		},
 	}
 
 	lastID := "0"
 	for _, tc := range cases {
+		repoCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: tc.token}).Return(&magistrala.IdentityRes{Id: validID}, nil)
 		err := svc.Update(context.Background(), tc.token, tc.config)
-		assert.Equal(t, tc.err, err, fmt.Sprintf("%s: expected %s got %s\n", tc.desc, tc.err, err))
+		assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s: expected %s got %s\n", tc.desc, tc.err, err))
 
 		streams := redisClient.XRead(context.Background(), &redis.XReadArgs{
 			Streams: []string{streamID, lastID},
@@ -280,6 +278,7 @@ func TestUpdate(t *testing.T) {
 		}
 
 		test(t, tc.event, event, tc.desc)
+		repoCall.Unset()
 	}
 }
 
@@ -287,14 +286,17 @@ func TestUpdateConnections(t *testing.T) {
 	err := redisClient.FlushAll(context.Background()).Err()
 	assert.Nil(t, err, fmt.Sprintf("got unexpected error: %s", err))
 
-	tsvc, gsvc, auth := newThingsService()
-	ts := newThingsServer(tsvc, gsvc)
-	svc := newService(ts.URL, auth)
-	svc, err = producer.NewEventStoreMiddleware(context.Background(), svc, redisURL)
-	assert.Nil(t, err, fmt.Sprintf("go unexpected error on creating event store middleware: %s", err))
+	svc, auth, sdk := newService(t, redisURL)
 
+	repoCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: validToken}).Return(&magistrala.IdentityRes{Id: validID}, nil)
+	repoCall1 := sdk.On("Thing", mock.Anything, mock.Anything).Return(mgsdk.Thing{ID: config.ThingID, Credentials: mgsdk.Credentials{Secret: config.ThingKey}}, nil)
+	repoCall2 := sdk.On("Channel", mock.Anything, mock.Anything).Return(toChannel(config.Channels[0]), nil)
 	saved, err := svc.Add(context.Background(), validToken, config)
-	require.Nil(t, err, fmt.Sprintf("Saving config expected to succeed: %s.\n", err))
+	assert.Nil(t, err, fmt.Sprintf("Saving config expected to succeed: %s.\n", err))
+	repoCall.Unset()
+	repoCall1.Unset()
+	repoCall2.Unset()
+
 	err = redisClient.FlushAll(context.Background()).Err()
 	assert.Nil(t, err, fmt.Sprintf("got unexpected error: %s", err))
 
@@ -310,7 +312,7 @@ func TestUpdateConnections(t *testing.T) {
 			desc:        "update connections successfully",
 			id:          saved.ThingID,
 			token:       validToken,
-			connections: []string{"2"},
+			connections: []string{config.Channels[0].ID},
 			err:         nil,
 			event: map[string]interface{}{
 				"thing_id":  saved.ThingID,
@@ -324,13 +326,16 @@ func TestUpdateConnections(t *testing.T) {
 			id:          saved.ThingID,
 			token:       validToken,
 			connections: []string{"256"},
-			err:         errors.ErrMalformedEntity,
+			err:         svcerr.ErrNotFound,
 			event:       nil,
 		},
 	}
 
 	lastID := "0"
 	for _, tc := range cases {
+		repoCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: tc.token}).Return(&magistrala.IdentityRes{Id: validID}, nil)
+		repoCall1 := sdk.On("Thing", mock.Anything, mock.Anything).Return(mgsdk.Thing{ID: config.ThingID, Credentials: mgsdk.Credentials{Secret: config.ThingKey}}, nil)
+		repoCall2 := sdk.On("Channel", mock.Anything, mock.Anything).Return(mgsdk.Channel{}, nil)
 		err := svc.UpdateConnections(context.Background(), tc.token, tc.id, tc.connections)
 		assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s: expected %s got %s\n", tc.desc, tc.err, err))
 
@@ -347,6 +352,9 @@ func TestUpdateConnections(t *testing.T) {
 		}
 
 		test(t, tc.event, event, tc.desc)
+		repoCall.Unset()
+		repoCall1.Unset()
+		repoCall2.Unset()
 	}
 }
 
@@ -354,14 +362,17 @@ func TestUpdateCert(t *testing.T) {
 	err := redisClient.FlushAll(context.Background()).Err()
 	assert.Nil(t, err, fmt.Sprintf("got unexpected error: %s", err))
 
-	tsvc, gsvc, auth := newThingsService()
-	ts := newThingsServer(tsvc, gsvc)
-	svc := newService(ts.URL, auth)
-	svc, err = producer.NewEventStoreMiddleware(context.Background(), svc, redisURL)
-	assert.Nil(t, err, fmt.Sprintf("go unexpected error on creating event store middleware: %s", err))
+	svc, auth, sdk := newService(t, redisURL)
 
+	repoCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: validToken}).Return(&magistrala.IdentityRes{Id: validID}, nil)
+	repoCall1 := sdk.On("Thing", mock.Anything, mock.Anything).Return(mgsdk.Thing{ID: config.ThingID, Credentials: mgsdk.Credentials{Secret: config.ThingKey}}, nil)
+	repoCall2 := sdk.On("Channel", mock.Anything, mock.Anything).Return(toChannel(config.Channels[0]), nil)
 	saved, err := svc.Add(context.Background(), validToken, config)
-	require.Nil(t, err, fmt.Sprintf("Saving config expected to succeed: %s.\n", err))
+	assert.Nil(t, err, fmt.Sprintf("Saving config expected to succeed: %s.\n", err))
+	repoCall.Unset()
+	repoCall1.Unset()
+	repoCall2.Unset()
+
 	err = redisClient.FlushAll(context.Background()).Err()
 	assert.Nil(t, err, fmt.Sprintf("got unexpected error: %s", err))
 
@@ -394,11 +405,11 @@ func TestUpdateCert(t *testing.T) {
 		{
 			desc:       "invalid token",
 			id:         saved.ThingID,
-			token:      "invalidToken",
+			token:      "invalid",
 			clientCert: "clientCert",
 			clientKey:  "clientKey",
 			caCert:     "caCert",
-			err:        errors.ErrAuthentication,
+			err:        svcerr.ErrAuthentication,
 			event:      nil,
 		},
 		{
@@ -408,7 +419,7 @@ func TestUpdateCert(t *testing.T) {
 			clientCert: "clientCert",
 			clientKey:  "clientKey",
 			caCert:     "caCert",
-			err:        errors.ErrNotFound,
+			err:        svcerr.ErrNotFound,
 			event:      nil,
 		},
 		{
@@ -444,11 +455,11 @@ func TestUpdateCert(t *testing.T) {
 		{
 			desc:       "update cert with invalid token",
 			id:         saved.ThingID,
-			token:      "invalidToken",
+			token:      "invalid",
 			clientCert: "clientCert",
 			clientKey:  "clientKey",
 			caCert:     "caCert",
-			err:        errors.ErrAuthentication,
+			err:        svcerr.ErrAuthentication,
 			event:      nil,
 		},
 		{
@@ -458,7 +469,7 @@ func TestUpdateCert(t *testing.T) {
 			clientCert: "clientCert",
 			clientKey:  "clientKey",
 			caCert:     "caCert",
-			err:        errors.ErrNotFound,
+			err:        svcerr.ErrNotFound,
 			event:      nil,
 		},
 		{
@@ -482,6 +493,8 @@ func TestUpdateCert(t *testing.T) {
 
 	lastID := "0"
 	for _, tc := range cases {
+		repoCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: tc.token}).Return(&magistrala.IdentityRes{Id: validID}, nil)
+
 		_, err := svc.UpdateCert(context.Background(), tc.token, tc.id, tc.clientCert, tc.clientKey, tc.caCert)
 		assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s: expected %s got %s\n", tc.desc, tc.err, err))
 
@@ -498,24 +511,32 @@ func TestUpdateCert(t *testing.T) {
 		}
 
 		test(t, tc.event, event, tc.desc)
+
+		repoCall.Unset()
 	}
 }
 
 func TestList(t *testing.T) {
-	tsvc, gsvc, auth := newThingsService()
-	ts := newThingsServer(tsvc, gsvc)
-	svc := newService(ts.URL, auth)
+	svc, auth, sdk := newService(t, redisURL)
 
+	repoCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: validToken}).Return(&magistrala.IdentityRes{Id: validID}, nil)
+	repoCall1 := sdk.On("Thing", mock.Anything, mock.Anything).Return(mgsdk.Thing{ID: config.ThingID, Credentials: mgsdk.Credentials{Secret: config.ThingKey}}, nil)
+	repoCall2 := sdk.On("Channel", mock.Anything, mock.Anything).Return(toChannel(config.Channels[0]), nil)
 	_, err := svc.Add(context.Background(), validToken, config)
 	assert.Nil(t, err, fmt.Sprintf("Saving config expected to succeed: %s.\n", err))
+	repoCall.Unset()
+	repoCall1.Unset()
+	repoCall2.Unset()
 
 	offset := uint64(0)
 	limit := uint64(10)
+	repoCall = auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: validToken}).Return(&magistrala.IdentityRes{Id: validID}, nil)
 	svcConfigs, svcErr := svc.List(context.Background(), validToken, bootstrap.Filter{}, offset, limit)
+	repoCall.Unset()
 
-	svc, err = producer.NewEventStoreMiddleware(context.Background(), svc, redisURL)
-	assert.Nil(t, err, fmt.Sprintf("go unexpected error on creating event store middleware: %s", err))
+	repoCall = auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: validToken}).Return(&magistrala.IdentityRes{Id: validID}, nil)
 	esConfigs, esErr := svc.List(context.Background(), validToken, bootstrap.Filter{}, offset, limit)
+	repoCall.Unset()
 	assert.Equal(t, svcConfigs, esConfigs)
 	assert.Equal(t, svcErr, esErr)
 }
@@ -524,16 +545,19 @@ func TestRemove(t *testing.T) {
 	err := redisClient.FlushAll(context.Background()).Err()
 	assert.Nil(t, err, fmt.Sprintf("got unexpected error: %s", err))
 
-	tsvc, gsvc, auth := newThingsService()
-	ts := newThingsServer(tsvc, gsvc)
-	svc := newService(ts.URL, auth)
-	svc, err = producer.NewEventStoreMiddleware(context.Background(), svc, redisURL)
-	assert.Nil(t, err, fmt.Sprintf("go unexpected error on creating event store middleware: %s", err))
+	svc, auth, sdk := newService(t, redisURL)
 
 	c := config
 
+	repoCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: validToken}).Return(&magistrala.IdentityRes{Id: validID}, nil)
+	repoCall1 := sdk.On("Thing", mock.Anything, mock.Anything).Return(mgsdk.Thing{ID: config.ThingID, Credentials: mgsdk.Credentials{Secret: config.ThingKey}}, nil)
+	repoCall2 := sdk.On("Channel", mock.Anything, mock.Anything).Return(toChannel(config.Channels[0]), nil)
 	saved, err := svc.Add(context.Background(), validToken, c)
-	require.Nil(t, err, fmt.Sprintf("Saving config expected to succeed: %s.\n", err))
+	assert.Nil(t, err, fmt.Sprintf("Saving config expected to succeed: %s.\n", err))
+	repoCall.Unset()
+	repoCall1.Unset()
+	repoCall2.Unset()
+
 	err = redisClient.FlushAll(context.Background()).Err()
 	assert.Nil(t, err, fmt.Sprintf("got unexpected error: %s", err))
 
@@ -559,15 +583,16 @@ func TestRemove(t *testing.T) {
 			desc:  "remove config with invalid credentials",
 			id:    saved.ThingID,
 			token: "",
-			err:   errors.ErrAuthentication,
+			err:   svcerr.ErrAuthentication,
 			event: nil,
 		},
 	}
 
 	lastID := "0"
 	for _, tc := range cases {
+		repoCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: tc.token}).Return(&magistrala.IdentityRes{Id: validID}, nil)
 		err := svc.Remove(context.Background(), tc.token, tc.id)
-		assert.Equal(t, tc.err, err, fmt.Sprintf("%s: expected %s got %s\n", tc.desc, tc.err, err))
+		assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s: expected %s got %s\n", tc.desc, tc.err, err))
 
 		streams := redisClient.XRead(context.Background(), &redis.XReadArgs{
 			Streams: []string{streamID, lastID},
@@ -582,6 +607,7 @@ func TestRemove(t *testing.T) {
 		}
 
 		test(t, tc.event, event, tc.desc)
+		repoCall.Unset()
 	}
 }
 
@@ -589,16 +615,19 @@ func TestBootstrap(t *testing.T) {
 	err := redisClient.FlushAll(context.Background()).Err()
 	assert.Nil(t, err, fmt.Sprintf("got unexpected error: %s", err))
 
-	tsvc, gsvc, auth := newThingsService()
-	ts := newThingsServer(tsvc, gsvc)
-	svc := newService(ts.URL, auth)
-	svc, err = producer.NewEventStoreMiddleware(context.Background(), svc, redisURL)
-	assert.Nil(t, err, fmt.Sprintf("go unexpected error on creating event store middleware: %s", err))
+	svc, auth, sdk := newService(t, redisURL)
 
 	c := config
 
+	repoCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: validToken}).Return(&magistrala.IdentityRes{Id: validID}, nil)
+	repoCall1 := sdk.On("Thing", mock.Anything, mock.Anything).Return(mgsdk.Thing{ID: config.ThingID, Credentials: mgsdk.Credentials{Secret: config.ThingKey}}, nil)
+	repoCall2 := sdk.On("Channel", mock.Anything, mock.Anything).Return(mgsdk.Channel{}, nil)
 	saved, err := svc.Add(context.Background(), validToken, c)
-	require.Nil(t, err, fmt.Sprintf("Saving config expected to succeed: %s.\n", err))
+	assert.Nil(t, err, fmt.Sprintf("Saving config expected to succeed: %s.\n", err))
+	repoCall.Unset()
+	repoCall1.Unset()
+	repoCall2.Unset()
+
 	err = redisClient.FlushAll(context.Background()).Err()
 	assert.Nil(t, err, fmt.Sprintf("got unexpected error: %s", err))
 
@@ -659,16 +688,19 @@ func TestChangeState(t *testing.T) {
 	err := redisClient.FlushAll(context.Background()).Err()
 	assert.Nil(t, err, fmt.Sprintf("got unexpected error: %s", err))
 
-	tsvc, gsvc, auth := newThingsService()
-	ts := newThingsServer(tsvc, gsvc)
-	svc := newService(ts.URL, auth)
-	svc, err = producer.NewEventStoreMiddleware(context.Background(), svc, redisURL)
-	assert.Nil(t, err, fmt.Sprintf("go unexpected error on creating event store middleware: %s", err))
+	svc, auth, sdk := newService(t, redisURL)
 
 	c := config
 
+	repoCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: validToken}).Return(&magistrala.IdentityRes{Id: validID}, nil)
+	repoCall1 := sdk.On("Thing", mock.Anything, mock.Anything).Return(mgsdk.Thing{ID: config.ThingID, Credentials: mgsdk.Credentials{Secret: config.ThingKey}}, nil)
+	repoCall2 := sdk.On("Channel", mock.Anything, mock.Anything).Return(toChannel(c.Channels[0]), nil)
 	saved, err := svc.Add(context.Background(), validToken, c)
-	require.Nil(t, err, fmt.Sprintf("Saving config expected to succeed: %s.\n", err))
+	assert.Nil(t, err, fmt.Sprintf("Saving config expected to succeed: %s.\n", err))
+	repoCall.Unset()
+	repoCall1.Unset()
+	repoCall2.Unset()
+
 	err = redisClient.FlushAll(context.Background()).Err()
 	assert.Nil(t, err, fmt.Sprintf("got unexpected error: %s", err))
 
@@ -696,17 +728,20 @@ func TestChangeState(t *testing.T) {
 		{
 			desc:  "change state invalid credentials",
 			id:    saved.ThingID,
-			token: "",
+			token: "invalid",
 			state: bootstrap.Inactive,
-			err:   errors.ErrAuthentication,
+			err:   svcerr.ErrAuthentication,
 			event: nil,
 		},
 	}
 
 	lastID := "0"
 	for _, tc := range cases {
+		repoCall = auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: tc.token}).Return(&magistrala.IdentityRes{Id: validID, DomainId: testsutil.GenerateUUID(t)}, nil)
+		repoCall1 = auth.On("Authorize", mock.Anything, mock.Anything).Return(&magistrala.AuthorizeRes{Authorized: true}, nil)
+		repoCall2 = sdk.On("Connect", mock.Anything, mock.Anything).Return(nil)
 		err := svc.ChangeState(context.Background(), tc.token, tc.id, tc.state)
-		assert.Equal(t, tc.err, err, fmt.Sprintf("%s: expected %s got %s\n", tc.desc, tc.err, err))
+		assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s: expected %s got %s\n", tc.desc, tc.err, err))
 
 		streams := redisClient.XRead(context.Background(), &redis.XReadArgs{
 			Streams: []string{streamID, lastID},
@@ -721,6 +756,9 @@ func TestChangeState(t *testing.T) {
 		}
 
 		test(t, tc.event, event, tc.desc)
+		repoCall.Unset()
+		repoCall1.Unset()
+		repoCall2.Unset()
 	}
 }
 
@@ -728,11 +766,7 @@ func TestUpdateChannelHandler(t *testing.T) {
 	err := redisClient.FlushAll(context.Background()).Err()
 	assert.Nil(t, err, fmt.Sprintf("got unexpected error: %s", err))
 
-	tsvc, gsvc, auth := newThingsService()
-	ts := newThingsServer(tsvc, gsvc)
-	svc := newService(ts.URL, auth)
-	svc, err = producer.NewEventStoreMiddleware(context.Background(), svc, redisURL)
-	assert.Nil(t, err, fmt.Sprintf("go unexpected error on creating event store middleware: %s", err))
+	svc, _, _ := newService(t, redisURL)
 
 	err = redisClient.FlushAll(context.Background()).Err()
 	assert.Nil(t, err, fmt.Sprintf("got unexpected error: %s", err))
@@ -815,11 +849,7 @@ func TestRemoveChannelHandler(t *testing.T) {
 	err := redisClient.FlushAll(context.Background()).Err()
 	assert.Nil(t, err, fmt.Sprintf("got unexpected error: %s", err))
 
-	tsvc, gsvc, auth := newThingsService()
-	ts := newThingsServer(tsvc, gsvc)
-	svc := newService(ts.URL, auth)
-	svc, err = producer.NewEventStoreMiddleware(context.Background(), svc, redisURL)
-	assert.Nil(t, err, fmt.Sprintf("go unexpected error on creating event store middleware: %s", err))
+	svc, _, _ := newService(t, redisURL)
 
 	err = redisClient.FlushAll(context.Background()).Err()
 	assert.Nil(t, err, fmt.Sprintf("got unexpected error: %s", err))
@@ -882,11 +912,7 @@ func TestRemoveConfigHandler(t *testing.T) {
 	err := redisClient.FlushAll(context.Background()).Err()
 	assert.Nil(t, err, fmt.Sprintf("got unexpected error: %s", err))
 
-	tsvc, gsvc, auth := newThingsService()
-	ts := newThingsServer(tsvc, gsvc)
-	svc := newService(ts.URL, auth)
-	svc, err = producer.NewEventStoreMiddleware(context.Background(), svc, redisURL)
-	assert.Nil(t, err, fmt.Sprintf("go unexpected error on creating event store middleware: %s", err))
+	svc, _, _ := newService(t, redisURL)
 
 	err = redisClient.FlushAll(context.Background()).Err()
 	assert.Nil(t, err, fmt.Sprintf("got unexpected error: %s", err))
@@ -899,7 +925,7 @@ func TestRemoveConfigHandler(t *testing.T) {
 	}{
 		{
 			desc:     "remove config handler successfully",
-			configID: "1",
+			configID: channel.ID,
 			err:      nil,
 			event: map[string]interface{}{
 				"config_id":   channel.ID,
@@ -949,11 +975,7 @@ func TestDisconnectThingHandler(t *testing.T) {
 	err := redisClient.FlushAll(context.Background()).Err()
 	assert.Nil(t, err, fmt.Sprintf("got unexpected error: %s", err))
 
-	tsvc, gsvc, auth := newThingsService()
-	ts := newThingsServer(tsvc, gsvc)
-	svc := newService(ts.URL, auth)
-	svc, err = producer.NewEventStoreMiddleware(context.Background(), svc, redisURL)
-	assert.Nil(t, err, fmt.Sprintf("go unexpected error on creating event store middleware: %s", err))
+	svc, _, _ := newService(t, redisURL)
 
 	err = redisClient.FlushAll(context.Background()).Err()
 	assert.Nil(t, err, fmt.Sprintf("got unexpected error: %s", err))
@@ -1056,11 +1078,11 @@ func test(t *testing.T, expected, actual map[string]interface{}, description str
 			ech := expected["channels"]
 			ach := actual["channels"]
 
-			che := []int{}
+			che := []string{}
 			err = json.Unmarshal([]byte(ech.(string)), &che)
 			require.Nil(t, err, fmt.Sprintf("%s: expected to get a valid channels, got %s", description, err))
 
-			cha := []int{}
+			cha := []string{}
 			err = json.Unmarshal([]byte(ach.(string)), &cha)
 			require.Nil(t, err, fmt.Sprintf("%s: expected to get a valid channels, got %s", description, err))
 
@@ -1071,5 +1093,13 @@ func test(t *testing.T, expected, actual map[string]interface{}, description str
 		}
 
 		assert.Equal(t, expected, actual, fmt.Sprintf("%s: got incorrect event\n", description))
+	}
+}
+
+func toChannel(ch bootstrap.Channel) mgsdk.Channel {
+	return mgsdk.Channel{
+		ID:       ch.ID,
+		Name:     ch.Name,
+		Metadata: ch.Metadata,
 	}
 }

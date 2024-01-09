@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package mongodb_test
@@ -10,12 +10,13 @@ import (
 	"strings"
 	"testing"
 
-	mflog "github.com/mainflux/mainflux/logger"
-	"github.com/mainflux/mainflux/pkg/errors"
-	"github.com/mainflux/mainflux/pkg/uuid"
-	"github.com/mainflux/mainflux/twins"
-	"github.com/mainflux/mainflux/twins/mocks"
-	"github.com/mainflux/mainflux/twins/mongodb"
+	mglog "github.com/absmach/magistrala/logger"
+	"github.com/absmach/magistrala/pkg/errors"
+	repoerr "github.com/absmach/magistrala/pkg/errors/repository"
+	"github.com/absmach/magistrala/pkg/uuid"
+	"github.com/absmach/magistrala/twins"
+	"github.com/absmach/magistrala/twins/mocks"
+	"github.com/absmach/magistrala/twins/mongodb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
@@ -27,15 +28,15 @@ const (
 	maxNameSize = 1024
 	testDB      = "test"
 	collection  = "twins"
-	email       = "mfx_twin@example.com"
-	validName   = "mfx_twin"
+	email       = "mgx_twin@example.com"
+	validName   = "mgx_twin"
 	subtopic    = "engine"
 )
 
 var (
 	port        string
 	addr        string
-	testLog, _  = mflog.New(os.Stdout, mflog.Info.String())
+	testLog, _  = mglog.New(os.Stdout, mglog.Info.String())
 	idProvider  = uuid.New()
 	invalidName = strings.Repeat("m", maxNameSize+1)
 )
@@ -75,7 +76,7 @@ func TestTwinsSave(t *testing.T) {
 				Owner: email,
 				Name:  invalidName,
 			},
-			err: errors.ErrMalformedEntity,
+			err: repoerr.ErrMalformedEntity,
 		},
 	}
 
@@ -123,7 +124,7 @@ func TestTwinsUpdate(t *testing.T) {
 			twin: twins.Twin{
 				ID: nonexistentTwinID,
 			},
-			err: errors.ErrNotFound,
+			err: repoerr.ErrNotFound,
 		},
 		{
 			desc: "update twin with invalid name",
@@ -132,7 +133,7 @@ func TestTwinsUpdate(t *testing.T) {
 				Owner: email,
 				Name:  invalidName,
 			},
-			err: errors.ErrMalformedEntity,
+			err: repoerr.ErrMalformedEntity,
 		},
 	}
 
@@ -176,7 +177,7 @@ func TestTwinsRetrieveByID(t *testing.T) {
 		{
 			desc: "retrieve a non-existing twin",
 			id:   nonexistentTwinID,
-			err:  errors.ErrNotFound,
+			err:  repoerr.ErrNotFound,
 		},
 	}
 
@@ -237,7 +238,7 @@ func TestTwinsRetrieveByAttribute(t *testing.T) {
 
 func TestTwinsRetrieveAll(t *testing.T) {
 	email := "twin-multi-retrieval@example.com"
-	name := "mainflux"
+	name := "magistrala"
 	metadata := twins.Metadata{
 		"type": "test",
 	}

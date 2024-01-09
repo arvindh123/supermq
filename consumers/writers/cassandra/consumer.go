@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package cassandra
@@ -8,11 +8,11 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/absmach/magistrala/consumers"
+	"github.com/absmach/magistrala/pkg/errors"
+	mgjson "github.com/absmach/magistrala/pkg/transformers/json"
+	"github.com/absmach/magistrala/pkg/transformers/senml"
 	"github.com/gocql/gocql"
-	"github.com/mainflux/mainflux/consumers"
-	"github.com/mainflux/mainflux/pkg/errors"
-	mfjson "github.com/mainflux/mainflux/pkg/transformers/json"
-	"github.com/mainflux/mainflux/pkg/transformers/senml"
 )
 
 var (
@@ -32,7 +32,7 @@ func New(session *gocql.Session) consumers.BlockingConsumer {
 
 func (cr *cassandraRepository) ConsumeBlocking(_ context.Context, message interface{}) error {
 	switch m := message.(type) {
-	case mfjson.Messages:
+	case mgjson.Messages:
 		return cr.saveJSON(m)
 	default:
 		return cr.saveSenml(m)
@@ -62,7 +62,7 @@ func (cr *cassandraRepository) saveSenml(messages interface{}) error {
 	return nil
 }
 
-func (cr *cassandraRepository) saveJSON(msgs mfjson.Messages) error {
+func (cr *cassandraRepository) saveJSON(msgs mgjson.Messages) error {
 	if err := cr.insertJSON(msgs); err != nil {
 		if err == errNoTable {
 			if err := cr.createTable(msgs.Format); err != nil {
@@ -75,7 +75,7 @@ func (cr *cassandraRepository) saveJSON(msgs mfjson.Messages) error {
 	return nil
 }
 
-func (cr *cassandraRepository) insertJSON(msgs mfjson.Messages) error {
+func (cr *cassandraRepository) insertJSON(msgs mgjson.Messages) error {
 	cql := `INSERT INTO %s (id, channel, created, subtopic, publisher, protocol, payload) VALUES (?, ?, ?, ?, ?, ?, ?)`
 	cql = fmt.Sprintf(cql, msgs.Format)
 	for _, msg := range msgs.Data {

@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 //go:build !test
@@ -9,19 +9,19 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/mainflux/mainflux/logger"
-	"github.com/mainflux/mainflux/readers"
+	mglog "github.com/absmach/magistrala/logger"
+	"github.com/absmach/magistrala/readers"
 )
 
 var _ readers.MessageRepository = (*loggingMiddleware)(nil)
 
 type loggingMiddleware struct {
-	logger logger.Logger
+	logger mglog.Logger
 	svc    readers.MessageRepository
 }
 
 // LoggingMiddleware adds logging facilities to the core service.
-func LoggingMiddleware(svc readers.MessageRepository, logger logger.Logger) readers.MessageRepository {
+func LoggingMiddleware(svc readers.MessageRepository, logger mglog.Logger) readers.MessageRepository {
 	return &loggingMiddleware{
 		logger: logger,
 		svc:    svc,

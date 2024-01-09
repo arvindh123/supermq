@@ -1,12 +1,12 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package cassandra
 
 import (
+	"github.com/absmach/magistrala/pkg/errors"
+	"github.com/caarlos0/env/v10"
 	"github.com/gocql/gocql"
-	"github.com/mainflux/mainflux/internal/env"
-	"github.com/mainflux/mainflux/pkg/errors"
 )
 
 var (
@@ -18,7 +18,7 @@ var (
 // Config contains Cassandra DB specific parameters.
 type Config struct {
 	Hosts    []string `env:"CLUSTER"     envDefault:"127.0.0.1" envSeparator:","`
-	Keyspace string   `env:"KEYSPACE"    envDefault:"mainflux"`
+	Keyspace string   `env:"KEYSPACE"    envDefault:"magistrala"`
 	User     string   `env:"USER"        envDefault:""`
 	Pass     string   `env:"PASS"        envDefault:""`
 	Port     int      `env:"PORT"        envDefault:"9042"`
@@ -32,12 +32,12 @@ func Setup(envPrefix string) (*gocql.Session, error) {
 // SetupDB load configuration from environment,
 // creates new cassandra connection and executes
 // the initial query in database.
-func SetupDB(envPrefix string, initQuery string) (*gocql.Session, error) {
-	config := Config{}
-	if err := env.Parse(&config, env.Options{Prefix: envPrefix}); err != nil {
+func SetupDB(envPrefix, initQuery string) (*gocql.Session, error) {
+	cfg := Config{}
+	if err := env.ParseWithOptions(&cfg, env.Options{Prefix: envPrefix}); err != nil {
 		return nil, errors.Wrap(errConfig, err)
 	}
-	cs, err := Connect(config)
+	cs, err := Connect(cfg)
 	if err != nil {
 		return nil, err
 	}

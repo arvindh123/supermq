@@ -1,3 +1,6 @@
+# Copyright (c) Abstract Machines
+# SPDX-License-Identifier: Apache-2.0
+
 [mqtt]
   timeout = 1000
   [mqtt.broker]
@@ -22,5 +25,5 @@ count = 70
 [log]
 quiet = true
 
-[mainflux]
-connections_file = "../provision/mfconn.toml"
+[magistrala]
+connections_file = "../provision/mgconn.toml"

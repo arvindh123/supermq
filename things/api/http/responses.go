@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package http
@@ -7,20 +7,22 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/mainflux/mainflux"
-	mfclients "github.com/mainflux/mainflux/pkg/clients"
+	"github.com/absmach/magistrala"
+	mgclients "github.com/absmach/magistrala/pkg/clients"
 )
 
 var (
-	_ mainflux.Response = (*viewClientRes)(nil)
-	_ mainflux.Response = (*createClientRes)(nil)
-	_ mainflux.Response = (*deleteClientRes)(nil)
-	_ mainflux.Response = (*clientsPageRes)(nil)
-	_ mainflux.Response = (*viewMembersRes)(nil)
-	_ mainflux.Response = (*assignUsersGroupsRes)(nil)
-	_ mainflux.Response = (*unassignUsersGroupsRes)(nil)
-	_ mainflux.Response = (*connectChannelThingRes)(nil)
-	_ mainflux.Response = (*disconnectChannelThingRes)(nil)
+	_ magistrala.Response = (*viewClientRes)(nil)
+	_ magistrala.Response = (*viewClientPermsRes)(nil)
+	_ magistrala.Response = (*createClientRes)(nil)
+	_ magistrala.Response = (*deleteClientRes)(nil)
+	_ magistrala.Response = (*clientsPageRes)(nil)
+	_ magistrala.Response = (*viewMembersRes)(nil)
+	_ magistrala.Response = (*assignUsersGroupsRes)(nil)
+	_ magistrala.Response = (*unassignUsersGroupsRes)(nil)
+	_ magistrala.Response = (*connectChannelThingRes)(nil)
+	_ magistrala.Response = (*disconnectChannelThingRes)(nil)
+	_ magistrala.Response = (*changeClientStatusRes)(nil)
 )
 
 type pageRes struct {
@@ -30,7 +32,7 @@ type pageRes struct {
 }
 
 type createClientRes struct {
-	mfclients.Client
+	mgclients.Client
 	created bool
 }
 
@@ -57,7 +59,7 @@ func (res createClientRes) Empty() bool {
 }
 
 type updateClientRes struct {
-	mfclients.Client
+	mgclients.Client
 }
 
 func (res updateClientRes) Code() int {
@@ -73,7 +75,7 @@ func (res updateClientRes) Empty() bool {
 }
 
 type viewClientRes struct {
-	mfclients.Client
+	mgclients.Client
 }
 
 func (res viewClientRes) Code() int {
@@ -85,6 +87,22 @@ func (res viewClientRes) Headers() map[string]string {
 }
 
 func (res viewClientRes) Empty() bool {
+	return false
+}
+
+type viewClientPermsRes struct {
+	Permissions []string `json:"permissions"`
+}
+
+func (res viewClientPermsRes) Code() int {
+	return http.StatusOK
+}
+
+func (res viewClientPermsRes) Headers() map[string]string {
+	return map[string]string{}
+}
+
+func (res viewClientPermsRes) Empty() bool {
 	return false
 }
 
@@ -106,7 +124,7 @@ func (res clientsPageRes) Empty() bool {
 }
 
 type viewMembersRes struct {
-	mfclients.Client
+	mgclients.Client
 }
 
 func (res viewMembersRes) Code() int {
@@ -121,12 +139,26 @@ func (res viewMembersRes) Empty() bool {
 	return false
 }
 
-type deleteClientRes struct {
-	mfclients.Client
+type changeClientStatusRes struct {
+	mgclients.Client
 }
 
-func (res deleteClientRes) Code() int {
+func (res changeClientStatusRes) Code() int {
 	return http.StatusOK
+}
+
+func (res changeClientStatusRes) Headers() map[string]string {
+	return map[string]string{}
+}
+
+func (res changeClientStatusRes) Empty() bool {
+	return false
+}
+
+type deleteClientRes struct{}
+
+func (res deleteClientRes) Code() int {
+	return http.StatusNoContent
 }
 
 func (res deleteClientRes) Headers() map[string]string {
@@ -134,7 +166,7 @@ func (res deleteClientRes) Headers() map[string]string {
 }
 
 func (res deleteClientRes) Empty() bool {
-	return false
+	return true
 }
 
 type assignUsersGroupsRes struct{}

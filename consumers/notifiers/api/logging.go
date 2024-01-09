@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 //go:build !test
@@ -10,19 +10,19 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/mainflux/mainflux/consumers/notifiers"
-	mflog "github.com/mainflux/mainflux/logger"
+	"github.com/absmach/magistrala/consumers/notifiers"
+	mglog "github.com/absmach/magistrala/logger"
 )
 
 var _ notifiers.Service = (*loggingMiddleware)(nil)
 
 type loggingMiddleware struct {
-	logger mflog.Logger
+	logger mglog.Logger
 	svc    notifiers.Service
 }
 
 // LoggingMiddleware adds logging facilities to the core service.
-func LoggingMiddleware(svc notifiers.Service, logger mflog.Logger) notifiers.Service {
+func LoggingMiddleware(svc notifiers.Service, logger mglog.Logger) notifiers.Service {
 	return &loggingMiddleware{logger, svc}
 }
 

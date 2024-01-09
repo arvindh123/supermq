@@ -1,15 +1,13 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package producer
 
 import (
 	"encoding/json"
-	"fmt"
-	"strings"
 
-	"github.com/mainflux/mainflux/bootstrap"
-	"github.com/mainflux/mainflux/pkg/events"
+	"github.com/absmach/magistrala/bootstrap"
+	"github.com/absmach/magistrala/pkg/events"
 )
 
 const (
@@ -27,7 +25,7 @@ const (
 	thingUpdateConnections = thingPrefix + "update_connections"
 	thingDisconnect        = thingPrefix + "disconnect"
 
-	channelPrefix        = "channel."
+	channelPrefix        = "group."
 	channelHandlerRemove = channelPrefix + "remove_handler"
 	channelUpdateHandler = channelPrefix + "update_handler"
 
@@ -75,7 +73,11 @@ func (ce configEvent) Encode() (map[string]interface{}, error) {
 		for i, ch := range ce.Channels {
 			channels[i] = ch.ID
 		}
-		val["channels"] = fmt.Sprintf("[%s]", strings.Join(channels, ", "))
+		data, err := json.Marshal(channels)
+		if err != nil {
+			return map[string]interface{}{}, err
+		}
+		val["channels"] = string(data)
 	}
 	if ce.ClientCert != "" {
 		val["client_cert"] = ce.ClientCert
@@ -94,12 +96,12 @@ func (ce configEvent) Encode() (map[string]interface{}, error) {
 }
 
 type removeConfigEvent struct {
-	mfThing string
+	mgThing string
 }
 
 func (rce removeConfigEvent) Encode() (map[string]interface{}, error) {
 	return map[string]interface{}{
-		"thing_id":  rce.mfThing,
+		"thing_id":  rce.mgThing,
 		"operation": configRemove,
 	}, nil
 }
@@ -170,7 +172,11 @@ func (be bootstrapEvent) Encode() (map[string]interface{}, error) {
 		for i, ch := range be.Channels {
 			channels[i] = ch.ID
 		}
-		val["channels"] = fmt.Sprintf("[%s]", strings.Join(channels, ", "))
+		data, err := json.Marshal(channels)
+		if err != nil {
+			return map[string]interface{}{}, err
+		}
+		val["channels"] = string(data)
 	}
 	if be.ClientCert != "" {
 		val["client_cert"] = be.ClientCert
@@ -188,27 +194,32 @@ func (be bootstrapEvent) Encode() (map[string]interface{}, error) {
 }
 
 type changeStateEvent struct {
-	mfThing string
+	mgThing string
 	state   bootstrap.State
 }
 
 func (cse changeStateEvent) Encode() (map[string]interface{}, error) {
 	return map[string]interface{}{
-		"thing_id":  cse.mfThing,
+		"thing_id":  cse.mgThing,
 		"state":     cse.state.String(),
 		"operation": thingStateChange,
 	}, nil
 }
 
 type updateConnectionsEvent struct {
-	mfThing    string
-	mfChannels []string
+	mgThing    string
+	mgChannels []string
 }
 
 func (uce updateConnectionsEvent) Encode() (map[string]interface{}, error) {
+	data, err := json.Marshal(uce.mgChannels)
+	if err != nil {
+		return map[string]interface{}{}, err
+	}
+
 	return map[string]interface{}{
-		"thing_id":  uce.mfThing,
-		"channels":  fmt.Sprintf("[%s]", strings.Join(uce.mfChannels, ", ")),
+		"thing_id":  uce.mgThing,
+		"channels":  string(data),
 		"operation": thingUpdateConnections,
 	}, nil
 }

@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 // Package main contains cli main function to run the cli.
@@ -8,17 +8,19 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/mainflux/mainflux/cli"
-	sdk "github.com/mainflux/mainflux/pkg/sdk/go"
+	"github.com/absmach/magistrala/cli"
+	sdk "github.com/absmach/magistrala/pkg/sdk/go"
 	"github.com/spf13/cobra"
 )
 
 const (
-	defURL          string = "http://localhost"
-	defUsersURL     string = defURL + ":9002"
-	defThingsURL    string = defURL + ":9000"
-	defBootstrapURL string = defURL + ":9013"
-	defCertsURL     string = defURL + ":9019"
+	defURL            string = "http://localhost"
+	defUsersURL       string = defURL + ":9002"
+	defThingsURL      string = defURL + ":9000"
+	defBootstrapURL   string = defURL + ":9013"
+	defDomainsURL     string = defURL + ":8189"
+	defCertsURL       string = defURL + ":9019"
+	defInvitationsURL string = defURL + ":9020"
 )
 
 func main() {
@@ -30,6 +32,8 @@ func main() {
 		HTTPAdapterURL:  fmt.Sprintf("%s/http", defURL),
 		BootstrapURL:    defBootstrapURL,
 		CertsURL:        defCertsURL,
+		DomainsURL:      defDomainsURL,
+		InvitationsURL:  defInvitationsURL,
 		MsgContentType:  sdk.ContentType(msgContentType),
 		TLSVerification: false,
 		HostURL:         defURL,
@@ -37,8 +41,8 @@ func main() {
 
 	// Root
 	rootCmd := &cobra.Command{
-		Use: "mainflux-cli",
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		Use: "magistrala-cli",
+		PersistentPreRun: func(_ *cobra.Command, _ []string) {
 			cliConf, err := cli.ParseConfig(sdkConf)
 			if err != nil {
 				log.Fatalf("Failed to parse config: %s", err)
@@ -53,6 +57,7 @@ func main() {
 	// API commands
 	healthCmd := cli.NewHealthCmd()
 	usersCmd := cli.NewUsersCmd()
+	domainsCmd := cli.NewDomainsCmd()
 	thingsCmd := cli.NewThingsCmd()
 	groupsCmd := cli.NewGroupsCmd()
 	channelsCmd := cli.NewChannelsCmd()
@@ -62,10 +67,12 @@ func main() {
 	certsCmd := cli.NewCertsCmd()
 	subscriptionsCmd := cli.NewSubscriptionCmd()
 	configCmd := cli.NewConfigCmd()
+	invitationsCmd := cli.NewInvitationsCmd()
 
 	// Root Commands
 	rootCmd.AddCommand(healthCmd)
 	rootCmd.AddCommand(usersCmd)
+	rootCmd.AddCommand(domainsCmd)
 	rootCmd.AddCommand(groupsCmd)
 	rootCmd.AddCommand(thingsCmd)
 	rootCmd.AddCommand(channelsCmd)
@@ -75,6 +82,7 @@ func main() {
 	rootCmd.AddCommand(certsCmd)
 	rootCmd.AddCommand(subscriptionsCmd)
 	rootCmd.AddCommand(configCmd)
+	rootCmd.AddCommand(invitationsCmd)
 
 	// Root Flags
 	rootCmd.PersistentFlags().StringVarP(
@@ -110,6 +118,14 @@ func main() {
 	)
 
 	rootCmd.PersistentFlags().StringVarP(
+		&sdkConf.DomainsURL,
+		"domains-url",
+		"d",
+		sdkConf.DomainsURL,
+		"Domains service URL",
+	)
+
+	rootCmd.PersistentFlags().StringVarP(
 		&sdkConf.HTTPAdapterURL,
 		"http-url",
 		"p",
@@ -123,6 +139,14 @@ func main() {
 		"R",
 		sdkConf.ReaderURL,
 		"Reader URL",
+	)
+
+	rootCmd.PersistentFlags().StringVarP(
+		&sdkConf.InvitationsURL,
+		"invitations-url",
+		"v",
+		sdkConf.InvitationsURL,
+		"Inivitations URL",
 	)
 
 	rootCmd.PersistentFlags().StringVarP(
@@ -191,11 +215,11 @@ func main() {
 	)
 
 	rootCmd.PersistentFlags().StringVarP(
-		&cli.Email,
-		"email",
-		"e",
+		&cli.Identity,
+		"identity",
+		"I",
 		"",
-		"User email query parameter",
+		"User identity query parameter",
 	)
 
 	rootCmd.PersistentFlags().StringVarP(

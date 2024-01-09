@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 // Package main contains bootstrap main function to start the bootstrap service.
@@ -8,53 +8,56 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 
+	"github.com/absmach/magistrala"
+	"github.com/absmach/magistrala/bootstrap"
+	"github.com/absmach/magistrala/bootstrap/api"
+	"github.com/absmach/magistrala/bootstrap/events/consumer"
+	"github.com/absmach/magistrala/bootstrap/events/producer"
+	bootstrappg "github.com/absmach/magistrala/bootstrap/postgres"
+	"github.com/absmach/magistrala/bootstrap/tracing"
+	"github.com/absmach/magistrala/internal"
+	"github.com/absmach/magistrala/internal/clients/jaeger"
+	pgclient "github.com/absmach/magistrala/internal/clients/postgres"
+	"github.com/absmach/magistrala/internal/postgres"
+	"github.com/absmach/magistrala/internal/server"
+	httpserver "github.com/absmach/magistrala/internal/server/http"
+	mglog "github.com/absmach/magistrala/logger"
+	"github.com/absmach/magistrala/pkg/auth"
+	"github.com/absmach/magistrala/pkg/events/store"
+	mgsdk "github.com/absmach/magistrala/pkg/sdk/go"
+	"github.com/absmach/magistrala/pkg/uuid"
+	"github.com/caarlos0/env/v10"
 	"github.com/jmoiron/sqlx"
 	chclient "github.com/mainflux/callhome/pkg/client"
-	"github.com/mainflux/mainflux"
-	"github.com/mainflux/mainflux/bootstrap"
-	"github.com/mainflux/mainflux/bootstrap/api"
-	"github.com/mainflux/mainflux/bootstrap/events/consumer"
-	"github.com/mainflux/mainflux/bootstrap/events/producer"
-	bootstrappg "github.com/mainflux/mainflux/bootstrap/postgres"
-	"github.com/mainflux/mainflux/bootstrap/tracing"
-	"github.com/mainflux/mainflux/internal"
-	authclient "github.com/mainflux/mainflux/internal/clients/grpc/auth"
-	"github.com/mainflux/mainflux/internal/clients/jaeger"
-	pgclient "github.com/mainflux/mainflux/internal/clients/postgres"
-	"github.com/mainflux/mainflux/internal/env"
-	"github.com/mainflux/mainflux/internal/postgres"
-	"github.com/mainflux/mainflux/internal/server"
-	httpserver "github.com/mainflux/mainflux/internal/server/http"
-	mflog "github.com/mainflux/mainflux/logger"
-	"github.com/mainflux/mainflux/pkg/events/store"
-	mfsdk "github.com/mainflux/mainflux/pkg/sdk/go"
-	"github.com/mainflux/mainflux/pkg/uuid"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 )
 
 const (
 	svcName        = "bootstrap"
-	envPrefixDB    = "MF_BOOTSTRAP_DB_"
-	envPrefixHTTP  = "MF_BOOTSTRAP_HTTP_"
+	envPrefixDB    = "MG_BOOTSTRAP_DB_"
+	envPrefixHTTP  = "MG_BOOTSTRAP_HTTP_"
+	envPrefixAuth  = "MG_AUTH_GRPC_"
 	defDB          = "bootstrap"
 	defSvcHTTPPort = "9013"
 
-	thingsStream = "mainflux.things"
+	thingsStream = "magistrala.things"
+	streamID     = "magistrala.bootstrap"
 )
 
 type config struct {
-	LogLevel       string  `env:"MF_BOOTSTRAP_LOG_LEVEL"        envDefault:"info"`
-	EncKey         string  `env:"MF_BOOTSTRAP_ENCRYPT_KEY"      envDefault:"12345678910111213141516171819202"`
-	ESConsumerName string  `env:"MF_BOOTSTRAP_EVENT_CONSUMER"   envDefault:"bootstrap"`
-	ThingsURL      string  `env:"MF_THINGS_URL"                 envDefault:"http://localhost:9000"`
-	JaegerURL      string  `env:"MF_JAEGER_URL"                 envDefault:"http://jaeger:14268/api/traces"`
-	SendTelemetry  bool    `env:"MF_SEND_TELEMETRY"             envDefault:"true"`
-	InstanceID     string  `env:"MF_BOOTSTRAP_INSTANCE_ID"      envDefault:""`
-	ESURL          string  `env:"MF_BOOTSTRAP_ES_URL"           envDefault:"redis://localhost:6379/0"`
-	TraceRatio     float64 `env:"MF_JAEGER_TRACE_RATIO"         envDefault:"1.0"`
+	LogLevel       string  `env:"MG_BOOTSTRAP_LOG_LEVEL"        envDefault:"info"`
+	EncKey         string  `env:"MG_BOOTSTRAP_ENCRYPT_KEY"      envDefault:"12345678910111213141516171819202"`
+	ESConsumerName string  `env:"MG_BOOTSTRAP_EVENT_CONSUMER"   envDefault:"bootstrap"`
+	ThingsURL      string  `env:"MG_THINGS_URL"                 envDefault:"http://localhost:9000"`
+	JaegerURL      url.URL `env:"MG_JAEGER_URL"                 envDefault:"http://localhost:14268/api/traces"`
+	SendTelemetry  bool    `env:"MG_SEND_TELEMETRY"             envDefault:"true"`
+	InstanceID     string  `env:"MG_BOOTSTRAP_INSTANCE_ID"      envDefault:""`
+	ESURL          string  `env:"MG_ES_URL"                     envDefault:"nats://localhost:4222"`
+	TraceRatio     float64 `env:"MG_JAEGER_TRACE_RATIO"         envDefault:"1.0"`
 }
 
 func main() {
@@ -66,13 +69,13 @@ func main() {
 		log.Fatalf("failed to load %s configuration : %s", svcName, err)
 	}
 
-	logger, err := mflog.New(os.Stdout, cfg.LogLevel)
+	logger, err := mglog.New(os.Stdout, cfg.LogLevel)
 	if err != nil {
 		log.Fatalf("failed to init logger: %s", err)
 	}
 
 	var exitCode int
-	defer mflog.ExitWithError(&exitCode)
+	defer mglog.ExitWithError(&exitCode)
 
 	if cfg.InstanceID == "" {
 		if cfg.InstanceID, err = uuid.New().ID(); err != nil {
@@ -84,10 +87,10 @@ func main() {
 
 	// Create new postgres client
 	dbConfig := pgclient.Config{Name: defDB}
-	if err := dbConfig.LoadEnv(envPrefixDB); err != nil {
+	if err := env.ParseWithOptions(&dbConfig, env.Options{Prefix: envPrefixDB}); err != nil {
 		logger.Fatal(err.Error())
 	}
-	db, err := pgclient.SetupWithConfig(envPrefixDB, *bootstrappg.Migration(), dbConfig)
+	db, err := pgclient.Setup(dbConfig, *bootstrappg.Migration())
 	if err != nil {
 		logger.Error(err.Error())
 		exitCode = 1
@@ -95,8 +98,14 @@ func main() {
 	}
 	defer db.Close()
 
-	// Create new auth grpc client api
-	auth, authHandler, err := authclient.Setup(svcName)
+	authConfig := auth.Config{}
+	if err := env.ParseWithOptions(&authConfig, env.Options{Prefix: envPrefixAuth}); err != nil {
+		logger.Error(fmt.Sprintf("failed to load %s auth configuration : %s", svcName, err))
+		exitCode = 1
+		return
+	}
+
+	authClient, authHandler, err := auth.Setup(authConfig)
 	if err != nil {
 		logger.Error(err.Error())
 		exitCode = 1
@@ -105,7 +114,7 @@ func main() {
 	defer authHandler.Close()
 	logger.Info("Successfully connected to auth grpc server " + authHandler.Secure())
 
-	tp, err := jaeger.NewProvider(svcName, cfg.JaegerURL, cfg.InstanceID, cfg.TraceRatio)
+	tp, err := jaeger.NewProvider(ctx, svcName, cfg.JaegerURL, cfg.InstanceID, cfg.TraceRatio)
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to init Jaeger: %s", err))
 		exitCode = 1
@@ -119,7 +128,7 @@ func main() {
 	tracer := tp.Tracer(svcName)
 
 	// Create new service
-	svc, err := newService(ctx, auth, db, tracer, logger, cfg, dbConfig)
+	svc, err := newService(ctx, authClient, db, tracer, logger, cfg, dbConfig)
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to create %s service: %s", svcName, err))
 		exitCode = 1
@@ -133,7 +142,7 @@ func main() {
 	}
 
 	httpServerConfig := server.Config{Port: defSvcHTTPPort}
-	if err := env.Parse(&httpServerConfig, env.Options{Prefix: envPrefixHTTP}); err != nil {
+	if err := env.ParseWithOptions(&httpServerConfig, env.Options{Prefix: envPrefixHTTP}); err != nil {
 		logger.Error(fmt.Sprintf("failed to load %s HTTP server configuration : %s", svcName, err))
 		exitCode = 1
 		return
@@ -141,7 +150,7 @@ func main() {
 	hs := httpserver.New(ctx, cancel, svcName, httpServerConfig, api.MakeHandler(svc, bootstrap.NewConfigReader([]byte(cfg.EncKey)), logger, cfg.InstanceID), logger)
 
 	if cfg.SendTelemetry {
-		chc := chclient.New(svcName, mainflux.Version, logger, cancel)
+		chc := chclient.New(svcName, magistrala.Version, logger, cancel)
 		go chc.CallHome(ctx)
 	}
 
@@ -158,24 +167,25 @@ func main() {
 	}
 }
 
-func newService(ctx context.Context, auth mainflux.AuthServiceClient, db *sqlx.DB, tracer trace.Tracer, logger mflog.Logger, cfg config, dbConfig pgclient.Config) (bootstrap.Service, error) {
+func newService(ctx context.Context, authClient magistrala.AuthServiceClient, db *sqlx.DB, tracer trace.Tracer, logger mglog.Logger, cfg config, dbConfig pgclient.Config) (bootstrap.Service, error) {
 	database := postgres.NewDatabase(db, dbConfig, tracer)
 
 	repoConfig := bootstrappg.NewConfigRepository(database, logger)
 
-	config := mfsdk.Config{
+	config := mgsdk.Config{
 		ThingsURL: cfg.ThingsURL,
 	}
 
-	sdk := mfsdk.NewSDK(config)
+	sdk := mgsdk.NewSDK(config)
 
-	svc := bootstrap.New(auth, repoConfig, sdk, []byte(cfg.EncKey))
+	svc := bootstrap.New(authClient, repoConfig, sdk, []byte(cfg.EncKey))
 
-	var err error
-	svc, err = producer.NewEventStoreMiddleware(ctx, svc, cfg.ESURL)
+	publisher, err := store.NewPublisher(ctx, cfg.ESURL, streamID)
 	if err != nil {
 		return nil, err
 	}
+
+	svc = producer.NewEventStoreMiddleware(svc, publisher)
 	svc = api.LoggingMiddleware(svc, logger)
 	counter, latency := internal.MakeMetrics(svcName, "api")
 	svc = api.MetricsMiddleware(svc, counter, latency)
@@ -184,7 +194,7 @@ func newService(ctx context.Context, auth mainflux.AuthServiceClient, db *sqlx.D
 	return svc, nil
 }
 
-func subscribeToThingsES(ctx context.Context, svc bootstrap.Service, cfg config, logger mflog.Logger) error {
+func subscribeToThingsES(ctx context.Context, svc bootstrap.Service, cfg config, logger mglog.Logger) error {
 	subscriber, err := store.NewSubscriber(ctx, cfg.ESURL, thingsStream, cfg.ESConsumerName, logger)
 	if err != nil {
 		return err

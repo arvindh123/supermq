@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package postgres
@@ -11,15 +11,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/absmach/magistrala/bootstrap"
+	"github.com/absmach/magistrala/internal/postgres"
+	mglog "github.com/absmach/magistrala/logger"
+	"github.com/absmach/magistrala/pkg/clients"
+	"github.com/absmach/magistrala/pkg/errors"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jmoiron/sqlx"
-	"github.com/mainflux/mainflux/bootstrap"
-	"github.com/mainflux/mainflux/internal/postgres"
-	mflog "github.com/mainflux/mainflux/logger"
-	"github.com/mainflux/mainflux/pkg/clients"
-	"github.com/mainflux/mainflux/pkg/errors"
 )
 
 var (
@@ -31,24 +31,24 @@ var (
 )
 
 const cleanupQuery = `DELETE FROM channels ch WHERE NOT EXISTS (
-						 SELECT channel_id FROM connections c WHERE ch.mainflux_channel = c.channel_id);`
+						 SELECT channel_id FROM connections c WHERE ch.magistrala_channel = c.channel_id);`
 
 var _ bootstrap.ConfigRepository = (*configRepository)(nil)
 
 type configRepository struct {
 	db  postgres.Database
-	log mflog.Logger
+	log mglog.Logger
 }
 
 // NewConfigRepository instantiates a PostgreSQL implementation of config
 // repository.
-func NewConfigRepository(db postgres.Database, log mflog.Logger) bootstrap.ConfigRepository {
+func NewConfigRepository(db postgres.Database, log mglog.Logger) bootstrap.ConfigRepository {
 	return &configRepository{db: db, log: log}
 }
 
 func (cr configRepository) Save(ctx context.Context, cfg bootstrap.Config, chsConnIDs []string) (string, error) {
-	q := `INSERT INTO configs (mainflux_thing, owner, name, client_cert, client_key, ca_cert, mainflux_key, external_id, external_key, content, state)
-		  VALUES (:mainflux_thing, :owner, :name, :client_cert, :client_key, :ca_cert, :mainflux_key, :external_id, :external_key, :content, :state)`
+	q := `INSERT INTO configs (magistrala_thing, owner, name, client_cert, client_key, ca_cert, magistrala_key, external_id, external_key, content, state)
+		  VALUES (:magistrala_thing, :owner, :name, :client_cert, :client_key, :ca_cert, :magistrala_key, :external_id, :external_key, :content, :state)`
 
 	tx, err := cr.db.BeginTxx(ctx, nil)
 	if err != nil {
@@ -86,12 +86,12 @@ func (cr configRepository) Save(ctx context.Context, cfg bootstrap.Config, chsCo
 }
 
 func (cr configRepository) RetrieveByID(ctx context.Context, owner, id string) (bootstrap.Config, error) {
-	q := `SELECT mainflux_thing, mainflux_key, external_id, external_key, name, content, state, client_cert, ca_cert
+	q := `SELECT magistrala_thing, magistrala_key, external_id, external_key, name, content, state, client_cert, ca_cert
 		  FROM configs
-		  WHERE mainflux_thing = :mainflux_thing AND owner = :owner`
+		  WHERE magistrala_thing = :magistrala_thing AND owner = :owner`
 
 	dbcfg := dbConfig{
-		MFThing: id,
+		ThingID: id,
 		Owner:   owner,
 	}
 	row, err := cr.db.NamedQueryContext(ctx, q, dbcfg)
@@ -111,10 +111,10 @@ func (cr configRepository) RetrieveByID(ctx context.Context, owner, id string) (
 		return bootstrap.Config{}, err
 	}
 
-	q = `SELECT mainflux_channel, name, metadata FROM channels ch
+	q = `SELECT magistrala_channel, name, metadata FROM channels ch
 		 INNER JOIN connections conn
-		 ON ch.mainflux_channel = conn.channel_id AND ch.owner = conn.config_owner
-		 WHERE conn.config_id = :mainflux_thing AND conn.config_owner = :owner`
+		 ON ch.magistrala_channel = conn.channel_id AND ch.owner = conn.config_owner
+		 WHERE conn.config_id = :magistrala_thing AND conn.config_owner = :owner`
 
 	rows, err := cr.db.NamedQueryContext(ctx, q, dbcfg)
 	if err != nil {
@@ -149,8 +149,8 @@ func (cr configRepository) RetrieveAll(ctx context.Context, owner string, filter
 	search, params := cr.retrieveAll(owner, filter)
 	n := len(params)
 
-	q := `SELECT mainflux_thing, mainflux_key, external_id, external_key, name, content, state
-	      FROM configs %s ORDER BY mainflux_thing LIMIT $%d OFFSET $%d`
+	q := `SELECT magistrala_thing, magistrala_key, external_id, external_key, name, content, state
+	      FROM configs %s ORDER BY magistrala_thing LIMIT $%d OFFSET $%d`
 	q = fmt.Sprintf(q, search, n+1, n+2)
 
 	rows, err := cr.db.QueryContext(ctx, q, append(params, limit, offset)...)
@@ -192,7 +192,7 @@ func (cr configRepository) RetrieveAll(ctx context.Context, owner string, filter
 }
 
 func (cr configRepository) RetrieveByExternalID(ctx context.Context, externalID string) (bootstrap.Config, error) {
-	q := `SELECT mainflux_thing, mainflux_key, external_key, owner, name, client_cert, client_key, ca_cert, content, state
+	q := `SELECT magistrala_thing, magistrala_key, external_key, owner, name, client_cert, client_key, ca_cert, content, state
 		  FROM configs
 		  WHERE external_id = :external_id`
 	dbcfg := dbConfig{
@@ -215,10 +215,10 @@ func (cr configRepository) RetrieveByExternalID(ctx context.Context, externalID 
 		return bootstrap.Config{}, errors.Wrap(errors.ErrViewEntity, err)
 	}
 
-	q = `SELECT mainflux_channel, name, metadata FROM channels ch
+	q = `SELECT magistrala_channel, name, metadata FROM channels ch
 		 INNER JOIN connections conn
-		 ON ch.mainflux_channel = conn.channel_id AND ch.owner = conn.config_owner
-		 WHERE conn.config_id = :mainflux_thing AND conn.config_owner = :owner`
+		 ON ch.magistrala_channel = conn.channel_id AND ch.owner = conn.config_owner
+		 WHERE conn.config_id = :magistrala_thing AND conn.config_owner = :owner`
 
 	rows, err := cr.db.NamedQueryContext(ctx, q, dbcfg)
 	if err != nil {
@@ -251,12 +251,12 @@ func (cr configRepository) RetrieveByExternalID(ctx context.Context, externalID 
 }
 
 func (cr configRepository) Update(ctx context.Context, cfg bootstrap.Config) error {
-	q := `UPDATE configs SET name = :name, content = :content WHERE mainflux_thing = :mainflux_thing AND owner = :owner `
+	q := `UPDATE configs SET name = :name, content = :content WHERE magistrala_thing = :magistrala_thing AND owner = :owner `
 
 	dbcfg := dbConfig{
 		Name:    nullString(cfg.Name),
 		Content: nullString(cfg.Content),
-		MFThing: cfg.ThingID,
+		ThingID: cfg.ThingID,
 		Owner:   cfg.Owner,
 	}
 
@@ -278,11 +278,11 @@ func (cr configRepository) Update(ctx context.Context, cfg bootstrap.Config) err
 }
 
 func (cr configRepository) UpdateCert(ctx context.Context, owner, thingID, clientCert, clientKey, caCert string) (bootstrap.Config, error) {
-	q := `UPDATE configs SET client_cert = :client_cert, client_key = :client_key, ca_cert = :ca_cert WHERE mainflux_thing = :mainflux_thing AND owner = :owner 
-	RETURNING mainflux_thing, client_cert, client_key, ca_cert`
+	q := `UPDATE configs SET client_cert = :client_cert, client_key = :client_key, ca_cert = :ca_cert WHERE magistrala_thing = :magistrala_thing AND owner = :owner 
+	RETURNING magistrala_thing, client_cert, client_key, ca_cert`
 
 	dbcfg := dbConfig{
-		MFThing:    thingID,
+		ThingID:    thingID,
 		ClientCert: nullString(clientCert),
 		Owner:      owner,
 		ClientKey:  nullString(clientKey),
@@ -336,9 +336,9 @@ func (cr configRepository) UpdateConnections(ctx context.Context, owner, id stri
 }
 
 func (cr configRepository) Remove(ctx context.Context, owner, id string) error {
-	q := `DELETE FROM configs WHERE mainflux_thing = :mainflux_thing AND owner = :owner`
+	q := `DELETE FROM configs WHERE magistrala_thing = :magistrala_thing AND owner = :owner`
 	dbcfg := dbConfig{
-		MFThing: id,
+		ThingID: id,
 		Owner:   owner,
 	}
 
@@ -354,10 +354,10 @@ func (cr configRepository) Remove(ctx context.Context, owner, id string) error {
 }
 
 func (cr configRepository) ChangeState(ctx context.Context, owner, id string, state bootstrap.State) error {
-	q := `UPDATE configs SET state = :state WHERE mainflux_thing = :mainflux_thing AND owner = :owner;`
+	q := `UPDATE configs SET state = :state WHERE magistrala_thing = :magistrala_thing AND owner = :owner;`
 
 	dbcfg := dbConfig{
-		MFThing: id,
+		ThingID: id,
 		State:   state,
 		Owner:   owner,
 	}
@@ -390,7 +390,7 @@ func (cr configRepository) ListExisting(ctx context.Context, owner string, ids [
 		return []bootstrap.Channel{}, err
 	}
 
-	q := "SELECT mainflux_channel, name, metadata FROM channels WHERE owner = $1 AND mainflux_channel = ANY ($2)"
+	q := "SELECT magistrala_channel, name, metadata FROM channels WHERE owner = $1 AND magistrala_channel = ANY ($2)"
 	rows, err := cr.db.QueryxContext(ctx, q, owner, chans)
 	if err != nil {
 		return []bootstrap.Channel{}, errors.Wrap(errors.ErrViewEntity, err)
@@ -416,7 +416,7 @@ func (cr configRepository) ListExisting(ctx context.Context, owner string, ids [
 }
 
 func (cr configRepository) RemoveThing(ctx context.Context, id string) error {
-	q := `DELETE FROM configs WHERE mainflux_thing = $1`
+	q := `DELETE FROM configs WHERE magistrala_thing = $1`
 	_, err := cr.db.ExecContext(ctx, q, id)
 
 	if _, err := cr.db.ExecContext(ctx, cleanupQuery); err != nil {
@@ -435,7 +435,7 @@ func (cr configRepository) UpdateChannel(ctx context.Context, c bootstrap.Channe
 	}
 
 	q := `UPDATE channels SET name = :name, metadata = :metadata, updated_at = :updated_at, updated_by = :updated_by 
-			WHERE mainflux_channel = :mainflux_channel`
+			WHERE magistrala_channel = :magistrala_channel`
 	if _, err = cr.db.NamedExecContext(ctx, q, dbch); err != nil {
 		return errors.Wrap(errUpdateChannels, err)
 	}
@@ -443,7 +443,7 @@ func (cr configRepository) UpdateChannel(ctx context.Context, c bootstrap.Channe
 }
 
 func (cr configRepository) RemoveChannel(ctx context.Context, id string) error {
-	q := `DELETE FROM channels WHERE mainflux_channel = $1`
+	q := `DELETE FROM channels WHERE magistrala_channel = $1`
 	if _, err := cr.db.ExecContext(ctx, q, id); err != nil {
 		return errors.Wrap(errRemoveChannels, err)
 	}
@@ -488,7 +488,7 @@ func (cr configRepository) rollback(content string, tx *sqlx.Tx) {
 	}
 }
 
-func insertChannels(ctx context.Context, owner string, channels []bootstrap.Channel, tx *sqlx.Tx) error {
+func insertChannels(_ context.Context, owner string, channels []bootstrap.Channel, tx *sqlx.Tx) error {
 	if len(channels) == 0 {
 		return nil
 	}
@@ -501,8 +501,8 @@ func insertChannels(ctx context.Context, owner string, channels []bootstrap.Chan
 		}
 		chans = append(chans, dbch)
 	}
-	q := `INSERT INTO channels (mainflux_channel, owner, name, metadata, parent_id, description, created_at, updated_at, updated_by, status)
-		  VALUES (:mainflux_channel, :owner, :name, :metadata, :parent_id, :description, :created_at, :updated_at, :updated_by, :status)`
+	q := `INSERT INTO channels (magistrala_channel, owner, name, metadata, parent_id, description, created_at, updated_at, updated_by, status)
+		  VALUES (:magistrala_channel, :owner, :name, :metadata, :parent_id, :description, :created_at, :updated_at, :updated_by, :status)`
 	if _, err := tx.NamedExec(q, chans); err != nil {
 		e := err
 		if pqErr, ok := err.(*pgconn.PgError); ok && pqErr.Code == pgerrcode.UniqueViolation {
@@ -514,7 +514,7 @@ func insertChannels(ctx context.Context, owner string, channels []bootstrap.Chan
 	return nil
 }
 
-func insertConnections(ctx context.Context, cfg bootstrap.Config, connections []string, tx *sqlx.Tx) error {
+func insertConnections(_ context.Context, cfg bootstrap.Config, connections []string, tx *sqlx.Tx) error {
 	if len(connections) == 0 {
 		return nil
 	}
@@ -536,7 +536,7 @@ func insertConnections(ctx context.Context, cfg bootstrap.Config, connections []
 	return err
 }
 
-func updateConnections(ctx context.Context, owner, id string, connections []string, tx *sqlx.Tx) error {
+func updateConnections(_ context.Context, owner, id string, connections []string, tx *sqlx.Tx) error {
 	if len(connections) == 0 {
 		return nil
 	}
@@ -610,13 +610,13 @@ func nullTime(t time.Time) sql.NullTime {
 }
 
 type dbConfig struct {
-	MFThing     string          `db:"mainflux_thing"`
+	ThingID     string          `db:"magistrala_thing"`
 	Owner       string          `db:"owner"`
 	Name        sql.NullString  `db:"name"`
 	ClientCert  sql.NullString  `db:"client_cert"`
 	ClientKey   sql.NullString  `db:"client_key"`
 	CaCert      sql.NullString  `db:"ca_cert"`
-	MFKey       string          `db:"mainflux_key"`
+	ThingKey    string          `db:"magistrala_key"`
 	ExternalID  string          `db:"external_id"`
 	ExternalKey string          `db:"external_key"`
 	Content     sql.NullString  `db:"content"`
@@ -625,13 +625,13 @@ type dbConfig struct {
 
 func toDBConfig(cfg bootstrap.Config) dbConfig {
 	return dbConfig{
-		MFThing:     cfg.ThingID,
+		ThingID:     cfg.ThingID,
 		Owner:       cfg.Owner,
 		Name:        nullString(cfg.Name),
 		ClientCert:  nullString(cfg.ClientCert),
 		ClientKey:   nullString(cfg.ClientKey),
 		CaCert:      nullString(cfg.CACert),
-		MFKey:       cfg.ThingKey,
+		ThingKey:    cfg.ThingKey,
 		ExternalID:  cfg.ExternalID,
 		ExternalKey: cfg.ExternalKey,
 		Content:     nullString(cfg.Content),
@@ -641,9 +641,9 @@ func toDBConfig(cfg bootstrap.Config) dbConfig {
 
 func toConfig(dbcfg dbConfig) bootstrap.Config {
 	cfg := bootstrap.Config{
-		ThingID:     dbcfg.MFThing,
+		ThingID:     dbcfg.ThingID,
 		Owner:       dbcfg.Owner,
-		ThingKey:    dbcfg.MFKey,
+		ThingKey:    dbcfg.ThingKey,
 		ExternalID:  dbcfg.ExternalID,
 		ExternalKey: dbcfg.ExternalKey,
 		State:       dbcfg.State,
@@ -672,7 +672,7 @@ func toConfig(dbcfg dbConfig) bootstrap.Config {
 }
 
 type dbChannel struct {
-	ID          string         `db:"mainflux_channel"`
+	ID          string         `db:"magistrala_channel"`
 	Name        sql.NullString `db:"name"`
 	Owner       sql.NullString `db:"owner"`
 	Metadata    string         `db:"metadata"`

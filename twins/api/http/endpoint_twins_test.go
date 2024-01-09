@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package http_test
@@ -14,14 +14,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mainflux/mainflux"
-	authmocks "github.com/mainflux/mainflux/auth/mocks"
-	"github.com/mainflux/mainflux/internal/apiutil"
-	"github.com/mainflux/mainflux/internal/testsutil"
-	"github.com/mainflux/mainflux/logger"
-	"github.com/mainflux/mainflux/twins"
-	httpapi "github.com/mainflux/mainflux/twins/api/http"
-	"github.com/mainflux/mainflux/twins/mocks"
+	"github.com/absmach/magistrala"
+	authmocks "github.com/absmach/magistrala/auth/mocks"
+	"github.com/absmach/magistrala/internal/apiutil"
+	"github.com/absmach/magistrala/internal/testsutil"
+	mglog "github.com/absmach/magistrala/logger"
+	"github.com/absmach/magistrala/twins"
+	httpapi "github.com/absmach/magistrala/twins/api/http"
+	"github.com/absmach/magistrala/twins/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -87,7 +87,7 @@ func (tr testRequest) make() (*http.Response, error) {
 }
 
 func newServer(svc twins.Service) *httptest.Server {
-	logger := logger.NewMock()
+	logger := mglog.NewMock()
 	mux := httpapi.MakeHandler(svc, logger, instanceID)
 	return httptest.NewServer(mux)
 }
@@ -188,7 +188,7 @@ func TestAddTwin(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		repoCall := auth.On("Identify", mock.Anything, &mainflux.IdentityReq{Token: tc.auth}).Return(&mainflux.IdentityRes{Id: testsutil.GenerateUUID(t)}, nil)
+		repoCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: tc.auth}).Return(&magistrala.IdentityRes{Id: testsutil.GenerateUUID(t)}, nil)
 		req := testRequest{
 			client:      ts.Client(),
 			method:      http.MethodPost,
@@ -214,7 +214,7 @@ func TestUpdateTwin(t *testing.T) {
 
 	twin := twins.Twin{}
 	def := twins.Definition{}
-	repoCall := auth.On("Identify", mock.Anything, &mainflux.IdentityReq{Token: token}).Return(&mainflux.IdentityRes{Id: testsutil.GenerateUUID(t)}, nil)
+	repoCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: token}).Return(&magistrala.IdentityRes{Id: testsutil.GenerateUUID(t)}, nil)
 	stw, err := svc.AddTwin(context.Background(), token, twin, def)
 	require.Nil(t, err, fmt.Sprintf("unexpected error: %s", err))
 	repoCall.Unset()
@@ -305,12 +305,12 @@ func TestUpdateTwin(t *testing.T) {
 			req:         invalidData,
 			contentType: contentType,
 			auth:        token,
-			status:      http.StatusBadRequest,
+			status:      http.StatusMethodNotAllowed,
 		},
 	}
 
 	for _, tc := range cases {
-		repoCall := auth.On("Identify", mock.Anything, &mainflux.IdentityReq{Token: tc.auth}).Return(&mainflux.IdentityRes{Id: testsutil.GenerateUUID(t)}, nil)
+		repoCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: tc.auth}).Return(&magistrala.IdentityRes{Id: testsutil.GenerateUUID(t)}, nil)
 		req := testRequest{
 			client:      ts.Client(),
 			method:      http.MethodPut,
@@ -333,7 +333,7 @@ func TestViewTwin(t *testing.T) {
 
 	def := twins.Definition{}
 	twin := twins.Twin{}
-	repoCall := auth.On("Identify", mock.Anything, &mainflux.IdentityReq{Token: token}).Return(&mainflux.IdentityRes{Id: testsutil.GenerateUUID(t)}, nil)
+	repoCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: token}).Return(&magistrala.IdentityRes{Id: testsutil.GenerateUUID(t)}, nil)
 	stw, err := svc.AddTwin(context.Background(), token, twin, def)
 	require.Nil(t, err, fmt.Sprintf("unexpected error: %s", err))
 	repoCall.Unset()
@@ -375,13 +375,6 @@ func TestViewTwin(t *testing.T) {
 			res:    twinRes{},
 		},
 		{
-			desc:   "view twin by passing empty id",
-			id:     "",
-			auth:   token,
-			status: http.StatusBadRequest,
-			res:    twinRes{},
-		},
-		{
 			desc:   "view twin by passing empty token",
 			id:     stw.ID,
 			auth:   "",
@@ -391,7 +384,7 @@ func TestViewTwin(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		repoCall := auth.On("Identify", mock.Anything, &mainflux.IdentityReq{Token: tc.auth}).Return(&mainflux.IdentityRes{Id: testsutil.GenerateUUID(t)}, nil)
+		repoCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: tc.auth}).Return(&magistrala.IdentityRes{Id: testsutil.GenerateUUID(t)}, nil)
 		req := testRequest{
 			client: ts.Client(),
 			method: http.MethodGet,
@@ -423,7 +416,7 @@ func TestListTwins(t *testing.T) {
 			Owner: email,
 			Name:  name,
 		}
-		repoCall := auth.On("Identify", mock.Anything, &mainflux.IdentityReq{Token: token}).Return(&mainflux.IdentityRes{Id: userID}, nil)
+		repoCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: token}).Return(&magistrala.IdentityRes{Id: userID}, nil)
 		tw, err := svc.AddTwin(context.Background(), token, twin, twins.Definition{})
 		assert.Nil(t, err, fmt.Sprintf("unexpected error: %s", err))
 		repoCall.Unset()
@@ -568,7 +561,7 @@ func TestListTwins(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		repoCall := auth.On("Identify", mock.Anything, &mainflux.IdentityReq{Token: tc.auth}).Return(&mainflux.IdentityRes{Id: userID}, nil)
+		repoCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: tc.auth}).Return(&magistrala.IdentityRes{Id: userID}, nil)
 		req := testRequest{
 			client: ts.Client(),
 			method: http.MethodGet,
@@ -597,7 +590,7 @@ func TestRemoveTwin(t *testing.T) {
 
 	def := twins.Definition{}
 	twin := twins.Twin{}
-	repoCall := auth.On("Identify", mock.Anything, &mainflux.IdentityReq{Token: token}).Return(&mainflux.IdentityRes{Id: testsutil.GenerateUUID(t)}, nil)
+	repoCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: token}).Return(&magistrala.IdentityRes{Id: testsutil.GenerateUUID(t)}, nil)
 	stw, err := svc.AddTwin(context.Background(), token, twin, def)
 	require.Nil(t, err, fmt.Sprintf("unexpected error: %s", err))
 	repoCall.Unset()
@@ -624,7 +617,7 @@ func TestRemoveTwin(t *testing.T) {
 			desc:   "delete twin by passing empty id",
 			id:     "",
 			auth:   token,
-			status: http.StatusBadRequest,
+			status: http.StatusMethodNotAllowed,
 		},
 		{
 			desc:   "delete twin with invalid token",
@@ -641,7 +634,7 @@ func TestRemoveTwin(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		repoCall := auth.On("Identify", mock.Anything, &mainflux.IdentityReq{Token: tc.auth}).Return(&mainflux.IdentityRes{Id: testsutil.GenerateUUID(t)}, nil)
+		repoCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: tc.auth}).Return(&magistrala.IdentityRes{Id: testsutil.GenerateUUID(t)}, nil)
 		req := testRequest{
 			client: ts.Client(),
 			method: http.MethodDelete,

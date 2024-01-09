@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package auth
@@ -39,6 +39,8 @@ const (
 	RecoveryKey
 	// APIKey enables the one to act on behalf of the user.
 	APIKey
+	// InvitationKey is a key for inviting new users.
+	InvitationKey
 )
 
 func (kt KeyType) String() string {
@@ -62,6 +64,8 @@ type Key struct {
 	Type      KeyType   `json:"type,omitempty"`
 	Issuer    string    `json:"issuer,omitempty"`
 	Subject   string    `json:"subject,omitempty"` // user ID
+	User      string    `json:"user,omitempty"`
+	Domain    string    `json:"domain,omitempty"` // domain user ID
 	IssuedAt  time.Time `json:"issued_at,omitempty"`
 	ExpiresAt time.Time `json:"expires_at,omitempty"`
 }
@@ -72,9 +76,11 @@ func (key Key) String() string {
 	type: %s,
 	issuer_id: %s,
 	subject: %s,
+	user: %s,
+	domain: %s,
 	iat: %v,
 	eat: %v
-}`, key.ID, key.Type, key.Issuer, key.Subject, key.IssuedAt, key.ExpiresAt)
+}`, key.ID, key.Type, key.Issuer, key.Subject, key.User, key.Domain, key.IssuedAt, key.ExpiresAt)
 }
 
 // Expired verifies if the key is expired.
@@ -86,6 +92,8 @@ func (key Key) Expired() bool {
 }
 
 // KeyRepository specifies Key persistence API.
+//
+//go:generate mockery --name KeyRepository --output=./mocks --filename keys.go --quiet --note "Copyright (c) Abstract Machines"
 type KeyRepository interface {
 	// Save persists the Key. A non-nil error is returned to indicate
 	// operation failure

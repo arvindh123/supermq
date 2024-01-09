@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package postgres
@@ -20,7 +20,7 @@ func Migration() *migrate.MemoryMigrationSource {
 				Up: []string{
 					`CREATE TABLE IF NOT EXISTS clients (
 						id          VARCHAR(36) PRIMARY KEY,
-						name        VARCHAR(254),
+						name        VARCHAR(254) NOT NULL UNIQUE,
 						owner_id    VARCHAR(36),
 						identity    VARCHAR(254) NOT NULL UNIQUE,
 						secret      TEXT NOT NULL,

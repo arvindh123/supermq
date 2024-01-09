@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 //go:build !test
@@ -10,14 +10,14 @@ import (
 	"fmt"
 	"time"
 
-	mflog "github.com/mainflux/mainflux/logger"
-	"github.com/mainflux/mproxy/pkg/session"
+	mglog "github.com/absmach/magistrala/logger"
+	"github.com/absmach/mproxy/pkg/session"
 )
 
 var _ session.Handler = (*loggingMiddleware)(nil)
 
 type loggingMiddleware struct {
-	logger mflog.Logger
+	logger mglog.Logger
 	svc    session.Handler
 }
 
@@ -132,10 +132,9 @@ func (lm *loggingMiddleware) Unsubscribe(ctx context.Context, topics *[]string) 
 	}(time.Now())
 
 	return lm.svc.Unsubscribe(ctx, topics)
-
 }
 
 // LoggingMiddleware adds logging facilities to the adapter.
-func LoggingMiddleware(svc session.Handler, logger mflog.Logger) session.Handler {
+func LoggingMiddleware(svc session.Handler, logger mglog.Logger) session.Handler {
 	return &loggingMiddleware{logger, svc}
 }

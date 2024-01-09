@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package consumers
@@ -9,14 +9,14 @@ import (
 	"os"
 	"strings"
 
-	"github.com/mainflux/mainflux/internal/apiutil"
-	"github.com/mainflux/mainflux/logger"
-	"github.com/mainflux/mainflux/pkg/errors"
-	"github.com/mainflux/mainflux/pkg/messaging"
-	"github.com/mainflux/mainflux/pkg/messaging/brokers"
-	"github.com/mainflux/mainflux/pkg/transformers"
-	"github.com/mainflux/mainflux/pkg/transformers/json"
-	"github.com/mainflux/mainflux/pkg/transformers/senml"
+	"github.com/absmach/magistrala/internal/apiutil"
+	mglog "github.com/absmach/magistrala/logger"
+	"github.com/absmach/magistrala/pkg/errors"
+	"github.com/absmach/magistrala/pkg/messaging"
+	"github.com/absmach/magistrala/pkg/messaging/brokers"
+	"github.com/absmach/magistrala/pkg/transformers"
+	"github.com/absmach/magistrala/pkg/transformers/json"
+	"github.com/absmach/magistrala/pkg/transformers/senml"
 	"github.com/pelletier/go-toml"
 )
 
@@ -33,7 +33,7 @@ var (
 // Start method starts consuming messages received from Message broker.
 // This method transforms messages to SenML format before
 // using MessageRepository to store them.
-func Start(ctx context.Context, id string, sub messaging.Subscriber, consumer interface{}, configPath string, logger logger.Logger) error {
+func Start(ctx context.Context, id string, sub messaging.Subscriber, consumer interface{}, configPath string, logger mglog.Logger) error {
 	cfg, err := loadConfig(configPath)
 	if err != nil {
 		logger.Warn(fmt.Sprintf("Failed to load consumer config: %s", err))
@@ -143,7 +143,7 @@ func loadConfig(configPath string) (config, error) {
 	return cfg, nil
 }
 
-func makeTransformer(cfg transformerConfig, logger logger.Logger) transformers.Transformer {
+func makeTransformer(cfg transformerConfig, logger mglog.Logger) transformers.Transformer {
 	switch strings.ToUpper(cfg.Format) {
 	case "SENML":
 		logger.Info("Using SenML transformer")

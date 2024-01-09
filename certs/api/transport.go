@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package api
@@ -8,13 +8,14 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/absmach/magistrala"
+	"github.com/absmach/magistrala/certs"
+	"github.com/absmach/magistrala/internal/apiutil"
+	mglog "github.com/absmach/magistrala/logger"
+	"github.com/absmach/magistrala/pkg/errors"
+	svcerr "github.com/absmach/magistrala/pkg/errors/service"
+	"github.com/go-chi/chi/v5"
 	kithttp "github.com/go-kit/kit/transport/http"
-	"github.com/go-zoo/bone"
-	"github.com/mainflux/mainflux"
-	"github.com/mainflux/mainflux/certs"
-	"github.com/mainflux/mainflux/internal/apiutil"
-	"github.com/mainflux/mainflux/logger"
-	"github.com/mainflux/mainflux/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
@@ -28,43 +29,42 @@ const (
 )
 
 // MakeHandler returns a HTTP handler for API endpoints.
-func MakeHandler(svc certs.Service, logger logger.Logger, instanceID string) http.Handler {
+func MakeHandler(svc certs.Service, logger mglog.Logger, instanceID string) http.Handler {
 	opts := []kithttp.ServerOption{
 		kithttp.ServerErrorEncoder(apiutil.LoggingErrorEncoder(logger, encodeError)),
 	}
 
-	r := bone.New()
+	r := chi.NewRouter()
 
-	r.Post("/certs", otelhttp.NewHandler(kithttp.NewServer(
-		issueCert(svc),
-		decodeCerts,
-		encodeResponse,
-		opts...,
-	), "issue"))
-
-	r.Get("/certs/:certID", otelhttp.NewHandler(kithttp.NewServer(
-		viewCert(svc),
-		decodeViewCert,
-		encodeResponse,
-		opts...,
-	), "view"))
-
-	r.Delete("/certs/:certID", otelhttp.NewHandler(kithttp.NewServer(
-		revokeCert(svc),
-		decodeRevokeCerts,
-		encodeResponse,
-		opts...,
-	), "revoke"))
-
-	r.Get("/serials/:thingID", otelhttp.NewHandler(kithttp.NewServer(
+	r.Route("/certs", func(r chi.Router) {
+		r.Post("/", otelhttp.NewHandler(kithttp.NewServer(
+			issueCert(svc),
+			decodeCerts,
+			encodeResponse,
+			opts...,
+		), "issue").ServeHTTP)
+		r.Get("/{certID}", otelhttp.NewHandler(kithttp.NewServer(
+			viewCert(svc),
+			decodeViewCert,
+			encodeResponse,
+			opts...,
+		), "view").ServeHTTP)
+		r.Delete("/{certID}", otelhttp.NewHandler(kithttp.NewServer(
+			revokeCert(svc),
+			decodeRevokeCerts,
+			encodeResponse,
+			opts...,
+		), "revoke").ServeHTTP)
+	})
+	r.Get("/serials/{thingID}", otelhttp.NewHandler(kithttp.NewServer(
 		listSerials(svc),
 		decodeListCerts,
 		encodeResponse,
 		opts...,
-	), "list_serials"))
+	), "list_serials").ServeHTTP)
 
 	r.Handle("/metrics", promhttp.Handler())
-	r.GetFunc("/health", mainflux.Health("certs", instanceID))
+	r.Get("/health", magistrala.Health("certs", instanceID))
 
 	return r
 }
@@ -72,7 +72,7 @@ func MakeHandler(svc certs.Service, logger logger.Logger, instanceID string) htt
 func encodeResponse(_ context.Context, w http.ResponseWriter, response interface{}) error {
 	w.Header().Set("Content-Type", contentType)
 
-	if ar, ok := response.(mainflux.Response); ok {
+	if ar, ok := response.(magistrala.Response); ok {
 		for k, v := range ar.Headers() {
 			w.Header().Set(k, v)
 		}
@@ -88,18 +88,18 @@ func encodeResponse(_ context.Context, w http.ResponseWriter, response interface
 }
 
 func decodeListCerts(_ context.Context, r *http.Request) (interface{}, error) {
-	l, err := apiutil.ReadUintQuery(r, limitKey, defLimit)
+	l, err := apiutil.ReadNumQuery[uint64](r, limitKey, defLimit)
 	if err != nil {
 		return nil, errors.Wrap(apiutil.ErrValidation, err)
 	}
-	o, err := apiutil.ReadUintQuery(r, offsetKey, defOffset)
+	o, err := apiutil.ReadNumQuery[uint64](r, offsetKey, defOffset)
 	if err != nil {
 		return nil, errors.Wrap(apiutil.ErrValidation, err)
 	}
 
 	req := listReq{
 		token:   apiutil.ExtractBearerToken(r),
-		thingID: bone.GetValue(r, "thingID"),
+		thingID: chi.URLParam(r, "thingID"),
 		limit:   l,
 		offset:  o,
 	}
@@ -109,7 +109,7 @@ func decodeListCerts(_ context.Context, r *http.Request) (interface{}, error) {
 func decodeViewCert(_ context.Context, r *http.Request) (interface{}, error) {
 	req := viewReq{
 		token:    apiutil.ExtractBearerToken(r),
-		serialID: bone.GetValue(r, "certID"),
+		serialID: chi.URLParam(r, "certID"),
 	}
 
 	return req, nil
@@ -131,7 +131,7 @@ func decodeCerts(_ context.Context, r *http.Request) (interface{}, error) {
 func decodeRevokeCerts(_ context.Context, r *http.Request) (interface{}, error) {
 	req := revokeReq{
 		token:  apiutil.ExtractBearerToken(r),
-		certID: bone.GetValue(r, "certID"),
+		certID: chi.URLParam(r, "certID"),
 	}
 
 	return req, nil
@@ -144,22 +144,22 @@ func encodeError(_ context.Context, err error, w http.ResponseWriter) {
 	}
 
 	switch {
-	case errors.Contains(err, errors.ErrAuthentication),
+	case errors.Contains(err, svcerr.ErrAuthentication),
 		errors.Contains(err, apiutil.ErrBearerToken):
 		w.WriteHeader(http.StatusUnauthorized)
 	case errors.Contains(err, apiutil.ErrUnsupportedContentType):
 		w.WriteHeader(http.StatusUnsupportedMediaType)
-	case errors.Contains(err, errors.ErrMalformedEntity),
+	case errors.Contains(err, svcerr.ErrMalformedEntity),
 		errors.Contains(err, apiutil.ErrMissingID),
 		errors.Contains(err, apiutil.ErrMissingCertData),
 		errors.Contains(err, apiutil.ErrInvalidCertData),
 		errors.Contains(err, apiutil.ErrLimitSize):
 		w.WriteHeader(http.StatusBadRequest)
-	case errors.Contains(err, errors.ErrConflict):
+	case errors.Contains(err, svcerr.ErrConflict):
 		w.WriteHeader(http.StatusConflict)
-	case errors.Contains(err, errors.ErrCreateEntity),
-		errors.Contains(err, errors.ErrViewEntity),
-		errors.Contains(err, errors.ErrRemoveEntity):
+	case errors.Contains(err, svcerr.ErrCreateEntity),
+		errors.Contains(err, svcerr.ErrViewEntity),
+		errors.Contains(err, svcerr.ErrRemoveEntity):
 		w.WriteHeader(http.StatusInternalServerError)
 
 	default:

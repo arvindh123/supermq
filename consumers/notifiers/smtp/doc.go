@@ -1,6 +1,6 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 // Package smtp contains the domain concept definitions needed to
-// support Mainflux SMTP notifications.
+// support Magistrala SMTP notifications.
 package smtp

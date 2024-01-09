@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package http
@@ -9,24 +9,25 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/absmach/magistrala/auth"
+	"github.com/absmach/magistrala/internal/api"
+	"github.com/absmach/magistrala/internal/apiutil"
+	gapi "github.com/absmach/magistrala/internal/groups/api"
+	mglog "github.com/absmach/magistrala/logger"
+	"github.com/absmach/magistrala/pkg/errors"
+	"github.com/absmach/magistrala/pkg/groups"
 	"github.com/go-chi/chi/v5"
 	kithttp "github.com/go-kit/kit/transport/http"
-	"github.com/mainflux/mainflux/internal/api"
-	"github.com/mainflux/mainflux/internal/apiutil"
-	gapi "github.com/mainflux/mainflux/internal/groups/api"
-	"github.com/mainflux/mainflux/logger"
-	"github.com/mainflux/mainflux/pkg/errors"
-	"github.com/mainflux/mainflux/pkg/groups"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
-func groupsHandler(svc groups.Service, r *chi.Mux, logger logger.Logger) http.Handler {
+func groupsHandler(svc groups.Service, r *chi.Mux, logger mglog.Logger) http.Handler {
 	opts := []kithttp.ServerOption{
 		kithttp.ServerErrorEncoder(apiutil.LoggingErrorEncoder(logger, api.EncodeError)),
 	}
 	r.Route("/channels", func(r chi.Router) {
 		r.Post("/", otelhttp.NewHandler(kithttp.NewServer(
-			gapi.CreateGroupEndpoint(svc),
+			gapi.CreateGroupEndpoint(svc, auth.NewChannelKind),
 			gapi.DecodeGroupCreate,
 			api.EncodeResponse,
 			opts...,
@@ -38,6 +39,20 @@ func groupsHandler(svc groups.Service, r *chi.Mux, logger logger.Logger) http.Ha
 			api.EncodeResponse,
 			opts...,
 		), "view_channel").ServeHTTP)
+
+		r.Delete("/{groupID}", otelhttp.NewHandler(kithttp.NewServer(
+			gapi.DeleteGroupEndpoint(svc),
+			gapi.DecodeGroupRequest,
+			api.EncodeResponse,
+			opts...,
+		), "delete_channel").ServeHTTP)
+
+		r.Get("/{groupID}/permissions", otelhttp.NewHandler(kithttp.NewServer(
+			gapi.ViewGroupPermsEndpoint(svc),
+			gapi.DecodeGroupPermsRequest,
+			api.EncodeResponse,
+			opts...,
+		), "view_channel_permissions").ServeHTTP)
 
 		r.Put("/{groupID}", otelhttp.NewHandler(kithttp.NewServer(
 			gapi.UpdateGroupEndpoint(svc),

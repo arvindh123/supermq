@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package tracing
@@ -6,7 +6,7 @@ package tracing
 import (
 	"context"
 
-	"github.com/mainflux/mainflux/pkg/groups"
+	"github.com/absmach/magistrala/pkg/groups"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -24,19 +24,27 @@ func New(gsvc groups.Service, tracer trace.Tracer) groups.Service {
 }
 
 // CreateGroup traces the "CreateGroup" operation of the wrapped groups.Service.
-func (tm *tracingMiddleware) CreateGroup(ctx context.Context, token string, g groups.Group) (groups.Group, error) {
+func (tm *tracingMiddleware) CreateGroup(ctx context.Context, token, kind string, g groups.Group) (groups.Group, error) {
 	ctx, span := tm.tracer.Start(ctx, "svc_create_group")
 	defer span.End()
 
-	return tm.gsvc.CreateGroup(ctx, token, g)
+	return tm.gsvc.CreateGroup(ctx, token, kind, g)
 }
 
 // ViewGroup traces the "ViewGroup" operation of the wrapped groups.Service.
-func (tm *tracingMiddleware) ViewGroup(ctx context.Context, token string, id string) (groups.Group, error) {
+func (tm *tracingMiddleware) ViewGroup(ctx context.Context, token, id string) (groups.Group, error) {
 	ctx, span := tm.tracer.Start(ctx, "svc_view_group", trace.WithAttributes(attribute.String("id", id)))
 	defer span.End()
 
 	return tm.gsvc.ViewGroup(ctx, token, id)
+}
+
+// ViewGroupPerms traces the "ViewGroupPerms" operation of the wrapped groups.Service.
+func (tm *tracingMiddleware) ViewGroupPerms(ctx context.Context, token, id string) ([]string, error) {
+	ctx, span := tm.tracer.Start(ctx, "svc_view_group", trace.WithAttributes(attribute.String("id", id)))
+	defer span.End()
+
+	return tm.gsvc.ViewGroupPerms(ctx, token, id)
 }
 
 // ListGroups traces the "ListGroups" operation of the wrapped groups.Service.
@@ -80,7 +88,7 @@ func (tm *tracingMiddleware) DisableGroup(ctx context.Context, token, id string)
 }
 
 // Assign traces the "Assign" operation of the wrapped groups.Service.
-func (tm *tracingMiddleware) Assign(ctx context.Context, token string, groupID string, relation string, memberKind string, memberIDs ...string) error {
+func (tm *tracingMiddleware) Assign(ctx context.Context, token, groupID, relation, memberKind string, memberIDs ...string) error {
 	ctx, span := tm.tracer.Start(ctx, "svc_assign", trace.WithAttributes(attribute.String("id", groupID)))
 	defer span.End()
 
@@ -88,9 +96,17 @@ func (tm *tracingMiddleware) Assign(ctx context.Context, token string, groupID s
 }
 
 // Unassign traces the "Unassign" operation of the wrapped groups.Service.
-func (tm *tracingMiddleware) Unassign(ctx context.Context, token string, groupID string, relation string, memberKind string, memberIDs ...string) error {
+func (tm *tracingMiddleware) Unassign(ctx context.Context, token, groupID, relation, memberKind string, memberIDs ...string) error {
 	ctx, span := tm.tracer.Start(ctx, "svc_unassign", trace.WithAttributes(attribute.String("id", groupID)))
 	defer span.End()
 
 	return tm.gsvc.Unassign(ctx, token, groupID, relation, memberKind, memberIDs...)
+}
+
+// DeleteGroup traces the "DeleteGroup" operation of the wrapped groups.Service.
+func (tm *tracingMiddleware) DeleteGroup(ctx context.Context, token, id string) error {
+	ctx, span := tm.tracer.Start(ctx, "svc_delete_group", trace.WithAttributes(attribute.String("id", id)))
+	defer span.End()
+
+	return tm.gsvc.DeleteGroup(ctx, token, id)
 }

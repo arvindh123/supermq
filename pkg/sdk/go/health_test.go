@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package sdk_test
@@ -7,25 +7,24 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/mainflux/mainflux"
-	"github.com/mainflux/mainflux/pkg/errors"
-	sdk "github.com/mainflux/mainflux/pkg/sdk/go"
+	"github.com/absmach/magistrala"
+	"github.com/absmach/magistrala/pkg/errors"
+	sdk "github.com/absmach/magistrala/pkg/sdk/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestHealth(t *testing.T) {
-	ths, _, _, auth := newThingsServer()
+	ths, auth := setupThingsMinimal()
 	auth.Test(t)
 	defer ths.Close()
 
-	usclsv, _, _, auth := newClientServer()
+	usclsv, _, _, auth := setupUsers()
 	auth.Test(t)
 	defer usclsv.Close()
 
-	certSvc, err := newCertService()
+	CertTs, _, _, err := setupCerts()
 	require.Nil(t, err, fmt.Sprintf("unexpected error during creating service: %s", err))
-	CertTs := newCertServer(certSvc)
 	defer CertTs.Close()
 
 	sdkConf := sdk.Config{
@@ -36,7 +35,7 @@ func TestHealth(t *testing.T) {
 		TLSVerification: false,
 	}
 
-	mfsdk := sdk.NewSDK(sdkConf)
+	mgsdk := sdk.NewSDK(sdkConf)
 	cases := map[string]struct {
 		service     string
 		empty       bool
@@ -67,12 +66,12 @@ func TestHealth(t *testing.T) {
 		},
 	}
 	for desc, tc := range cases {
-		h, err := mfsdk.Health(tc.service)
+		h, err := mgsdk.Health(tc.service)
 		assert.Equal(t, tc.err, err, fmt.Sprintf("%s: expected error %s, got %s", desc, tc.err, err))
 		assert.Equal(t, tc.status, h.Status, fmt.Sprintf("%s: expected %s status, got %s", desc, tc.status, h.Status))
 		assert.Equal(t, tc.empty, h.Version == "", fmt.Sprintf("%s: expected non-empty version", desc))
-		assert.Equal(t, mainflux.Commit, h.Commit, fmt.Sprintf("%s: expected non-empty commit", desc))
+		assert.Equal(t, magistrala.Commit, h.Commit, fmt.Sprintf("%s: expected non-empty commit", desc))
 		assert.Equal(t, tc.description, h.Description, fmt.Sprintf("%s: expected proper description, got %s", desc, h.Description))
-		assert.Equal(t, mainflux.BuildTime, h.BuildTime, fmt.Sprintf("%s: expected default epoch date, got %s", desc, h.BuildTime))
+		assert.Equal(t, magistrala.BuildTime, h.BuildTime, fmt.Sprintf("%s: expected default epoch date, got %s", desc, h.BuildTime))
 	}
 }

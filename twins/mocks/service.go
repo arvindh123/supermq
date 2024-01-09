@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package mocks
@@ -8,11 +8,11 @@ import (
 	"strconv"
 	"time"
 
-	authmocks "github.com/mainflux/mainflux/auth/mocks"
-	"github.com/mainflux/mainflux/pkg/messaging"
-	"github.com/mainflux/mainflux/pkg/uuid"
-	"github.com/mainflux/mainflux/twins"
-	"github.com/mainflux/senml"
+	authmocks "github.com/absmach/magistrala/auth/mocks"
+	"github.com/absmach/magistrala/pkg/messaging"
+	"github.com/absmach/magistrala/pkg/uuid"
+	"github.com/absmach/magistrala/twins"
+	"github.com/absmach/senml"
 )
 
 const publisher = "twins"
@@ -33,7 +33,7 @@ func NewService() (twins.Service, *authmocks.Service) {
 }
 
 // CreateDefinition creates twin definition.
-func CreateDefinition(channels []string, subtopics []string) twins.Definition {
+func CreateDefinition(channels, subtopics []string) twins.Definition {
 	var def twins.Definition
 	for i := range channels {
 		attr := twins.Attribute{
@@ -47,7 +47,7 @@ func CreateDefinition(channels []string, subtopics []string) twins.Definition {
 }
 
 // CreateTwin creates twin.
-func CreateTwin(channels []string, subtopics []string) twins.Twin {
+func CreateTwin(channels, subtopics []string) twins.Twin {
 	id++
 	return twins.Twin{
 		ID:          strconv.Itoa(id),
@@ -64,7 +64,7 @@ func CreateSenML(recs []senml.Record) {
 	}
 }
 
-// CreateMessage creates Mainflux message using SenML record array.
+// CreateMessage creates Magistrala message using SenML record array.
 func CreateMessage(attr twins.Attribute, recs []senml.Record) (*messaging.Message, error) {
 	mRecs, err := json.Marshal(recs)
 	if err != nil {

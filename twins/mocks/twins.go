@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package mocks
@@ -10,9 +10,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/mainflux/mainflux/pkg/errors"
-	"github.com/mainflux/mainflux/pkg/uuid"
-	"github.com/mainflux/mainflux/twins"
+	"github.com/absmach/magistrala/pkg/errors"
+	"github.com/absmach/magistrala/pkg/uuid"
+	"github.com/absmach/magistrala/twins"
 )
 
 var _ twins.TwinRepository = (*twinRepositoryMock)(nil)
@@ -85,7 +85,7 @@ func (trm *twinRepositoryMock) RetrieveByAttribute(ctx context.Context, channel,
 	return ids, nil
 }
 
-func (trm *twinRepositoryMock) RetrieveAll(_ context.Context, owner string, offset uint64, limit uint64, name string, metadata twins.Metadata) (twins.Page, error) {
+func (trm *twinRepositoryMock) RetrieveAll(_ context.Context, owner string, offset, limit uint64, name string, metadata twins.Metadata) (twins.Page, error) {
 	trm.mu.Lock()
 	defer trm.mu.Unlock()
 

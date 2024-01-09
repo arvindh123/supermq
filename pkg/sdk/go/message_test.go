@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package sdk_test
@@ -9,38 +9,35 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/mainflux/mainflux"
-	authmocks "github.com/mainflux/mainflux/auth/mocks"
-	adapter "github.com/mainflux/mainflux/http"
-	"github.com/mainflux/mainflux/http/api"
-	"github.com/mainflux/mainflux/http/mocks"
-	"github.com/mainflux/mainflux/internal/apiutil"
-	"github.com/mainflux/mainflux/logger"
-	"github.com/mainflux/mainflux/pkg/errors"
-	sdk "github.com/mainflux/mainflux/pkg/sdk/go"
-	mproxy "github.com/mainflux/mproxy/pkg/http"
-	"github.com/mainflux/mproxy/pkg/session"
+	"github.com/absmach/magistrala"
+	authmocks "github.com/absmach/magistrala/auth/mocks"
+	adapter "github.com/absmach/magistrala/http"
+	"github.com/absmach/magistrala/http/api"
+	"github.com/absmach/magistrala/http/mocks"
+	"github.com/absmach/magistrala/internal/apiutil"
+	mglog "github.com/absmach/magistrala/logger"
+	"github.com/absmach/magistrala/pkg/errors"
+	svcerr "github.com/absmach/magistrala/pkg/errors/service"
+	sdk "github.com/absmach/magistrala/pkg/sdk/go"
+	mproxy "github.com/absmach/mproxy/pkg/http"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
 
-func newMessageService(cc mainflux.AuthzServiceClient) session.Handler {
+func setupMessages() (*httptest.Server, *authmocks.Service) {
+	auth := new(authmocks.Service)
 	pub := mocks.NewPublisher()
+	handler := adapter.NewHandler(pub, mglog.NewMock(), auth)
 
-	return adapter.NewHandler(pub, logger.NewMock(), cc)
-}
-
-func newTargetHTTPServer() *httptest.Server {
 	mux := api.MakeHandler("")
-	return httptest.NewServer(mux)
-}
+	target := httptest.NewServer(mux)
 
-func newProxyHTTPServer(svc session.Handler, targetServer *httptest.Server) (*httptest.Server, error) {
-	mp, err := mproxy.NewProxy("", targetServer.URL, svc, logger.NewMock())
+	mp, err := mproxy.NewProxy("", target.URL, handler, mglog.NewMock())
 	if err != nil {
-		return nil, err
+		return nil, nil
 	}
-	return httptest.NewServer(http.HandlerFunc(mp.Handler)), nil
+
+	return httptest.NewServer(http.HandlerFunc(mp.Handler)), auth
 }
 
 func TestSendMessage(t *testing.T) {
@@ -48,11 +45,8 @@ func TestSendMessage(t *testing.T) {
 	atoken := "auth_token"
 	invalidToken := "invalid_token"
 	msg := `[{"n":"current","t":-1,"v":1.6}]`
-	auth := new(authmocks.Service)
-	pub := newMessageService(auth)
-	target := newTargetHTTPServer()
-	ts, err := newProxyHTTPServer(pub, target)
-	assert.Nil(t, err, fmt.Sprintf("failed to create proxy server with err: %v", err))
+
+	ts, auth := setupMessages()
 	defer ts.Close()
 	sdkConf := sdk.Config{
 		HTTPAdapterURL:  ts.URL,
@@ -60,23 +54,11 @@ func TestSendMessage(t *testing.T) {
 		TLSVerification: false,
 	}
 
-	mfsdk := sdk.NewSDK(sdkConf)
+	mgsdk := sdk.NewSDK(sdkConf)
 
-	auth.On("Authorize", mock.Anything, &mainflux.AuthorizeReq{
-		Subject:     atoken,
-		Object:      chanID,
-		Namespace:   "",
-		SubjectType: "thing",
-		Permission:  "publish",
-		ObjectType:  "group"}).Return(&mainflux.AuthorizeRes{Authorized: true, Id: ""}, nil)
-	auth.On("Authorize", mock.Anything, &mainflux.AuthorizeReq{
-		Subject:     invalidToken,
-		Object:      chanID,
-		Namespace:   "",
-		SubjectType: "thing",
-		Permission:  "publish",
-		ObjectType:  "group"}).Return(&mainflux.AuthorizeRes{Authorized: true, Id: ""}, errors.ErrAuthentication)
-	auth.On("Authorize", mock.Anything, mock.Anything).Return(&mainflux.AuthorizeRes{Authorized: false, Id: ""}, nil)
+	auth.On("Authorize", mock.Anything, &magistrala.AuthorizeReq{Subject: atoken, Object: chanID, Domain: "", SubjectType: "thing", Permission: "publish", ObjectType: "group"}).Return(&magistrala.AuthorizeRes{Authorized: true, Id: ""}, nil)
+	auth.On("Authorize", mock.Anything, &magistrala.AuthorizeReq{Subject: invalidToken, Object: chanID, Domain: "", SubjectType: "thing", Permission: "publish", ObjectType: "group"}).Return(&magistrala.AuthorizeRes{Authorized: true, Id: ""}, errors.ErrAuthentication)
+	auth.On("Authorize", mock.Anything, mock.Anything).Return(&magistrala.AuthorizeRes{Authorized: false, Id: ""}, nil)
 
 	cases := map[string]struct {
 		chanID string
@@ -118,11 +100,11 @@ func TestSendMessage(t *testing.T) {
 			chanID: chanID,
 			msg:    msg,
 			auth:   "invalid-token",
-			err:    errors.NewSDKErrorWithStatus(errors.ErrAuthorization, http.StatusBadRequest),
+			err:    errors.NewSDKErrorWithStatus(svcerr.ErrAuthorization, http.StatusBadRequest),
 		},
 	}
 	for desc, tc := range cases {
-		err := mfsdk.SendMessage(tc.chanID, tc.msg, tc.auth)
+		err := mgsdk.SendMessage(tc.chanID, tc.msg, tc.auth)
 		switch tc.err {
 		case nil:
 			assert.Nil(t, err, fmt.Sprintf("%s: got unexpected error: %s", desc, err))
@@ -133,12 +115,7 @@ func TestSendMessage(t *testing.T) {
 }
 
 func TestSetContentType(t *testing.T) {
-	auth := new(authmocks.Service)
-
-	pub := newMessageService(auth)
-	target := newTargetHTTPServer()
-	ts, err := newProxyHTTPServer(pub, target)
-	assert.Nil(t, err, fmt.Sprintf("failed to create proxy server with err: %v", err))
+	ts, _ := setupMessages()
 	defer ts.Close()
 
 	sdkConf := sdk.Config{
@@ -146,7 +123,7 @@ func TestSetContentType(t *testing.T) {
 		MsgContentType:  "application/senml+json",
 		TLSVerification: false,
 	}
-	mfsdk := sdk.NewSDK(sdkConf)
+	mgsdk := sdk.NewSDK(sdkConf)
 
 	cases := []struct {
 		desc  string
@@ -165,7 +142,7 @@ func TestSetContentType(t *testing.T) {
 		},
 	}
 	for _, tc := range cases {
-		err := mfsdk.SetContentType(tc.cType)
+		err := mgsdk.SetContentType(tc.cType)
 		assert.Equal(t, tc.err, err, fmt.Sprintf("%s: expected error %s, got %s", tc.desc, tc.err, err))
 	}
 }

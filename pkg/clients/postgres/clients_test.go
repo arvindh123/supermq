@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 package postgres_test
@@ -6,14 +6,14 @@ package postgres_test
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
-	gpostgres "github.com/mainflux/mainflux/internal/groups/postgres"
-	"github.com/mainflux/mainflux/internal/testsutil"
-	mfclients "github.com/mainflux/mainflux/pkg/clients"
-	"github.com/mainflux/mainflux/pkg/errors"
-	mfgroups "github.com/mainflux/mainflux/pkg/groups"
-	cpostgres "github.com/mainflux/mainflux/users/postgres"
+	"github.com/0x6flab/namegenerator"
+	"github.com/absmach/magistrala/internal/testsutil"
+	mgclients "github.com/absmach/magistrala/pkg/clients"
+	"github.com/absmach/magistrala/pkg/errors"
+	cpostgres "github.com/absmach/magistrala/users/postgres"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -24,20 +24,24 @@ var (
 	clientName     = "client name"
 	wrongName      = "wrong-name"
 	wrongID        = "wrong-id"
+	namesgen       = namegenerator.NewNameGenerator()
 )
 
 func TestClientsRetrieveByID(t *testing.T) {
-	t.Cleanup(func() { testsutil.CleanUpDB(t, db) })
+	t.Cleanup(func() {
+		_, err := db.Exec("DELETE FROM clients")
+		require.Nil(t, err, fmt.Sprintf("clean clients unexpected error: %s", err))
+	})
 	repo := cpostgres.NewRepository(database)
 
-	client := mfclients.Client{
+	client := mgclients.Client{
 		ID:   testsutil.GenerateUUID(t),
 		Name: clientName,
-		Credentials: mfclients.Credentials{
+		Credentials: mgclients.Credentials{
 			Identity: clientIdentity,
 			Secret:   password,
 		},
-		Status: mfclients.EnabledStatus,
+		Status: mgclients.EnabledStatus,
 	}
 
 	clients, err := repo.Save(context.Background(), client)
@@ -65,17 +69,20 @@ func TestClientsRetrieveByID(t *testing.T) {
 }
 
 func TestClientsRetrieveByIdentity(t *testing.T) {
-	t.Cleanup(func() { testsutil.CleanUpDB(t, db) })
+	t.Cleanup(func() {
+		_, err := db.Exec("DELETE FROM clients")
+		require.Nil(t, err, fmt.Sprintf("clean clients unexpected error: %s", err))
+	})
 	repo := cpostgres.NewRepository(database)
 
-	client := mfclients.Client{
+	client := mgclients.Client{
 		ID:   testsutil.GenerateUUID(t),
 		Name: clientName,
-		Credentials: mfclients.Credentials{
+		Credentials: mgclients.Credentials{
 			Identity: clientIdentity,
 			Secret:   password,
 		},
-		Status: mfclients.EnabledStatus,
+		Status: mgclients.EnabledStatus,
 	}
 
 	_, err := repo.Save(context.Background(), client)
@@ -96,39 +103,34 @@ func TestClientsRetrieveByIdentity(t *testing.T) {
 }
 
 func TestClientsRetrieveAll(t *testing.T) {
-	t.Cleanup(func() { testsutil.CleanUpDB(t, db) })
+	t.Cleanup(func() {
+		_, err := db.Exec("DELETE FROM clients")
+		require.Nil(t, err, fmt.Sprintf("clean clients unexpected error: %s", err))
+	})
 	repo := cpostgres.NewRepository(database)
-	grepo := gpostgres.New(database)
 
 	nClients := uint64(200)
 	ownerID := testsutil.GenerateUUID(t)
 
-	meta := mfclients.Metadata{
-		"admin": "true",
+	meta := mgclients.Metadata{
+		"admin": true,
 	}
-	wrongMeta := mfclients.Metadata{
-		"admin": "false",
+	wrongMeta := mgclients.Metadata{
+		"admin": false,
 	}
-	expectedClients := []mfclients.Client{}
-
-	sharedGroup := mfgroups.Group{
-		ID:   testsutil.GenerateUUID(t),
-		Name: "shared-group",
-	}
-	_, err := grepo.Save(context.Background(), sharedGroup)
-	require.Nil(t, err, fmt.Sprintf("unexpected error: %s", err))
+	expectedClients := []mgclients.Client{}
 
 	for i := uint64(0); i < nClients; i++ {
 		identity := fmt.Sprintf("TestRetrieveAll%d@example.com", i)
-		client := mfclients.Client{
+		client := mgclients.Client{
 			ID:   testsutil.GenerateUUID(t),
 			Name: identity,
-			Credentials: mfclients.Credentials{
+			Credentials: mgclients.Credentials{
 				Identity: identity,
 				Secret:   password,
 			},
-			Metadata: mfclients.Metadata{},
-			Status:   mfclients.EnabledStatus,
+			Metadata: mgclients.Metadata{},
+			Status:   mgclients.EnabledStatus,
 		}
 		if i%10 == 0 {
 			client.Owner = ownerID
@@ -136,77 +138,77 @@ func TestClientsRetrieveAll(t *testing.T) {
 			client.Tags = []string{"Test"}
 		}
 		if i%50 == 0 {
-			client.Status = mfclients.DisabledStatus
+			client.Status = mgclients.DisabledStatus
 		}
-		client, err = repo.Save(context.Background(), client)
+		client, err := repo.Save(context.Background(), client)
 		require.Nil(t, err, fmt.Sprintf("unexpected error: %s", err))
 		expectedClients = append(expectedClients, client)
 	}
 
 	cases := map[string]struct {
 		size     uint64
-		pm       mfclients.Page
-		response []mfclients.Client
+		pm       mgclients.Page
+		response []mgclients.Client
 	}{
 		"retrieve all clients empty page": {
-			pm:       mfclients.Page{},
-			response: []mfclients.Client{},
+			pm:       mgclients.Page{},
+			response: []mgclients.Client{},
 			size:     0,
 		},
 		"retrieve all clients": {
-			pm: mfclients.Page{
+			pm: mgclients.Page{
 				Offset: 0,
 				Limit:  nClients,
-				Status: mfclients.AllStatus,
+				Status: mgclients.AllStatus,
 			},
 			response: expectedClients,
 			size:     200,
 		},
 		"retrieve all clients with limit": {
-			pm: mfclients.Page{
+			pm: mgclients.Page{
 				Offset: 0,
 				Limit:  50,
-				Status: mfclients.AllStatus,
+				Status: mgclients.AllStatus,
 			},
 			response: expectedClients[0:50],
 			size:     50,
 		},
 		"retrieve all clients with offset": {
-			pm: mfclients.Page{
+			pm: mgclients.Page{
 				Offset: 50,
 				Limit:  nClients,
-				Status: mfclients.AllStatus,
+				Status: mgclients.AllStatus,
 			},
 			response: expectedClients[50:200],
 			size:     150,
 		},
 		"retrieve all clients with limit and offset": {
-			pm: mfclients.Page{
+			pm: mgclients.Page{
 				Offset: 50,
 				Limit:  50,
-				Status: mfclients.AllStatus,
+				Status: mgclients.AllStatus,
 			},
 			response: expectedClients[50:100],
 			size:     50,
 		},
 		"retrieve all clients with limit and offset not full": {
-			pm: mfclients.Page{
+			pm: mgclients.Page{
 				Offset: 170,
 				Limit:  50,
-				Status: mfclients.AllStatus,
+				Status: mgclients.AllStatus,
 			},
 			response: expectedClients[170:200],
 			size:     30,
 		},
 		"retrieve all clients by metadata": {
-			pm: mfclients.Page{
+			pm: mgclients.Page{
 				Offset:   0,
 				Limit:    nClients,
 				Total:    nClients,
 				Metadata: meta,
-				Status:   mfclients.AllStatus,
+				Status:   mgclients.AllStatus,
 			},
-			response: []mfclients.Client{
+			response: []mgclients.Client{
 				expectedClients[0], expectedClients[10], expectedClients[20], expectedClients[30], expectedClients[40], expectedClients[50], expectedClients[60],
 				expectedClients[70], expectedClients[80], expectedClients[90], expectedClients[100], expectedClients[110], expectedClients[120], expectedClients[130],
 				expectedClients[140], expectedClients[150], expectedClients[160], expectedClients[170], expectedClients[180], expectedClients[190],
@@ -214,47 +216,47 @@ func TestClientsRetrieveAll(t *testing.T) {
 			size: 20,
 		},
 		"retrieve clients by wrong metadata": {
-			pm: mfclients.Page{
+			pm: mgclients.Page{
 				Offset:   0,
 				Limit:    nClients,
 				Total:    nClients,
 				Metadata: wrongMeta,
-				Status:   mfclients.AllStatus,
+				Status:   mgclients.AllStatus,
 			},
-			response: []mfclients.Client{},
+			response: []mgclients.Client{},
 			size:     0,
 		},
 		"retrieve all clients by name": {
-			pm: mfclients.Page{
+			pm: mgclients.Page{
 				Offset: 0,
 				Limit:  nClients,
 				Total:  nClients,
 				Name:   "TestRetrieveAll3@example.com",
-				Status: mfclients.AllStatus,
+				Status: mgclients.AllStatus,
 			},
-			response: []mfclients.Client{expectedClients[3]},
+			response: []mgclients.Client{expectedClients[3]},
 			size:     1,
 		},
 		"retrieve clients by wrong name": {
-			pm: mfclients.Page{
+			pm: mgclients.Page{
 				Offset: 0,
 				Limit:  nClients,
 				Total:  nClients,
 				Name:   wrongName,
-				Status: mfclients.AllStatus,
+				Status: mgclients.AllStatus,
 			},
-			response: []mfclients.Client{},
+			response: []mgclients.Client{},
 			size:     0,
 		},
 		"retrieve all clients by owner": {
-			pm: mfclients.Page{
+			pm: mgclients.Page{
 				Offset: 0,
 				Limit:  nClients,
 				Total:  nClients,
 				Owner:  ownerID,
-				Status: mfclients.AllStatus,
+				Status: mgclients.AllStatus,
 			},
-			response: []mfclients.Client{
+			response: []mgclients.Client{
 				expectedClients[0], expectedClients[10], expectedClients[20], expectedClients[30], expectedClients[40], expectedClients[50], expectedClients[60],
 				expectedClients[70], expectedClients[80], expectedClients[90], expectedClients[100], expectedClients[110], expectedClients[120], expectedClients[130],
 				expectedClients[140], expectedClients[150], expectedClients[160], expectedClients[170], expectedClients[180], expectedClients[190],
@@ -262,39 +264,25 @@ func TestClientsRetrieveAll(t *testing.T) {
 			size: 20,
 		},
 		"retrieve clients by wrong owner": {
-			pm: mfclients.Page{
+			pm: mgclients.Page{
 				Offset: 0,
 				Limit:  nClients,
 				Total:  nClients,
 				Owner:  wrongID,
-				Status: mfclients.AllStatus,
+				Status: mgclients.AllStatus,
 			},
-			response: []mfclients.Client{},
+			response: []mgclients.Client{},
 			size:     0,
 		},
-		"retrieve all clients shared by": {
-			pm: mfclients.Page{
-				Offset: 0,
-				Limit:  nClients,
-				Total:  nClients,
-				Status: mfclients.AllStatus,
-			},
-			response: []mfclients.Client{
-				expectedClients[0], expectedClients[10], expectedClients[20], expectedClients[30], expectedClients[40], expectedClients[50], expectedClients[60],
-				expectedClients[70], expectedClients[80], expectedClients[90], expectedClients[100], expectedClients[110], expectedClients[120], expectedClients[130],
-				expectedClients[140], expectedClients[150], expectedClients[160], expectedClients[170], expectedClients[180], expectedClients[190],
-			},
-			size: 20,
-		},
 		"retrieve all clients shared by and owned by": {
-			pm: mfclients.Page{
+			pm: mgclients.Page{
 				Offset: 0,
 				Limit:  nClients,
 				Total:  nClients,
 				Owner:  ownerID,
-				Status: mfclients.AllStatus,
+				Status: mgclients.AllStatus,
 			},
-			response: []mfclients.Client{
+			response: []mgclients.Client{
 				expectedClients[0], expectedClients[10], expectedClients[20], expectedClients[30], expectedClients[40], expectedClients[50], expectedClients[60],
 				expectedClients[70], expectedClients[80], expectedClients[90], expectedClients[100], expectedClients[110], expectedClients[120], expectedClients[130],
 				expectedClients[140], expectedClients[150], expectedClients[160], expectedClients[170], expectedClients[180], expectedClients[190],
@@ -302,44 +290,44 @@ func TestClientsRetrieveAll(t *testing.T) {
 			size: 20,
 		},
 		"retrieve all clients by disabled status": {
-			pm: mfclients.Page{
+			pm: mgclients.Page{
 				Offset: 0,
 				Limit:  nClients,
 				Total:  nClients,
-				Status: mfclients.DisabledStatus,
+				Status: mgclients.DisabledStatus,
 			},
-			response: []mfclients.Client{expectedClients[0], expectedClients[50], expectedClients[100], expectedClients[150]},
+			response: []mgclients.Client{expectedClients[0], expectedClients[50], expectedClients[100], expectedClients[150]},
 			size:     4,
 		},
 		"retrieve all clients by combined status": {
-			pm: mfclients.Page{
+			pm: mgclients.Page{
 				Offset: 0,
 				Limit:  nClients,
 				Total:  nClients,
-				Status: mfclients.AllStatus,
+				Status: mgclients.AllStatus,
 			},
 			response: expectedClients,
 			size:     200,
 		},
 		"retrieve clients by the wrong status": {
-			pm: mfclients.Page{
+			pm: mgclients.Page{
 				Offset: 0,
 				Limit:  nClients,
 				Total:  nClients,
 				Status: 10,
 			},
-			response: []mfclients.Client{},
+			response: []mgclients.Client{},
 			size:     0,
 		},
 		"retrieve all clients by tags": {
-			pm: mfclients.Page{
+			pm: mgclients.Page{
 				Offset: 0,
 				Limit:  nClients,
 				Total:  nClients,
 				Tag:    "Test",
-				Status: mfclients.AllStatus,
+				Status: mgclients.AllStatus,
 			},
-			response: []mfclients.Client{
+			response: []mgclients.Client{
 				expectedClients[0], expectedClients[10], expectedClients[20], expectedClients[30], expectedClients[40], expectedClients[50], expectedClients[60],
 				expectedClients[70], expectedClients[80], expectedClients[90], expectedClients[100], expectedClients[110], expectedClients[120], expectedClients[130],
 				expectedClients[140], expectedClients[150], expectedClients[160], expectedClients[170], expectedClients[180], expectedClients[190],
@@ -347,29 +335,15 @@ func TestClientsRetrieveAll(t *testing.T) {
 			size: 20,
 		},
 		"retrieve clients by wrong tags": {
-			pm: mfclients.Page{
+			pm: mgclients.Page{
 				Offset: 0,
 				Limit:  nClients,
 				Total:  nClients,
 				Tag:    "wrongTags",
-				Status: mfclients.AllStatus,
+				Status: mgclients.AllStatus,
 			},
-			response: []mfclients.Client{},
+			response: []mgclients.Client{},
 			size:     0,
-		},
-		"retrieve all clients by sharedby": {
-			pm: mfclients.Page{
-				Offset: 0,
-				Limit:  nClients,
-				Total:  nClients,
-				Status: mfclients.AllStatus,
-			},
-			response: []mfclients.Client{
-				expectedClients[0], expectedClients[10], expectedClients[20], expectedClients[30], expectedClients[40], expectedClients[50], expectedClients[60],
-				expectedClients[70], expectedClients[80], expectedClients[90], expectedClients[100], expectedClients[110], expectedClients[120], expectedClients[130],
-				expectedClients[140], expectedClients[150], expectedClients[160], expectedClients[170], expectedClients[180], expectedClients[190],
-			},
-			size: 20,
 		},
 	}
 	for desc, tc := range cases {
@@ -382,35 +356,38 @@ func TestClientsRetrieveAll(t *testing.T) {
 }
 
 func TestClientsUpdateMetadata(t *testing.T) {
-	t.Cleanup(func() { testsutil.CleanUpDB(t, db) })
+	t.Cleanup(func() {
+		_, err := db.Exec("DELETE FROM clients")
+		require.Nil(t, err, fmt.Sprintf("clean clients unexpected error: %s", err))
+	})
 	repo := cpostgres.NewRepository(database)
 
-	client1 := mfclients.Client{
+	client1 := mgclients.Client{
 		ID:   testsutil.GenerateUUID(t),
 		Name: "enabled-client",
-		Credentials: mfclients.Credentials{
+		Credentials: mgclients.Credentials{
 			Identity: "client1-update@example.com",
 			Secret:   password,
 		},
-		Metadata: mfclients.Metadata{
+		Metadata: mgclients.Metadata{
 			"name": "enabled-client",
 		},
 		Tags:   []string{"enabled", "tag1"},
-		Status: mfclients.EnabledStatus,
+		Status: mgclients.EnabledStatus,
 	}
 
-	client2 := mfclients.Client{
+	client2 := mgclients.Client{
 		ID:   testsutil.GenerateUUID(t),
 		Name: "disabled-client",
-		Credentials: mfclients.Credentials{
+		Credentials: mgclients.Credentials{
 			Identity: "client2-update@example.com",
 			Secret:   password,
 		},
-		Metadata: mfclients.Metadata{
+		Metadata: mgclients.Metadata{
 			"name": "disabled-client",
 		},
 		Tags:   []string{"disabled", "tag1"},
-		Status: mfclients.DisabledStatus,
+		Status: mgclients.DisabledStatus,
 	}
 
 	clients1, err := repo.Save(context.Background(), client1)
@@ -423,15 +400,15 @@ func TestClientsUpdateMetadata(t *testing.T) {
 	ucases := []struct {
 		desc   string
 		update string
-		client mfclients.Client
+		client mgclients.Client
 		err    error
 	}{
 		{
 			desc:   "update metadata for enabled client",
 			update: "metadata",
-			client: mfclients.Client{
+			client: mgclients.Client{
 				ID: client1.ID,
-				Metadata: mfclients.Metadata{
+				Metadata: mgclients.Metadata{
 					"update": "metadata",
 				},
 			},
@@ -440,9 +417,9 @@ func TestClientsUpdateMetadata(t *testing.T) {
 		{
 			desc:   "update metadata for disabled client",
 			update: "metadata",
-			client: mfclients.Client{
+			client: mgclients.Client{
 				ID: client2.ID,
-				Metadata: mfclients.Metadata{
+				Metadata: mgclients.Metadata{
 					"update": "metadata",
 				},
 			},
@@ -451,7 +428,7 @@ func TestClientsUpdateMetadata(t *testing.T) {
 		{
 			desc:   "update name for enabled client",
 			update: "name",
-			client: mfclients.Client{
+			client: mgclients.Client{
 				ID:   client1.ID,
 				Name: "updated name",
 			},
@@ -460,7 +437,7 @@ func TestClientsUpdateMetadata(t *testing.T) {
 		{
 			desc:   "update name for disabled client",
 			update: "name",
-			client: mfclients.Client{
+			client: mgclients.Client{
 				ID:   client2.ID,
 				Name: "updated name",
 			},
@@ -469,10 +446,10 @@ func TestClientsUpdateMetadata(t *testing.T) {
 		{
 			desc:   "update name and metadata for enabled client",
 			update: "both",
-			client: mfclients.Client{
+			client: mgclients.Client{
 				ID:   client1.ID,
 				Name: "updated name and metadata",
-				Metadata: mfclients.Metadata{
+				Metadata: mgclients.Metadata{
 					"update": "name and metadata",
 				},
 			},
@@ -481,10 +458,10 @@ func TestClientsUpdateMetadata(t *testing.T) {
 		{
 			desc:   "update name and metadata for a disabled client",
 			update: "both",
-			client: mfclients.Client{
+			client: mgclients.Client{
 				ID:   client2.ID,
 				Name: "updated name and metadata",
-				Metadata: mfclients.Metadata{
+				Metadata: mgclients.Metadata{
 					"update": "name and metadata",
 				},
 			},
@@ -493,9 +470,9 @@ func TestClientsUpdateMetadata(t *testing.T) {
 		{
 			desc:   "update metadata for invalid client",
 			update: "metadata",
-			client: mfclients.Client{
+			client: mgclients.Client{
 				ID: wrongID,
-				Metadata: mfclients.Metadata{
+				Metadata: mgclients.Metadata{
 					"update": "metadata",
 				},
 			},
@@ -504,7 +481,7 @@ func TestClientsUpdateMetadata(t *testing.T) {
 		{
 			desc:   "update name for invalid client",
 			update: "name",
-			client: mfclients.Client{
+			client: mgclients.Client{
 				ID:   wrongID,
 				Name: "updated name",
 			},
@@ -513,10 +490,10 @@ func TestClientsUpdateMetadata(t *testing.T) {
 		{
 			desc:   "update name and metadata for invalid client",
 			update: "both",
-			client: mfclients.Client{
+			client: mgclients.Client{
 				ID:   client2.ID,
 				Name: "updated name and metadata",
-				Metadata: mfclients.Metadata{
+				Metadata: mgclients.Metadata{
 					"update": "name and metadata",
 				},
 			},
@@ -538,28 +515,31 @@ func TestClientsUpdateMetadata(t *testing.T) {
 }
 
 func TestClientsUpdateTags(t *testing.T) {
-	t.Cleanup(func() { testsutil.CleanUpDB(t, db) })
+	t.Cleanup(func() {
+		_, err := db.Exec("DELETE FROM clients")
+		require.Nil(t, err, fmt.Sprintf("clean clients unexpected error: %s", err))
+	})
 	repo := cpostgres.NewRepository(database)
 
-	client1 := mfclients.Client{
+	client1 := mgclients.Client{
 		ID:   testsutil.GenerateUUID(t),
 		Name: "enabled-client-with-tags",
-		Credentials: mfclients.Credentials{
+		Credentials: mgclients.Credentials{
 			Identity: "client1-update-tags@example.com",
 			Secret:   password,
 		},
 		Tags:   []string{"test", "enabled"},
-		Status: mfclients.EnabledStatus,
+		Status: mgclients.EnabledStatus,
 	}
-	client2 := mfclients.Client{
+	client2 := mgclients.Client{
 		ID:   testsutil.GenerateUUID(t),
 		Name: "disabled-client-with-tags",
-		Credentials: mfclients.Credentials{
+		Credentials: mgclients.Credentials{
 			Identity: "client2-update-tags@example.com",
 			Secret:   password,
 		},
 		Tags:   []string{"test", "disabled"},
-		Status: mfclients.DisabledStatus,
+		Status: mgclients.DisabledStatus,
 	}
 
 	clients1, err := repo.Save(context.Background(), client1)
@@ -576,12 +556,12 @@ func TestClientsUpdateTags(t *testing.T) {
 	client2 = clients2
 	ucases := []struct {
 		desc   string
-		client mfclients.Client
+		client mgclients.Client
 		err    error
 	}{
 		{
 			desc: "update tags for enabled client",
-			client: mfclients.Client{
+			client: mgclients.Client{
 				ID:   client1.ID,
 				Tags: []string{"updated"},
 			},
@@ -589,7 +569,7 @@ func TestClientsUpdateTags(t *testing.T) {
 		},
 		{
 			desc: "update tags for disabled client",
-			client: mfclients.Client{
+			client: mgclients.Client{
 				ID:   client2.ID,
 				Tags: []string{"updated"},
 			},
@@ -597,7 +577,7 @@ func TestClientsUpdateTags(t *testing.T) {
 		},
 		{
 			desc: "update tags for invalid client",
-			client: mfclients.Client{
+			client: mgclients.Client{
 				ID:   wrongID,
 				Tags: []string{"updated"},
 			},
@@ -614,26 +594,29 @@ func TestClientsUpdateTags(t *testing.T) {
 }
 
 func TestClientsUpdateSecret(t *testing.T) {
-	t.Cleanup(func() { testsutil.CleanUpDB(t, db) })
+	t.Cleanup(func() {
+		_, err := db.Exec("DELETE FROM clients")
+		require.Nil(t, err, fmt.Sprintf("clean clients unexpected error: %s", err))
+	})
 	repo := cpostgres.NewRepository(database)
 
-	client1 := mfclients.Client{
+	client1 := mgclients.Client{
 		ID:   testsutil.GenerateUUID(t),
 		Name: "enabled-client",
-		Credentials: mfclients.Credentials{
+		Credentials: mgclients.Credentials{
 			Identity: "client1-update@example.com",
 			Secret:   password,
 		},
-		Status: mfclients.EnabledStatus,
+		Status: mgclients.EnabledStatus,
 	}
-	client2 := mfclients.Client{
+	client2 := mgclients.Client{
 		ID:   testsutil.GenerateUUID(t),
 		Name: "disabled-client",
-		Credentials: mfclients.Credentials{
+		Credentials: mgclients.Credentials{
 			Identity: "client2-update@example.com",
 			Secret:   password,
 		},
-		Status: mfclients.DisabledStatus,
+		Status: mgclients.DisabledStatus,
 	}
 
 	rClients1, err := repo.Save(context.Background(), client1)
@@ -649,14 +632,14 @@ func TestClientsUpdateSecret(t *testing.T) {
 
 	ucases := []struct {
 		desc   string
-		client mfclients.Client
+		client mgclients.Client
 		err    error
 	}{
 		{
 			desc: "update secret for enabled client",
-			client: mfclients.Client{
+			client: mgclients.Client{
 				ID: client1.ID,
-				Credentials: mfclients.Credentials{
+				Credentials: mgclients.Credentials{
 					Identity: "client1-update@example.com",
 					Secret:   "newpassword",
 				},
@@ -665,9 +648,9 @@ func TestClientsUpdateSecret(t *testing.T) {
 		},
 		{
 			desc: "update secret for disabled client",
-			client: mfclients.Client{
+			client: mgclients.Client{
 				ID: client2.ID,
-				Credentials: mfclients.Credentials{
+				Credentials: mgclients.Credentials{
 					Identity: "client2-update@example.com",
 					Secret:   "newpassword",
 				},
@@ -676,9 +659,9 @@ func TestClientsUpdateSecret(t *testing.T) {
 		},
 		{
 			desc: "update secret for invalid client",
-			client: mfclients.Client{
+			client: mgclients.Client{
 				ID: wrongID,
-				Credentials: mfclients.Credentials{
+				Credentials: mgclients.Credentials{
 					Identity: "client3-update@example.com",
 					Secret:   "newpassword",
 				},
@@ -698,26 +681,29 @@ func TestClientsUpdateSecret(t *testing.T) {
 }
 
 func TestClientsUpdateIdentity(t *testing.T) {
-	t.Cleanup(func() { testsutil.CleanUpDB(t, db) })
+	t.Cleanup(func() {
+		_, err := db.Exec("DELETE FROM clients")
+		require.Nil(t, err, fmt.Sprintf("clean clients unexpected error: %s", err))
+	})
 	repo := cpostgres.NewRepository(database)
 
-	client1 := mfclients.Client{
+	client1 := mgclients.Client{
 		ID:   testsutil.GenerateUUID(t),
 		Name: "enabled-client",
-		Credentials: mfclients.Credentials{
+		Credentials: mgclients.Credentials{
 			Identity: "client1-update@example.com",
 			Secret:   password,
 		},
-		Status: mfclients.EnabledStatus,
+		Status: mgclients.EnabledStatus,
 	}
-	client2 := mfclients.Client{
+	client2 := mgclients.Client{
 		ID:   testsutil.GenerateUUID(t),
 		Name: "disabled-client",
-		Credentials: mfclients.Credentials{
+		Credentials: mgclients.Credentials{
 			Identity: "client2-update@example.com",
 			Secret:   password,
 		},
-		Status: mfclients.DisabledStatus,
+		Status: mgclients.DisabledStatus,
 	}
 
 	rClients1, err := repo.Save(context.Background(), client1)
@@ -733,14 +719,14 @@ func TestClientsUpdateIdentity(t *testing.T) {
 
 	ucases := []struct {
 		desc   string
-		client mfclients.Client
+		client mgclients.Client
 		err    error
 	}{
 		{
 			desc: "update identity for enabled client",
-			client: mfclients.Client{
+			client: mgclients.Client{
 				ID: client1.ID,
-				Credentials: mfclients.Credentials{
+				Credentials: mgclients.Credentials{
 					Identity: "client1-updated@example.com",
 				},
 			},
@@ -748,9 +734,9 @@ func TestClientsUpdateIdentity(t *testing.T) {
 		},
 		{
 			desc: "update identity for disabled client",
-			client: mfclients.Client{
+			client: mgclients.Client{
 				ID: client2.ID,
-				Credentials: mfclients.Credentials{
+				Credentials: mgclients.Credentials{
 					Identity: "client2-updated@example.com",
 				},
 			},
@@ -758,9 +744,9 @@ func TestClientsUpdateIdentity(t *testing.T) {
 		},
 		{
 			desc: "update identity for invalid client",
-			client: mfclients.Client{
+			client: mgclients.Client{
 				ID: wrongID,
-				Credentials: mfclients.Credentials{
+				Credentials: mgclients.Credentials{
 					Identity: "client3-updated@example.com",
 				},
 			},
@@ -777,28 +763,31 @@ func TestClientsUpdateIdentity(t *testing.T) {
 }
 
 func TestClientsUpdateOwner(t *testing.T) {
-	t.Cleanup(func() { testsutil.CleanUpDB(t, db) })
+	t.Cleanup(func() {
+		_, err := db.Exec("DELETE FROM clients")
+		require.Nil(t, err, fmt.Sprintf("clean clients unexpected error: %s", err))
+	})
 	repo := cpostgres.NewRepository(database)
 
-	client1 := mfclients.Client{
+	client1 := mgclients.Client{
 		ID:   testsutil.GenerateUUID(t),
 		Name: "enabled-client-with-owner",
-		Credentials: mfclients.Credentials{
+		Credentials: mgclients.Credentials{
 			Identity: "client1-update-owner@example.com",
 			Secret:   password,
 		},
 		Owner:  testsutil.GenerateUUID(t),
-		Status: mfclients.EnabledStatus,
+		Status: mgclients.EnabledStatus,
 	}
-	client2 := mfclients.Client{
+	client2 := mgclients.Client{
 		ID:   testsutil.GenerateUUID(t),
 		Name: "disabled-client-with-owner",
-		Credentials: mfclients.Credentials{
+		Credentials: mgclients.Credentials{
 			Identity: "client2-update-owner@example.com",
 			Secret:   password,
 		},
 		Owner:  testsutil.GenerateUUID(t),
-		Status: mfclients.DisabledStatus,
+		Status: mgclients.DisabledStatus,
 	}
 
 	clients1, err := repo.Save(context.Background(), client1)
@@ -815,12 +804,12 @@ func TestClientsUpdateOwner(t *testing.T) {
 	}
 	ucases := []struct {
 		desc   string
-		client mfclients.Client
+		client mgclients.Client
 		err    error
 	}{
 		{
 			desc: "update owner for enabled client",
-			client: mfclients.Client{
+			client: mgclients.Client{
 				ID:    client1.ID,
 				Owner: testsutil.GenerateUUID(t),
 			},
@@ -828,7 +817,7 @@ func TestClientsUpdateOwner(t *testing.T) {
 		},
 		{
 			desc: "update owner for disabled client",
-			client: mfclients.Client{
+			client: mgclients.Client{
 				ID:    client2.ID,
 				Owner: testsutil.GenerateUUID(t),
 			},
@@ -836,7 +825,7 @@ func TestClientsUpdateOwner(t *testing.T) {
 		},
 		{
 			desc: "update owner for invalid client",
-			client: mfclients.Client{
+			client: mgclients.Client{
 				ID:    wrongID,
 				Owner: testsutil.GenerateUUID(t),
 			},
@@ -853,17 +842,20 @@ func TestClientsUpdateOwner(t *testing.T) {
 }
 
 func TestClientsChangeStatus(t *testing.T) {
-	t.Cleanup(func() { testsutil.CleanUpDB(t, db) })
+	t.Cleanup(func() {
+		_, err := db.Exec("DELETE FROM clients")
+		require.Nil(t, err, fmt.Sprintf("clean clients unexpected error: %s", err))
+	})
 	repo := cpostgres.NewRepository(database)
 
-	client1 := mfclients.Client{
+	client1 := mgclients.Client{
 		ID:   testsutil.GenerateUUID(t),
 		Name: "enabled-client",
-		Credentials: mfclients.Credentials{
+		Credentials: mgclients.Credentials{
 			Identity: "client1-update@example.com",
 			Secret:   password,
 		},
-		Status: mfclients.EnabledStatus,
+		Status: mgclients.EnabledStatus,
 	}
 
 	clients1, err := repo.Save(context.Background(), client1)
@@ -872,12 +864,12 @@ func TestClientsChangeStatus(t *testing.T) {
 
 	ucases := []struct {
 		desc   string
-		client mfclients.Client
+		client mgclients.Client
 		err    error
 	}{
 		{
 			desc: "change client status for an enabled client",
-			client: mfclients.Client{
+			client: mgclients.Client{
 				ID:     client1.ID,
 				Status: 0,
 			},
@@ -885,7 +877,7 @@ func TestClientsChangeStatus(t *testing.T) {
 		},
 		{
 			desc: "change client status for a disabled client",
-			client: mfclients.Client{
+			client: mgclients.Client{
 				ID:     client1.ID,
 				Status: 1,
 			},
@@ -893,7 +885,7 @@ func TestClientsChangeStatus(t *testing.T) {
 		},
 		{
 			desc: "change client status for non-existing client",
-			client: mfclients.Client{
+			client: mgclients.Client{
 				ID:     "invalid",
 				Status: 2,
 			},
@@ -908,4 +900,340 @@ func TestClientsChangeStatus(t *testing.T) {
 			assert.Equal(t, tc.client.Status, expected.Status, fmt.Sprintf("%s: expected %d got %d\n", tc.desc, tc.client.Status, expected.Status))
 		}
 	}
+}
+
+func TestClientsRetrieveAllBasicInfo(t *testing.T) {
+	t.Cleanup(func() {
+		_, err := db.Exec("DELETE FROM clients")
+		require.Nil(t, err, fmt.Sprintf("clean clients unexpected error: %s", err))
+	})
+	repo := cpostgres.NewRepository(database)
+
+	nusers := 100
+	users := make([]mgclients.Client, nusers)
+
+	name := namesgen.Generate()
+
+	for i := 0; i < nusers; i++ {
+		username := fmt.Sprintf("%s-%d@example.com", name, i)
+		client := mgclients.Client{
+			ID:   testsutil.GenerateUUID(t),
+			Name: username,
+			Credentials: mgclients.Credentials{
+				Identity: username,
+				Secret:   password,
+			},
+			Metadata: mgclients.Metadata{},
+			Status:   mgclients.EnabledStatus,
+		}
+		_, err := repo.Save(context.Background(), client)
+		require.Nil(t, err, fmt.Sprintf("save client unexpected error: %s", err))
+
+		users[i] = mgclients.Client{
+			ID:   client.ID,
+			Name: client.Name,
+		}
+	}
+
+	cases := []struct {
+		desc     string
+		page     mgclients.Page
+		response mgclients.ClientsPage
+		err      error
+	}{
+		{
+			desc: "retrieve all clients",
+			page: mgclients.Page{
+				Offset: 0,
+				Limit:  uint64(nusers),
+			},
+			response: mgclients.ClientsPage{
+				Clients: users,
+				Page: mgclients.Page{
+					Total:  uint64(nusers),
+					Offset: 0,
+					Limit:  uint64(nusers),
+				},
+			},
+			err: nil,
+		},
+		{
+			desc: "retrieve all clients with offset",
+			page: mgclients.Page{
+				Offset: 10,
+				Limit:  uint64(nusers),
+			},
+			response: mgclients.ClientsPage{
+				Clients: users[10:],
+				Page: mgclients.Page{
+					Total:  uint64(nusers),
+					Offset: 10,
+					Limit:  uint64(nusers),
+				},
+			},
+			err: nil,
+		},
+		{
+			desc: "retrieve all clients with limit",
+			page: mgclients.Page{
+				Offset: 0,
+				Limit:  10,
+			},
+			response: mgclients.ClientsPage{
+				Clients: users[:10],
+				Page: mgclients.Page{
+					Total:  uint64(nusers),
+					Offset: 0,
+					Limit:  10,
+				},
+			},
+			err: nil,
+		},
+		{
+			desc: "retrieve all clients with offset and limit",
+			page: mgclients.Page{
+				Offset: 10,
+				Limit:  10,
+			},
+			response: mgclients.ClientsPage{
+				Clients: users[10:20],
+				Page: mgclients.Page{
+					Total:  uint64(nusers),
+					Offset: 10,
+					Limit:  10,
+				},
+			},
+			err: nil,
+		},
+		{
+			desc: "retrieve all clients with name",
+			page: mgclients.Page{
+				Name:   users[0].Name[:1],
+				Offset: 0,
+				Limit:  10,
+			},
+			response: mgclients.ClientsPage{
+				Clients: findClients(users, users[0].Name[:1], 0, 10),
+				Page: mgclients.Page{
+					Total:  uint64(nusers),
+					Offset: 0,
+					Limit:  10,
+				},
+			},
+			err: nil,
+		},
+		{
+			desc: "retrieve all clients with name",
+			page: mgclients.Page{
+				Name:   users[0].Name[:4],
+				Offset: 0,
+				Limit:  10,
+			},
+			response: mgclients.ClientsPage{
+				Clients: findClients(users, users[0].Name[:4], 0, 10),
+				Page: mgclients.Page{
+					Total:  uint64(nusers),
+					Offset: 0,
+					Limit:  10,
+				},
+			},
+			err: nil,
+		},
+		{
+			desc: "retrieve all clients with name with SQL injection",
+			page: mgclients.Page{
+				Name:   fmt.Sprintf("%s' OR '1'='1", users[0].Name[:1]),
+				Offset: 0,
+				Limit:  10,
+			},
+			response: mgclients.ClientsPage{
+				Clients: []mgclients.Client(nil),
+				Page: mgclients.Page{
+					Total:  0,
+					Offset: 0,
+					Limit:  10,
+				},
+			},
+			err: nil,
+		},
+		{
+			desc: "retrieve all clients with Identity",
+			page: mgclients.Page{
+				Identity: users[0].Name[:1],
+				Offset:   0,
+				Limit:    10,
+			},
+			response: mgclients.ClientsPage{
+				Clients: findClients(users, users[0].Name[:1], 0, 10),
+				Page: mgclients.Page{
+					Total:  uint64(nusers),
+					Offset: 0,
+					Limit:  10,
+				},
+			},
+			err: nil,
+		},
+		{
+			desc: "retrieve all clients with Identity",
+			page: mgclients.Page{
+				Identity: users[0].Name[:4],
+				Offset:   0,
+				Limit:    10,
+			},
+			response: mgclients.ClientsPage{
+				Clients: findClients(users, users[0].Name[:4], 0, 10),
+				Page: mgclients.Page{
+					Total:  uint64(nusers),
+					Offset: 0,
+					Limit:  10,
+				},
+			},
+			err: nil,
+		},
+		{
+			desc: "retrieve all clients with Identity with SQL injection",
+			page: mgclients.Page{
+				Identity: fmt.Sprintf("%s' OR '1'='1", users[0].Name[:1]),
+				Offset:   0,
+				Limit:    10,
+			},
+			response: mgclients.ClientsPage{
+				Clients: []mgclients.Client(nil),
+				Page: mgclients.Page{
+					Total:  0,
+					Offset: 0,
+					Limit:  10,
+				},
+			},
+			err: nil,
+		},
+		{
+			desc: "retrieve all clients unknown name",
+			page: mgclients.Page{
+				Name:   "unknown",
+				Offset: 0,
+				Limit:  10,
+			},
+			response: mgclients.ClientsPage{
+				Clients: []mgclients.Client(nil),
+				Page: mgclients.Page{
+					Total:  0,
+					Offset: 0,
+					Limit:  10,
+				},
+			},
+			err: nil,
+		},
+		{
+			desc: "retrieve all clients unknown name with SQL injection",
+			page: mgclients.Page{
+				Name:   "unknown' OR '1'='1",
+				Offset: 0,
+				Limit:  10,
+			},
+			response: mgclients.ClientsPage{
+				Clients: []mgclients.Client(nil),
+				Page: mgclients.Page{
+					Total:  0,
+					Offset: 0,
+					Limit:  10,
+				},
+			},
+			err: nil,
+		},
+		{
+			desc: "retrieve all clients unknown identity",
+			page: mgclients.Page{
+				Identity: "unknown",
+				Offset:   0,
+				Limit:    10,
+			},
+			response: mgclients.ClientsPage{
+				Clients: []mgclients.Client(nil),
+				Page: mgclients.Page{
+					Total:  0,
+					Offset: 0,
+					Limit:  10,
+				},
+			},
+			err: nil,
+		},
+		{
+			desc: "retrieve all clients with order",
+			page: mgclients.Page{
+				Order:  "name",
+				Dir:    "asc",
+				Name:   users[0].Name[:1],
+				Offset: 0,
+				Limit:  10,
+			},
+			response: mgclients.ClientsPage{},
+			err:      nil,
+		},
+		{
+			desc: "retrieve all clients with order",
+			page: mgclients.Page{
+				Order:  "name",
+				Dir:    "desc",
+				Name:   users[0].Name[:1],
+				Offset: 0,
+				Limit:  10,
+			},
+			response: mgclients.ClientsPage{},
+			err:      nil,
+		},
+		{
+			desc: "retrieve all clients with order",
+			page: mgclients.Page{
+				Order:    "identity",
+				Dir:      "asc",
+				Identity: users[0].Name[:1],
+				Offset:   0,
+				Limit:    10,
+			},
+			response: mgclients.ClientsPage{},
+			err:      nil,
+		},
+		{
+			desc: "retrieve all clients with order",
+			page: mgclients.Page{
+				Order:    "identity",
+				Dir:      "desc",
+				Identity: users[0].Name[:1],
+				Offset:   0,
+				Limit:    10,
+			},
+			response: mgclients.ClientsPage{},
+			err:      nil,
+		},
+	}
+	for _, tc := range cases {
+		resp, err := repo.RetrieveAllBasicInfo(context.Background(), tc.page)
+		assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s: expected %s got %s\n", tc.desc, tc.err, err))
+		if err == nil {
+			if tc.page.Order != "" && tc.page.Dir != "" {
+				tc.response = resp
+			}
+			assert.Equal(t, tc.response, resp, fmt.Sprintf("%s: expected %v got %v\n", tc.desc, tc.response, resp))
+		}
+	}
+}
+
+func findClients(clients []mgclients.Client, query string, offset, limit uint64) []mgclients.Client {
+	clis := []mgclients.Client{}
+	for _, client := range clients {
+		if strings.Contains(client.Name, query) {
+			clis = append(clis, client)
+		}
+	}
+
+	if offset > uint64(len(clis)) {
+		return []mgclients.Client{}
+	}
+
+	if limit > uint64(len(clis)) {
+		return clis[offset:]
+	}
+
+	return clis[offset:limit]
 }

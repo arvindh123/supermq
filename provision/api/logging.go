@@ -1,4 +1,4 @@
-// Copyright (c) Mainflux
+// Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
 //go:build !test
@@ -9,19 +9,19 @@ import (
 	"fmt"
 	"time"
 
-	mflog "github.com/mainflux/mainflux/logger"
-	"github.com/mainflux/mainflux/provision"
+	mglog "github.com/absmach/magistrala/logger"
+	"github.com/absmach/magistrala/provision"
 )
 
 var _ provision.Service = (*loggingMiddleware)(nil)
 
 type loggingMiddleware struct {
-	logger mflog.Logger
+	logger mglog.Logger
 	svc    provision.Service
 }
 
 // NewLoggingMiddleware adds logging facilities to the core service.
-func NewLoggingMiddleware(svc provision.Service, logger mflog.Logger) provision.Service {
+func NewLoggingMiddleware(svc provision.Service, logger mglog.Logger) provision.Service {
 	return &loggingMiddleware{logger, svc}
 }
 
@@ -38,7 +38,7 @@ func (lm *loggingMiddleware) Provision(token, name, externalID, externalKey stri
 	return lm.svc.Provision(token, name, externalID, externalKey)
 }
 
-func (lm *loggingMiddleware) Cert(token, thingID, duration string) (cert string, key string, err error) {
+func (lm *loggingMiddleware) Cert(token, thingID, duration string) (cert, key string, err error) {
 	defer func(begin time.Time) {
 		message := fmt.Sprintf("Method cert for token: %s and thing: %v took %s to complete", token, thingID, time.Since(begin))
 		if err != nil {
