@@ -5,7 +5,6 @@ package postgres
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 
 	"github.com/absmach/magistrala/internal/postgres"
@@ -18,7 +17,7 @@ import (
 var _ mgclients.Repository = (*clientRepo)(nil)
 
 type clientRepo struct {
-	pgclients.ClientRepository
+	pgclients.Repository
 }
 
 // Repository defines the required dependencies for Client repository.
@@ -42,7 +41,7 @@ type Repository interface {
 // implementation of Clients repository.
 func NewRepository(db postgres.Database) Repository {
 	return &clientRepo{
-		ClientRepository: pgclients.ClientRepository{DB: db},
+		Repository: pgclients.Repository{DB: db},
 	}
 }
 
@@ -55,7 +54,7 @@ func (repo clientRepo) Save(ctx context.Context, c mgclients.Client) (mgclients.
 		return mgclients.Client{}, errors.Wrap(repoerr.ErrCreateEntity, err)
 	}
 
-	row, err := repo.ClientRepository.DB.NamedQueryContext(ctx, q, dbc)
+	row, err := repo.DB.NamedQueryContext(ctx, q, dbc)
 	if err != nil {
 		return mgclients.Client{}, postgres.HandleError(repoerr.ErrCreateEntity, err)
 	}
@@ -77,21 +76,19 @@ func (repo clientRepo) Save(ctx context.Context, c mgclients.Client) (mgclients.
 
 func (repo clientRepo) CheckSuperAdmin(ctx context.Context, adminID string) error {
 	q := "SELECT 1 FROM clients WHERE id = $1 AND role = $2"
-	rows, err := repo.ClientRepository.DB.QueryContext(ctx, q, adminID, mgclients.AdminRole)
+	rows, err := repo.DB.QueryContext(ctx, q, adminID, mgclients.AdminRole)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return errors.ErrAuthorization
-		}
 		return errors.Wrap(errors.ErrAuthorization, err)
 	}
 	defer rows.Close()
-	if !rows.Next() {
-		return errors.ErrAuthorization
+
+	if rows.Next() {
+		if err := rows.Err(); err != nil {
+			return errors.Wrap(errors.ErrAuthorization, err)
+		}
+		return nil
 	}
-	if err := rows.Err(); err != nil {
-		return errors.Wrap(errors.ErrAuthorization, err)
-	}
-	return nil
+	return errors.ErrAuthorization
 }
 
 func (repo clientRepo) RetrieveByID(ctx context.Context, id string) (mgclients.Client, error) {
@@ -102,22 +99,27 @@ func (repo clientRepo) RetrieveByID(ctx context.Context, id string) (mgclients.C
 		ID: id,
 	}
 
-	row, err := repo.DB.NamedQueryContext(ctx, q, dbc)
+	rows, err := repo.DB.NamedQueryContext(ctx, q, dbc)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return mgclients.Client{}, errors.Wrap(errors.ErrNotFound, err)
-		}
-		return mgclients.Client{}, errors.Wrap(errors.ErrViewEntity, err)
+		return mgclients.Client{}, postgres.HandleError(repoerr.ErrViewEntity, err)
 	}
+	defer rows.Close()
 
-	defer row.Close()
-	row.Next()
 	dbc = pgclients.DBClient{}
-	if err := row.StructScan(&dbc); err != nil {
-		return mgclients.Client{}, errors.Wrap(errors.ErrNotFound, err)
+	if rows.Next() {
+		if err = rows.StructScan(&dbc); err != nil {
+			return mgclients.Client{}, postgres.HandleError(repoerr.ErrViewEntity, err)
+		}
+
+		client, err := pgclients.ToClient(dbc)
+		if err != nil {
+			return mgclients.Client{}, errors.Wrap(repoerr.ErrFailedOpDB, err)
+		}
+
+		return client, nil
 	}
 
-	return pgclients.ToClient(dbc)
+	return mgclients.Client{}, repoerr.ErrNotFound
 }
 
 func (repo clientRepo) RetrieveAll(ctx context.Context, pm mgclients.Page) (mgclients.ClientsPage, error) {

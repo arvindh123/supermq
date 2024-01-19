@@ -6,10 +6,10 @@ package gopcua
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"time"
 
-	mglog "github.com/absmach/magistrala/logger"
 	"github.com/absmach/magistrala/opcua"
 	"github.com/absmach/magistrala/pkg/errors"
 	"github.com/absmach/magistrala/pkg/messaging"
@@ -45,7 +45,7 @@ type client struct {
 	thingsRM   opcua.RouteMapRepository
 	channelsRM opcua.RouteMapRepository
 	connectRM  opcua.RouteMapRepository
-	logger     mglog.Logger
+	logger     *slog.Logger
 }
 
 type message struct {
@@ -58,7 +58,7 @@ type message struct {
 }
 
 // NewSubscriber returns new OPC-UA client instance.
-func NewSubscriber(ctx context.Context, publisher messaging.Publisher, thingsRM, channelsRM, connectRM opcua.RouteMapRepository, log mglog.Logger) opcua.Subscriber {
+func NewSubscriber(ctx context.Context, publisher messaging.Publisher, thingsRM, channelsRM, connectRM opcua.RouteMapRepository, log *slog.Logger) opcua.Subscriber {
 	return client{
 		ctx:        ctx,
 		publisher:  publisher,
@@ -242,7 +242,7 @@ func (c client) publish(ctx context.Context, token string, m message) error {
 		Created:   time.Now().UnixNano(),
 	}
 
-	if err := c.publisher.Publish(ctx, msg.Channel, &msg); err != nil {
+	if err := c.publisher.Publish(ctx, msg.GetChannel(), &msg); err != nil {
 		return err
 	}
 
