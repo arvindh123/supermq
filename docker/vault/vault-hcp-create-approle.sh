@@ -70,6 +70,7 @@ readDotEnv
 vault login  -namespace=${MG_VAULT_NAMESPACE} -address=${MG_VAULT_ADDR} ${MG_VAULT_TOKEN}
 
 vaultCreatePolicy
+vaultEnableAppRole
 vaultDeleteRole
 vaultCreateRole
 vaultWriteCustomRoleID
