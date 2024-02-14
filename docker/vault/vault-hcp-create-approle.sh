@@ -12,6 +12,8 @@ export MAGISTRALA_DIR=$scriptdir/../../
 
 # echo "$MAGISTRALA_DIR"
 
+ENABLE_APP_ROLE=${1:-not_enable_app_role}
+
 readDotEnv() {
     set -o allexport
     source $MAGISTRALA_DIR/docker/.env
@@ -24,7 +26,7 @@ vaultCreatePolicy() {
 }
 
 vaultEnableAppRole() {
-   if [ "$1" == "enable_app_role" ]; then
+   if [ "$ENABLE_APP_ROLE" == "enable_app_role" ]; then
         echo "Enabling AppRole"
         vault auth enable -namespace=${MG_VAULT_NAMESPACE} -address=${MG_VAULT_ADDR} approle
     fi
