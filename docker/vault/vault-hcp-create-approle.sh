@@ -24,9 +24,12 @@ vaultCreatePolicy() {
 }
 
 vaultEnableAppRole() {
-    echo "Enabling AppRole"
-    vault auth enable -namespace=${MG_VAULT_NAMESPACE} -address=${MG_VAULT_ADDR}  approle
+   if [ "$1" == "enable_app_role" ]; then
+        echo "Enabling AppRole"
+        vault auth enable -namespace=${MG_VAULT_NAMESPACE} -address=${MG_VAULT_ADDR} approle
+    fi
 }
+
 vaultDeleteRole() {
     echo "Deleteing old AppRole"
     vault delete -namespace=${MG_VAULT_NAMESPACE} -address=${MG_VAULT_ADDR} auth/approle/role/things_cert_issuer
