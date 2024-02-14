@@ -19,12 +19,21 @@ readDotEnv() {
 }
 
 vaultCreatePolicy() {
+    echo "Creating new policy for AppRole"
     vault policy write -namespace=${MG_VAULT_NAMESPACE} -address=${MG_VAULT_ADDR} things_cert_issue $scriptdir/things_cert_issue.hcl
+}
+
+vaultEnableAppRole() {
+    echo "Enabling AppRole"
+    vault auth enable -namespace=${MG_VAULT_NAMESPACE} -address=${MG_VAULT_ADDR}  approle
+}
+vaultDeleteRole() {
+    echo "Deleteing old AppRole"
+    vault delete -namespace=${MG_VAULT_NAMESPACE} -address=${MG_VAULT_ADDR} auth/approle/role/things_cert_issuer
 }
 
 vaultCreateRole() {
     echo "Creating new AppRole"
-    # vault auth enable approle
     vault write -namespace=${MG_VAULT_NAMESPACE} -address=${MG_VAULT_ADDR} auth/approle/role/things_cert_issuer \
     token_policies=things_cert_issue  secret_id_num_uses=0 \
     secret_id_ttl=0 token_ttl=1h token_max_ttl=3h  token_num_uses=0
@@ -61,7 +70,7 @@ readDotEnv
 vault login  -namespace=${MG_VAULT_NAMESPACE} -address=${MG_VAULT_ADDR} ${MG_VAULT_TOKEN}
 
 vaultCreatePolicy
-vaultCreateRole
+vaultDeleteRole
 vaultCreateRole
 vaultWriteCustomRoleID
 vaultWriteCustomSecret
