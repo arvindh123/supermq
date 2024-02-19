@@ -1,4 +1,4 @@
-# # Vault
+# Vault
 
 This is Vault service deployment to be used with Magistrala.
 
