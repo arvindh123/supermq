@@ -30,7 +30,7 @@ vaultCreatePolicyFile() {
 vaultCreatePolicy() {
     echo "Creating new policy for AppRole"
     docker cp magistrala_things_certs_issue.hcl magistrala-vault:/vault/magistrala_things_certs_issue.hcl
-    vault policy write -namespace=${MG_VAULT_NAMESPACE} -address=${MG_VAULT_ADDR} magistrala_things_certs_issue /vault//magistrala_things_certs_issue.hcl
+    vault policy write -namespace=${MG_VAULT_NAMESPACE} -address=${MG_VAULT_ADDR} magistrala_things_certs_issue /vault/magistrala_things_certs_issue.hcl
 }
 
 vaultEnableAppRole() {
