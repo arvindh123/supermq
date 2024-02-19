@@ -193,7 +193,7 @@ func (p *pkiAgent) LoginAndRenew(ctx context.Context) error {
 			p.logger.Info("pki login and renew function stopping")
 			return nil
 		default:
-			err := p.login()
+			err := p.login(ctx)
 			if err != nil {
 				p.logger.Info("unable to authenticate to Vault", slog.Any("error", err))
 				time.Sleep(5 * time.Second)
@@ -208,7 +208,7 @@ func (p *pkiAgent) LoginAndRenew(ctx context.Context) error {
 	}
 }
 
-func (p *pkiAgent) login() error {
+func (p *pkiAgent) login(ctx context.Context) error {
 	secretID := &approle.SecretID{FromString: p.appSecret}
 
 	authMethod, err := approle.NewAppRoleAuth(
@@ -221,7 +221,7 @@ func (p *pkiAgent) login() error {
 	if len(p.namespace) > 0 {
 		p.client.SetNamespace(p.namespace)
 	}
-	secret, err := p.client.Auth().Login(context.Background(), authMethod)
+	secret, err := p.client.Auth().Login(ctx, authMethod)
 	if err != nil {
 		return errors.Wrap(errFailedToLogin, err)
 	}
