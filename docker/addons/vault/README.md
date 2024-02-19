@@ -6,7 +6,6 @@ When the Vault service is started, some initialization steps need to be done to 
 
 ## Configuration
 
-
 | Variable                                | Description                                                                   | Default                               |
 | :-------------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------- |
 | MG_VAULT_HOST                           | Vault service address                                                         | vault                                 |
