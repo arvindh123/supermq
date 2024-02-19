@@ -36,7 +36,7 @@ vaultCreatePolicy() {
 vaultEnableAppRole() {
    if [ "$SKIP_ENABLE_APP_ROLE" == "skip_enable_app_role" ]; then
         echo "Skipping Enable AppRole"
-    elif
+    else
         echo "Enabling AppRole"
         vault auth enable -namespace=${MG_VAULT_NAMESPACE} -address=${MG_VAULT_ADDR} approle
     fi
