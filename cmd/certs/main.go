@@ -61,8 +61,8 @@ type config struct {
 	PkiAppRoleID string `env:"MG_CERTS_VAULT_APPROLE_ROLEID"     envDefault:""`
 	PkiAppSecret string `env:"MG_CERTS_VAULT_APPROLE_SECRET"     envDefault:""`
 	PkiNamespace string `env:"MG_CERTS_VAULT_NAMESPACE"          envDefault:""`
-	PkiPath      string `env:"MG_CERTS_VAULT_PKI_INT_PATH"       envDefault:"pki_int"`
-	PkiRole      string `env:"MG_CERTS_VAULT_PKI_INT_ROLE_NAME"  envDefault:"magistrala"`
+	PkiPath      string `env:"MG_CERTS_VAULT_THINGS_CERTS_PKI_PATH"       envDefault:"pki_int"`
+	PkiRole      string `env:"MG_CERTS_VAULT_THINGS_CERTS_PKI_ROLE_NAME"  envDefault:"magistrala"`
 }
 
 func main() {
