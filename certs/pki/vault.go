@@ -100,7 +100,7 @@ func NewVaultClient(appRole, appSecret, host, namespace, path, role string, logg
 	if err != nil {
 		return nil, err
 	}
-	if len(namespace) > 0 {
+	if namespace != "" {
 		client.SetNamespace(namespace)
 	}
 
@@ -218,7 +218,7 @@ func (p *pkiAgent) login(ctx context.Context) error {
 	if err != nil {
 		return errors.Wrap(errFailedAppRole, err)
 	}
-	if len(p.namespace) > 0 {
+	if p.namespace != "" {
 		p.client.SetNamespace(p.namespace)
 	}
 	secret, err := p.client.Auth().Login(ctx, authMethod)
