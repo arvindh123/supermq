@@ -8,7 +8,7 @@ When the Vault service is started, some initialization steps need to be done to 
 
 
 | Variable                                | Description                                                                   | Default                               |
-| :---------------------------------------- | ------------------------------------------------------------------------------- | --------------------------------------- |
+| :-------------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------- |
 | MG_VAULT_HOST                           | Vault service address                                                         | vault                                 |
 | MG_VAULT_PORT                           | Vault service port                                                            | 8200                                  |
 | MG_VAULT_ADDR                           | Vault Address                                                                 | http://vault:8200                     |
@@ -16,7 +16,6 @@ When the Vault service is started, some initialization steps need to be done to 
 | MG_VAULT_UNSEAL_KEY_2                   | Vault unseal key                                                              | ""                                    |
 | MG_VAULT_UNSEAL_KEY_3                   | Vault unseal key                                                              | ""                                    |
 | MG_VAULT_TOKEN                          | Vault cli access token                                                        | ""                                    |
-|                                         |                                                                               |                                       |
 | MG_VAULT_PKI_PATH                       | Vault secrets engine path for Root CA                                         | pki                                   |
 | MG_VAULT_PKI_ROLE_NAME                  | Vault Root CA role name to issue intermediate CA                              | magistrala_int_ca                     |
 | MG_VAULT_PKI_FILE_NAME                  | Root CA Certificates name used by`vault-set-pki.sh`                           | mg_root                               |
@@ -30,7 +29,6 @@ When the Vault service is started, some initialization steps need to be done to 
 | MG_VAULT_PKI_CA_PO                      | Postal code used for Root CA creation by`vault-set-pki.sh`                    | 75007                                 |
 | MG_VAULT_PKI_CLUSTER_PATH               | Vault Root CA Cluster Path                                                    | http://localhost                      |
 | MG_VAULT_PKI_CLUSTER_AIA_PATH           | Vault Root CA Cluster AIA Path                                                | http://localhost                      |
-|                                         |                                                                               |                                       |
 | MG_VAULT_PKI_INT_PATH                   | Vault secrets engine path for Intermediate CA                                 | pki_int                               |
 | MG_VAULT_PKI_INT_SERVER_CERTS_ROLE_NAME | Vault Intermediate CA role name to issue server certificate                   | magistrala_server_certs               |
 | MG_VAULT_PKI_INT_THINGS_CERTS_ROLE_NAME | Vault Intermediate CA role name to issue Things certificates                  | magistrala_things_certs               |
@@ -45,7 +43,6 @@ When the Vault service is started, some initialization steps need to be done to 
 | MG_VAULT_PKI_INT_CA_PO                  | Postal code used for Intermediate CA creation by`vault-set-pki.sh`            | 75007                                 |
 | MG_VAULT_PKI_INT_CLUSTER_PATH           | Vault Intermediate CA Cluster Path                                            | http://localhost                      |
 | MG_VAULT_PKI_INT_CLUSTER_AIA_PATH       | Vault Intermediate CA Cluster AIA Path                                        | http://localhost                      |
-|                                         |                                                                               |                                       |
 | MG_VAULT_THINGS_CERTS_ISSUER_ROLEID     | Vault Intermediate CA Things Certificate issuer AppRole authentication RoleID | magistrala                            |
 | MG_VAULT_THINGS_CERTS_ISSUER_SECRET     | Vault Intermediate CA Things Certificate issuer AppRole authentication Secret | magistrala                            |
 
@@ -61,7 +58,7 @@ a `docker/addons/vault/data/secrets` file which contains the Vault unseal keys a
 After this step, the corresponding Vault environment variables (`MG_VAULT_TOKEN`, `MG_VAULT_UNSEAL_KEY_1`,
 `MG_VAULT_UNSEAL_KEY_2`, `MG_VAULT_UNSEAL_KEY_3`) should be updated in `.env` file.
 
-Example contents for `docker/addons/vault/data/secrets`:
+Example contents for `data/secrets`:
 
 ```bash
 Unseal Key 1: Ay0YZecYJ2HVtNtXfPootXK5LtF+JZoDmBb7IbbYdLBI
@@ -101,17 +98,25 @@ starting the container.
 3. `vault-set-pki.sh`
 
 This script is used to generate the root certificate, intermediate certificate and HTTPS server certificate.
-After it runs, it copies the necessary certificates and keys to the `docker/ssl/certs` folder.
 
-The parameters required for generating certificate are obtained from the environment variables which are loaded from `docker/.env`. Environmental variables starting with `MG_VAULT_PKI` in `docker/.env` file are used by `vault-set-pki.sh` to generateissu root CA. Environmental variables starting with`MG_VAULT_PKI_INT`in`docker/.env` file are used by `vault-set-pki.sh` to generate intermediate CA
+All generate certificates, keys and CSR by `vault-set-pki.sh` will be present at `docker/addons/vault/data`
 
-A copy of all generate certificates, keys and CSR by `vault-set-pki.sh` will present at `docker/addons/vault/data/secrets`
+The parameters required for generating certificate are obtained from the environment variables which are loaded from `docker/.env`.
+
+Environmental variables starting with `MG_VAULT_PKI` in `docker/.env` file are used by `vault-set-pki.sh` to generate root CA. 
+
+Environmental variables starting with`MG_VAULT_PKI_INT` in `docker/.env` file are used by `vault-set-pki.sh` to generate intermediate CA
+
 
 4. `vault-create-approle.sh`
 
 This script is used to enable app role authorization in Vault. Certs service used the approle credentials to issue , revoke things certificate from vault intermedate CA.
 
 `vault-create-approle` script by default tries to enable auth approle. If approle is already enabled in vault, then use args `skip_enable_app_role` to skip enable auth approle step, `vault-create-approle.sh skip_enable_app_role`
+
+5. `vault-certs-copy.sh`
+
+This scripts copies the necessary certificates and keys from `docker/addons/vault/data` to the `docker/ssl/certs` folder.
 
 ## Vault CLI
 
