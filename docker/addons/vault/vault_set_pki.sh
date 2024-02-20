@@ -15,6 +15,13 @@ readDotEnv() {
     set +o allexport
 }
 
+server_name="localhost"
+
+# Check if MG_NGINX_SERVER_NAME is set or not empty
+if [ -n "${MG_NGINX_SERVER_NAME:-}" ]; then
+    server_name="$MG_NGINX_SERVER_NAME"
+fi
+
 vault() {
     docker exec -it magistrala-vault vault "$@"
 }
@@ -141,9 +148,9 @@ vaultSetupServerCertsRole() {
 vaultGenerateServerCertificate() {
     echo "Generate server certificate"
     vault write -namespace=${MG_VAULT_NAMESPACE} -address=${MG_VAULT_ADDR} -format=json ${MG_VAULT_PKI_INT_PATH}/issue/${MG_VAULT_PKI_INT_SERVER_CERTS_ROLE_NAME} \
-        common_name="$MG_NGINX_SERVER_NAME" ttl="4320h" \
-        | tee >(jq -r .data.certificate >data/${MG_NGINX_SERVER_NAME}.crt) \
-              >(jq -r .data.private_key >data/${MG_NGINX_SERVER_NAME}.key)
+        common_name="$server_name" ttl="4320h" \
+        | tee >(jq -r .data.certificate >data/${server_name}.crt) \
+              >(jq -r .data.private_key >data/${server_name}.key)
 }
 
 vaultSetupThingCertsRole() {
