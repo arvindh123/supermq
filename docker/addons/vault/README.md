@@ -80,11 +80,11 @@ bash-4.4
 Use 3 out of five keys presented and put it into .env file and than start the composition again Vault should be in unsealed state ( take a note that this is not recommended in terms of security, this is deployment for development) A real production deployment can use Vault auto unseal mode where vault gets unseal keys from some 3rd party KMS ( on AWS for example)
 ```
 
-### 2. `vault_env_copy.sh`
+### 2. `vault_copy_env.sh`
 
 After first step, the corresponding Vault environment variables (`MG_VAULT_TOKEN`, `MG_VAULT_UNSEAL_KEY_1`, `MG_VAULT_UNSEAL_KEY_2`, `MG_VAULT_UNSEAL_KEY_3`) should be updated in `.env` file.
 
-`vault_env_copy.sh` scripts copies values from `docker/addons/vault/data/secrets` file and update environmental variables `MG_VAULT_TOKEN`, `MG_VAULT_UNSEAL_KEY_1`, `MG_VAULT_UNSEAL_KEY_2`, `MG_VAULT_UNSEAL_KEY_3` present in `.env` file.
+`vault_copy_env.sh` scripts copies values from `docker/addons/vault/data/secrets` file and update environmental variables `MG_VAULT_TOKEN`, `MG_VAULT_UNSEAL_KEY_1`, `MG_VAULT_UNSEAL_KEY_2`, `MG_VAULT_UNSEAL_KEY_3` present in `.env` file.
 
 ### 3. `vault_unseal.sh`
 
@@ -114,7 +114,7 @@ This script is used to enable app role authorization in Vault. Certs service use
 If approle is already enabled in vault, then use args `skip_enable_app_role` to skip enable auth approle step.  
 To skip enable auth approle step use the following  `vault_create_approle.sh   skip_enable_app_role`
 
-### 6. `vault_certs_copy.sh`
+### 6. `vault_copy_certs.sh`
 
 This scripts copies the necessary certificates and keys from `docker/addons/vault/data` to the `docker/ssl/certs` folder.
 
