@@ -123,7 +123,7 @@ services:
 Nginx is the entry point for all traffic to Magistrala.
 By using environment variables file at `docker/.env` you can modify the below given Nginx directive.
 
-`MG_NGINX_SERVER_NAME` environmental variable is used to configure the `server_name` parameter in nginx, It's default value is `localhost`.
+`MG_NGINX_SERVER_NAME` environmental variable is used to configure nginx directive `server_name`. If environmental variable `MG_NGINX_SERVER_NAME` is empty then default value `localhost` will set to `server_name`.
 
 `MG_NGINX_SERVER_CERT` environmental variable is used to configure nginx directive `ssl_certificate`. If environmental variable `MG_NGINX_SERVER_CERT` is empty then by default server certificate in the path `docker/ssl/certs/magistrala-server.crt`  will be assigned.
 
