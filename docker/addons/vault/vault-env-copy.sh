@@ -16,6 +16,4 @@ write_env() {
     sed -i "s,MG_VAULT_TOKEN=.*,MG_VAULT_TOKEN=$(awk -F ": " '$1 == "Initial Root Token" {print $2}' data/secrets)," $MAGISTRALA_DIR/docker/.env
 }
 
-
-
 write_env

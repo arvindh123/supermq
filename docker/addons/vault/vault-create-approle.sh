@@ -22,10 +22,10 @@ vault() {
 }
 
 vaultCreatePolicyFile() {
-      envsubst '
-      ${MG_VAULT_PKI_INT_PATH}
-      ${MG_VAULT_PKI_INT_THINGS_CERTS_ROLE_NAME}
-      ' <  magistrala_things_certs_issue.template.hcl >  magistrala_things_certs_issue.hcl
+    envsubst '
+    ${MG_VAULT_PKI_INT_PATH}
+    ${MG_VAULT_PKI_INT_THINGS_CERTS_ROLE_NAME}
+    ' <  magistrala_things_certs_issue.template.hcl >  magistrala_things_certs_issue.hcl
 }
 vaultCreatePolicy() {
     echo "Creating new policy for AppRole"
@@ -67,10 +67,10 @@ vaultWriteCustomSecret() {
 }
 
 vaultTestRoleLogin() {
-echo "Testing custom roleid secret by logging in"
-vault write -namespace=${MG_VAULT_NAMESPACE} -address=${MG_VAULT_ADDR} auth/approle/login \
-    role_id=${MG_VAULT_THINGS_CERTS_ISSUER_ROLEID} \
-    secret_id=${MG_VAULT_THINGS_CERTS_ISSUER_SECRET}
+    echo "Testing custom roleid secret by logging in"
+    vault write -namespace=${MG_VAULT_NAMESPACE} -address=${MG_VAULT_ADDR} auth/approle/login \
+        role_id=${MG_VAULT_THINGS_CERTS_ISSUER_ROLEID} \
+        secret_id=${MG_VAULT_THINGS_CERTS_ISSUER_SECRET}
 
 }
 if ! command -v jq &> /dev/null
@@ -80,7 +80,6 @@ then
 fi
 
 readDotEnv
-
 
 vault login  -namespace=${MG_VAULT_NAMESPACE} -address=${MG_VAULT_ADDR} ${MG_VAULT_TOKEN}
 

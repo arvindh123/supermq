@@ -32,7 +32,6 @@ vaultConfigPKICrl() {
     vault write -namespace=${MG_VAULT_NAMESPACE} -address=${MG_VAULT_ADDR} ${MG_VAULT_PKI_PATH}/config/crl expiry="5m"  ocsp_disable=false ocsp_expiry=0 auto_rebuild=true auto_rebuild_grace_period="2m" enable_delta=true delta_rebuild_interval="1m"
 }
 
-
 vaultAddRoleToSecret() {
     vault write -namespace=${MG_VAULT_NAMESPACE} -address=${MG_VAULT_ADDR} ${MG_VAULT_PKI_PATH}/roles/${MG_VAULT_PKI_ROLE_NAME} \
         allow_any_name=true \
@@ -66,7 +65,6 @@ vaultSetupRootCAIssuingURLs() {
         enable_templating=true
 }
 
-
 vaultGenerateIntermediateCAPKI() {
     echo "Generate Intermediate CA PKI"
     vault secrets enable -namespace=${MG_VAULT_NAMESPACE} -address=${MG_VAULT_ADDR}  -path=${MG_VAULT_PKI_INT_PATH} pki
@@ -80,8 +78,6 @@ vaultConfigIntermediatePKIClusterPath() {
 vaultConfigIntermediatePKICrl() {
     vault write -namespace=${MG_VAULT_NAMESPACE} -address=${MG_VAULT_ADDR} ${MG_VAULT_PKI_INT_PATH}/config/crl expiry="5m"  ocsp_disable=false ocsp_expiry=0 auto_rebuild=true auto_rebuild_grace_period="2m" enable_delta=true delta_rebuild_interval="1m"
 }
-
-
 
 vaultGenerateIntermediateCSR() {
     echo "Generate intermediate CSR"
@@ -157,7 +153,6 @@ vaultSetupThingCertsRole() {
         allow_any_name=true \
         max_ttl="2160h"
 }
-
 
 vaultCleanupFiles() {
     docker exec magistrala-vault sh -c 'rm -rf /vault/*.{crt,csr}'
