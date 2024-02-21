@@ -7,6 +7,8 @@ set -euo pipefail
 scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 export MAGISTRALA_DIR=$scriptdir/../../../
 
+SKIP_SERVER_CERT=${1:-}
+
 cd $scriptdir
 
 readDotEnv() {
@@ -139,18 +141,27 @@ vaultSetupIntermediateIssuingURLs() {
 }
 
 vaultSetupServerCertsRole() {
-    echo "Setup Server Certs role"
-    vault write -namespace=${MG_VAULT_NAMESPACE} -address=${MG_VAULT_ADDR} ${MG_VAULT_PKI_INT_PATH}/roles/${MG_VAULT_PKI_INT_SERVER_CERTS_ROLE_NAME} \
-        allow_subdomains=true \
-        max_ttl="4320h"
+    if [ "$SKIP_SERVER_CERT" == "skip_server_cert" ]; then
+        echo "Skipping server certificate role"
+    else
+        echo "Setup Server certificate role"
+        vault write -namespace=${MG_VAULT_NAMESPACE} -address=${MG_VAULT_ADDR} ${MG_VAULT_PKI_INT_PATH}/roles/${MG_VAULT_PKI_INT_SERVER_CERTS_ROLE_NAME} \
+            allow_subdomains=true \
+            max_ttl="4320h"
+    fi
 }
 
 vaultGenerateServerCertificate() {
-    echo "Generate server certificate"
-    vault write -namespace=${MG_VAULT_NAMESPACE} -address=${MG_VAULT_ADDR} -format=json ${MG_VAULT_PKI_INT_PATH}/issue/${MG_VAULT_PKI_INT_SERVER_CERTS_ROLE_NAME} \
-        common_name="$server_name" ttl="4320h" \
-        | tee >(jq -r .data.certificate >data/${server_name}.crt) \
-              >(jq -r .data.private_key >data/${server_name}.key)
+    if [ "$SKIP_SERVER_CERT" == "skip_server_cert" ]; then
+        echo "Skipping generate server certificate"
+    else
+        echo "Generate server certificate"
+        vault write -namespace=${MG_VAULT_NAMESPACE} -address=${MG_VAULT_ADDR} -format=json ${MG_VAULT_PKI_INT_PATH}/issue/${MG_VAULT_PKI_INT_SERVER_CERTS_ROLE_NAME} \
+            common_name="$server_name" ttl="4320h" \
+            | tee >(jq -r .data.certificate >data/${server_name}.crt) \
+                >(jq -r .data.private_key >data/${server_name}.key)
+    fi
+
 }
 
 vaultSetupThingCertsRole() {
