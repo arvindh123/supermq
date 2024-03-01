@@ -39,6 +39,15 @@ vaultConfigPKICrl() {
     vault write -namespace=${MG_VAULT_NAMESPACE} -address=${MG_VAULT_ADDR} ${MG_VAULT_PKI_PATH}/config/crl expiry="5m"  ocsp_disable=false ocsp_expiry=0 auto_rebuild=true auto_rebuild_grace_period="2m" enable_delta=true delta_rebuild_interval="1m"
 }
 
+vaultSetupRootCAIssuingURLs() {
+    echo "Setup URLs for CRL and issuing"
+    vault write -namespace=${MG_VAULT_NAMESPACE} -address=${MG_VAULT_ADDR} ${MG_VAULT_PKI_PATH}/config/urls \
+        issuing_certificates="{{cluster_aia_path}}/v1/${MG_VAULT_PKI_PATH}/ca" \
+        crl_distribution_points="{{cluster_aia_path}}/v1/${MG_VAULT_PKI_PATH}/crl" \
+        ocsp_servers="{{cluster_aia_path}}/v1/${MG_VAULT_PKI_PATH}/ocsp" \
+        enable_templating=true
+}
+
 vaultAddRoleToSecret() {
     vault write -namespace=${MG_VAULT_NAMESPACE} -address=${MG_VAULT_ADDR} ${MG_VAULT_PKI_PATH}/roles/${MG_VAULT_PKI_ROLE_NAME} \
         allow_any_name=true \
@@ -63,14 +72,7 @@ vaultGenerateRootCACertificate() {
                          >(jq -r .data.private_key >data/${MG_VAULT_PKI_FILE_NAME}_ca.key)
 }
 
-vaultSetupRootCAIssuingURLs() {
-    echo "Setup URLs for CRL and issuing"
-    vault write -namespace=${MG_VAULT_NAMESPACE} -address=${MG_VAULT_ADDR} ${MG_VAULT_PKI_PATH}/config/urls \
-        issuing_certificates="{{cluster_aia_path}}/v1/${MG_VAULT_PKI_PATH}/ca" \
-        crl_distribution_points="{{cluster_aia_path}}/v1/${MG_VAULT_PKI_PATH}/crl" \
-        ocsp_servers="{{cluster_aia_path}}/v1/${MG_VAULT_PKI_PATH}/ocsp" \
-        enable_templating=true
-}
+
 
 vaultGenerateIntermediateCAPKI() {
     echo "Generate Intermediate CA PKI"
@@ -85,6 +87,16 @@ vaultConfigIntermediatePKIClusterPath() {
 vaultConfigIntermediatePKICrl() {
     vault write -namespace=${MG_VAULT_NAMESPACE} -address=${MG_VAULT_ADDR} ${MG_VAULT_PKI_INT_PATH}/config/crl expiry="5m"  ocsp_disable=false ocsp_expiry=0 auto_rebuild=true auto_rebuild_grace_period="2m" enable_delta=true delta_rebuild_interval="1m"
 }
+
+vaultSetupIntermediateIssuingURLs() {
+    echo "Setup URLs for CRL and issuing"
+    vault write -namespace=${MG_VAULT_NAMESPACE} -address=${MG_VAULT_ADDR} ${MG_VAULT_PKI_INT_PATH}/config/urls \
+        issuing_certificates="{{cluster_aia_path}}/v1/${MG_VAULT_PKI_INT_PATH}/ca" \
+        crl_distribution_points="{{cluster_aia_path}}/v1/${MG_VAULT_PKI_INT_PATH}/crl" \
+        ocsp_servers="{{cluster_aia_path}}/v1/${MG_VAULT_PKI_INT_PATH}/ocsp" \
+        enable_templating=true
+}
+
 
 vaultGenerateIntermediateCSR() {
     echo "Generate intermediate CSR"
@@ -148,14 +160,6 @@ vaultGenerateIntermediateCertificateBundle() {
        > data/${MG_VAULT_PKI_INT_FILE_NAME}_bundle.crt
 }
 
-vaultSetupIntermediateIssuingURLs() {
-    echo "Setup URLs for CRL and issuing"
-    vault write -namespace=${MG_VAULT_NAMESPACE} -address=${MG_VAULT_ADDR} ${MG_VAULT_PKI_INT_PATH}/config/urls \
-        issuing_certificates="{{cluster_aia_path}}/v1/${MG_VAULT_PKI_INT_PATH}/ca" \
-        crl_distribution_points="{{cluster_aia_path}}/v1/${MG_VAULT_PKI_INT_PATH}/crl" \
-        ocsp_servers="{{cluster_aia_path}}/v1/${MG_VAULT_PKI_INT_PATH}/ocsp" \
-        enable_templating=true
-}
 
 vaultSetupServerCertsRole() {
     if [ "$SKIP_SERVER_CERT" == "--skip-server-cert" ]; then
@@ -210,17 +214,17 @@ vault login  -namespace=${MG_VAULT_NAMESPACE} -address=${MG_VAULT_ADDR} ${MG_VAU
 vaultEnablePKI
 vaultConfigPKIClusterPath
 vaultConfigPKICrl
+vaultSetupRootCAIssuingURLs
 vaultAddRoleToSecret
 vaultGenerateRootCACertificate
-vaultSetupRootCAIssuingURLs
 vaultGenerateIntermediateCAPKI
 vaultConfigIntermediatePKIClusterPath
 vaultConfigIntermediatePKICrl
+vaultSetupIntermediateIssuingURLs
 vaultGenerateIntermediateCSR
 vaultSignIntermediateCSR
 vaultInjectIntermediateCertificate
 vaultGenerateIntermediateCertificateBundle
-vaultSetupIntermediateIssuingURLs
 vaultSetupServerCertsRole
 vaultGenerateServerCertificate
 vaultSetupThingCertsRole

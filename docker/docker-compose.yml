@@ -226,7 +226,7 @@ services:
           create_host_path: true
 
   nginx:
-    image: nginx:1.25.0-alpine
+    image: nginx:1.25.4-alpine
     container_name: magistrala-nginx
     restart: on-failure
     volumes:
@@ -498,6 +498,10 @@ services:
       MG_MQTT_ADAPTER_WS_TARGET_PORT: ${MG_MQTT_ADAPTER_WS_TARGET_PORT}
       MG_MQTT_ADAPTER_WS_TARGET_PATH: ${MG_MQTT_ADAPTER_WS_TARGET_PATH}
       MG_MQTT_ADAPTER_INSTANCE: ${MG_MQTT_ADAPTER_INSTANCE}
+      MG_MQTT_ADAPTER_SERVER_CERT: ${MG_MQTT_ADAPTER_SERVER_CERT:+/mqtt-server.crt}
+      MG_MQTT_ADAPTER_SERVER_KEY: ${MG_MQTT_ADAPTER_SERVER_KEY:+/mqtt-server.key}
+      MG_MQTT_ADAPTER_SERVER_CA_CERTS: ${MG_MQTT_ADAPTER_SERVER_CA_CERTS:+/server-ca.crt}
+      MG_MQTT_ADAPTER_CLIENT_CA_CERTS: ${MG_MQTT_ADAPTER_CLIENT_CA_CERTS:+/client-ca.crt}
       MG_ES_URL: ${MG_ES_URL}
       MG_THINGS_AUTH_GRPC_URL: ${MG_THINGS_AUTH_GRPC_URL}
       MG_THINGS_AUTH_GRPC_TIMEOUT: ${MG_THINGS_AUTH_GRPC_TIMEOUT}
@@ -511,6 +515,26 @@ services:
     networks:
       - magistrala-base-net
     volumes:
+      - type: bind
+        source: ${MG_MQTT_ADAPTER_SERVER_CERT:-ssl/certs/dummy/server_cert}
+        target: /mqtt-server${MG_MQTT_ADAPTER_SERVER_CERT:+.crt}
+        bind:
+          create_host_path: true
+      - type: bind
+        source: ${MG_MQTT_ADAPTER_SERVER_KEY:-ssl/certs/dummy/server_key}
+        target: /mqtt-server${MG_MQTT_ADAPTER_SERVER_KEY:+.key}
+        bind:
+          create_host_path: true
+      - type: bind
+        source: ${MG_MQTT_ADAPTER_SERVER_CA_CERTS:-ssl/certs/dummy/server_ca}
+        target: /server-ca${MG_MQTT_ADAPTER_SERVER_CA_CERTS:+.crt}
+        bind:
+          create_host_path: true
+      - type: bind
+        source: ${MG_MQTT_ADAPTER_CLIENT_CA_CERTS:-ssl/certs/dummy/client_ca}
+        target: /client-ca${MG_MQTT_ADAPTER_CLIENT_CA_CERTS:+.crt}
+        bind:
+          create_host_path: true
       # Things gRPC mTLS client certificates
       - type: bind
         source: ${MG_THINGS_AUTH_GRPC_CLIENT_CERT:-ssl/certs/dummy/client_cert}
