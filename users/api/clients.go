@@ -124,6 +124,34 @@ func clientsHandler(svc users.Service, r *chi.Mux, logger *slog.Logger, pr *rege
 			api.EncodeResponse,
 			opts...,
 		), "disable_client").ServeHTTP)
+
+		r.Get("/groups/{groupID}", otelhttp.NewHandler(kithttp.NewServer(
+			listMembersByGroupEndpoint(svc),
+			decodeListMembersByGroup,
+			api.EncodeResponse,
+			opts...,
+		), "list_users_by_user_group_id").ServeHTTP)
+
+		r.Get("/channels/{channelID}", otelhttp.NewHandler(kithttp.NewServer(
+			listMembersByChannelEndpoint(svc),
+			decodeListMembersByChannel,
+			api.EncodeResponse,
+			opts...,
+		), "list_users_by_channel_id").ServeHTTP)
+
+		r.Get("/things/{thingID}", otelhttp.NewHandler(kithttp.NewServer(
+			listMembersByThingEndpoint(svc),
+			decodeListMembersByThing,
+			api.EncodeResponse,
+			opts...,
+		), "list_users_by_thing_id").ServeHTTP)
+
+		r.Get("/domains/{domainID}", otelhttp.NewHandler(kithttp.NewServer(
+			listMembersByDomainEndpoint(svc),
+			decodeListMembersByDomain,
+			api.EncodeResponse,
+			opts...,
+		), "list_users_by_domain_id").ServeHTTP)
 	})
 
 	r.Route("/password", func(r chi.Router) {
@@ -141,44 +169,6 @@ func clientsHandler(svc users.Service, r *chi.Mux, logger *slog.Logger, pr *rege
 			opts...,
 		), "password_reset").ServeHTTP)
 	})
-
-	// Ideal location: users service, groups endpoint.
-	// Reason for placing here :
-	// SpiceDB provides list of user ids in given user_group_id
-	// and users service can access spiceDB and get the user list with user_group_id.
-	// Request to get list of users present in the user_group_id {groupID}
-	r.Get("/groups/{groupID}/users", otelhttp.NewHandler(kithttp.NewServer(
-		listMembersByGroupEndpoint(svc),
-		decodeListMembersByGroup,
-		api.EncodeResponse,
-		opts...,
-	), "list_users_by_user_group_id").ServeHTTP)
-
-	// Ideal location: things service, channels endpoint.
-	// Reason for placing here :
-	// SpiceDB provides list of user ids in given channel_id
-	// and users service can access spiceDB and get the user list with channel_id.
-	// Request to get list of users present in the user_group_id {channelID}
-	r.Get("/channels/{channelID}/users", otelhttp.NewHandler(kithttp.NewServer(
-		listMembersByChannelEndpoint(svc),
-		decodeListMembersByChannel,
-		api.EncodeResponse,
-		opts...,
-	), "list_users_by_channel_id").ServeHTTP)
-
-	r.Get("/things/{thingID}/users", otelhttp.NewHandler(kithttp.NewServer(
-		listMembersByThingEndpoint(svc),
-		decodeListMembersByThing,
-		api.EncodeResponse,
-		opts...,
-	), "list_users_by_thing_id").ServeHTTP)
-
-	r.Get("/domains/{domainID}/users", otelhttp.NewHandler(kithttp.NewServer(
-		listMembersByDomainEndpoint(svc),
-		decodeListMembersByDomain,
-		api.EncodeResponse,
-		opts...,
-	), "list_users_by_domain_id").ServeHTTP)
 
 	for _, provider := range providers {
 		r.HandleFunc("/oauth/callback/"+provider.Name(), oauth2CallbackHandler(provider, svc))

@@ -21,6 +21,7 @@ import (
 	mgclients "github.com/absmach/magistrala/pkg/clients"
 	"github.com/absmach/magistrala/pkg/errors"
 	svcerr "github.com/absmach/magistrala/pkg/errors/service"
+	"github.com/absmach/magistrala/pkg/groups"
 	gmocks "github.com/absmach/magistrala/pkg/groups/mocks"
 	oauth2mocks "github.com/absmach/magistrala/pkg/oauth2/mocks"
 	httpapi "github.com/absmach/magistrala/users/api"
@@ -40,6 +41,12 @@ var (
 		Credentials: mgclients.Credentials{Identity: "clientidentity@example.com", Secret: secret},
 		Metadata:    validCMetadata,
 		Status:      mgclients.EnabledStatus,
+	}
+	group = groups.Group{
+		ID:       testsutil.GenerateUUID(&testing.T{}),
+		Name:     "groupname",
+		Metadata: validCMetadata,
+		Status:   mgclients.EnabledStatus,
 	}
 	validToken   = "valid"
 	inValidToken = "invalid"
@@ -649,6 +656,107 @@ func TestListClients(t *testing.T) {
 	}
 }
 
+func TestListGroupsByUser(t *testing.T) {
+	us, _, svc := newUsersServer()
+	defer us.Close()
+
+	cases := []struct {
+		desc               string
+		token              string
+		userID             string
+		url                string
+		listGroupsResponse groups.Page
+		status             int
+		err                error
+	}{
+		{
+			desc:   "list groups with valid token and valid user id",
+			token:  validToken,
+			status: http.StatusOK,
+			userID: validID,
+			listGroupsResponse: groups.Page{
+				PageMeta: groups.PageMeta{
+					Total: 1,
+				},
+				Groups: []groups.Group{group},
+			},
+			err: nil,
+		},
+		{
+			desc:   "list groups with empty token",
+			token:  "",
+			status: http.StatusUnauthorized,
+			userID: validID,
+			err:    apiutil.ErrBearerToken,
+		},
+		{
+			desc:   "list groups with invalid token",
+			token:  inValidToken,
+			userID: validID,
+			status: http.StatusUnauthorized,
+			err:    svcerr.ErrAuthentication,
+		},
+		{
+			desc:   "list groups with offset",
+			token:  validToken,
+			userID: validID,
+			listGroupsResponse: groups.Page{
+				PageMeta: groups.PageMeta{
+					Offset: 1,
+					Total:  1,
+				},
+				Groups: []groups.Group{group},
+			},
+			status: http.StatusOK,
+			err:    nil,
+		},
+		{
+			desc:   "list groups with limit",
+			token:  validToken,
+			userID: validID,
+			listGroupsResponse: groups.Page{
+				PageMeta: groups.PageMeta{
+					Limit: 1,
+					Total: 1,
+				},
+				Groups: []groups.Group{group},
+			},
+			status: http.StatusOK,
+			err:    nil,
+		},
+		{
+			desc:   "list groups with invalid user id",
+			token:  validToken,
+			userID: "invalid",
+			status: http.StatusNotFound,
+			err:    svcerr.ErrNotFound,
+		},
+	}
+
+	for _, tc := range cases {
+		req := testRequest{
+			client:      us.Client(),
+			method:      http.MethodGet,
+			url:         fmt.Sprintf("%s/groups/users/%s", us.URL, tc.userID),
+			contentType: contentType,
+			token:       tc.token,
+		}
+
+		svcCall := svc.On("ListGroups", mock.Anything, tc.token, mock.Anything, mock.Anything, mock.Anything).Return(tc.listGroupsResponse, tc.err)
+		res, err := req.make()
+		assert.Nil(t, err, fmt.Sprintf("%s: unexpected error %s", tc.desc, err))
+		var bodyRes respBody
+		err = json.NewDecoder(res.Body).Decode(&bodyRes)
+		assert.Nil(t, err, fmt.Sprintf("%s: unexpected error while decoding response body: %s", tc.desc, err))
+		if bodyRes.Err != "" || bodyRes.Message != "" {
+			err = errors.Wrap(errors.New(bodyRes.Err), errors.New(bodyRes.Message))
+		}
+		assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s: expected %s got %s\n", tc.desc, tc.err, err))
+		assert.Equal(t, tc.status, res.StatusCode, fmt.Sprintf("%s: expected status code %d got %d", tc.desc, tc.status, res.StatusCode))
+		svcCall.Unset()
+	}
+}
+
 func TestUpdateClient(t *testing.T) {
 	us, svc, _ := newUsersServer()
 	defer us.Close()
@@ -753,6 +861,108 @@ func TestUpdateClient(t *testing.T) {
 		assert.Nil(t, err, fmt.Sprintf("%s: unexpected error while decoding response body: %s", tc.desc, err))
 		if resBody.Err != "" || resBody.Message != "" {
 			err = errors.Wrap(errors.New(resBody.Err), errors.New(resBody.Message))
+		}
+		assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s: expected %s got %s\n", tc.desc, tc.err, err))
+		assert.Equal(t, tc.status, res.StatusCode, fmt.Sprintf("%s: expected status code %d got %d", tc.desc, tc.status, res.StatusCode))
+		svcCall.Unset()
+	}
+}
+
+func TestListGroupsByChannel(t *testing.T) {
+	us, _, svc := newUsersServer()
+	defer us.Close()
+
+	cases := []struct {
+		desc               string
+		query              string
+		token              string
+		userID             string
+		url                string
+		listGroupsResponse groups.Page
+		status             int
+		err                error
+	}{
+		{
+			desc:   "list groups with valid token and valid channel id",
+			token:  validToken,
+			status: http.StatusOK,
+			userID: validID,
+			listGroupsResponse: groups.Page{
+				PageMeta: groups.PageMeta{
+					Total: 1,
+				},
+				Groups: []groups.Group{group},
+			},
+			err: nil,
+		},
+		{
+			desc:   "list groups with empty token",
+			token:  "",
+			status: http.StatusUnauthorized,
+			userID: validID,
+			err:    apiutil.ErrBearerToken,
+		},
+		{
+			desc:   "list groups with invalid token",
+			token:  inValidToken,
+			userID: validID,
+			status: http.StatusUnauthorized,
+			err:    svcerr.ErrAuthentication,
+		},
+		{
+			desc:   "list groups with offset",
+			token:  validToken,
+			userID: validID,
+			listGroupsResponse: groups.Page{
+				PageMeta: groups.PageMeta{
+					Offset: 1,
+					Total:  1,
+				},
+				Groups: []groups.Group{group},
+			},
+			status: http.StatusOK,
+			err:    nil,
+		},
+		{
+			desc:   "list groups with limit",
+			token:  validToken,
+			userID: validID,
+			listGroupsResponse: groups.Page{
+				PageMeta: groups.PageMeta{
+					Limit: 1,
+					Total: 1,
+				},
+				Groups: []groups.Group{group},
+			},
+			status: http.StatusOK,
+			err:    nil,
+		},
+		{
+			desc:   "list groups with invalid channel id",
+			token:  validToken,
+			userID: "invalid",
+			status: http.StatusNotFound,
+			err:    svcerr.ErrNotFound,
+		},
+	}
+
+	for _, tc := range cases {
+		req := testRequest{
+			client:      us.Client(),
+			method:      http.MethodGet,
+			url:         fmt.Sprintf("%s/groups/channels/%s", us.URL, tc.userID),
+			contentType: contentType,
+			token:       tc.token,
+		}
+
+		svcCall := svc.On("ListGroups", mock.Anything, tc.token, mock.Anything, mock.Anything, mock.Anything).Return(tc.listGroupsResponse, tc.err)
+		res, err := req.make()
+		assert.Nil(t, err, fmt.Sprintf("%s: unexpected error %s", tc.desc, err))
+		var bodyRes respBody
+		err = json.NewDecoder(res.Body).Decode(&bodyRes)
+		assert.Nil(t, err, fmt.Sprintf("%s: unexpected error while decoding response body: %s", tc.desc, err))
+		if bodyRes.Err != "" || bodyRes.Message != "" {
+			err = errors.Wrap(errors.New(bodyRes.Err), errors.New(bodyRes.Message))
 		}
 		assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s: expected %s got %s\n", tc.desc, tc.err, err))
 		assert.Equal(t, tc.status, res.StatusCode, fmt.Sprintf("%s: expected status code %d got %d", tc.desc, tc.status, res.StatusCode))
@@ -1758,7 +1968,7 @@ func TestListUsersByUserGroupId(t *testing.T) {
 			desc:    "list users with empty id",
 			token:   validToken,
 			groupID: "",
-			status:  http.StatusBadRequest,
+			status:  http.StatusNotFound,
 			err:     apiutil.ErrMissingID,
 		},
 		{
@@ -2017,7 +2227,7 @@ func TestListUsersByUserGroupId(t *testing.T) {
 		req := testRequest{
 			client: us.Client(),
 			method: http.MethodGet,
-			url:    fmt.Sprintf("%s/groups/%s/users?", us.URL, tc.groupID) + tc.query,
+			url:    fmt.Sprintf("%s/users/groups/%s?", us.URL, tc.groupID) + tc.query,
 			token:  tc.token,
 		}
 
@@ -2312,7 +2522,7 @@ func TestListUsersByChannelID(t *testing.T) {
 		req := testRequest{
 			client: us.Client(),
 			method: http.MethodGet,
-			url:    fmt.Sprintf("%s/channels/%s/users?", us.URL, validID) + tc.query,
+			url:    fmt.Sprintf("%s/users/channels/%s?", us.URL, validID) + tc.query,
 			token:  tc.token,
 		}
 
@@ -2615,7 +2825,7 @@ func TestListUsersByDomainID(t *testing.T) {
 		req := testRequest{
 			client: us.Client(),
 			method: http.MethodGet,
-			url:    fmt.Sprintf("%s/domains/%s/users?", us.URL, validID) + tc.query,
+			url:    fmt.Sprintf("%s/users/domains/%s?", us.URL, validID) + tc.query,
 			token:  tc.token,
 		}
 
@@ -2889,7 +3099,7 @@ func TestListUsersByThingID(t *testing.T) {
 		req := testRequest{
 			client: us.Client(),
 			method: http.MethodGet,
-			url:    fmt.Sprintf("%s/things/%s/users?", us.URL, validID) + tc.query,
+			url:    fmt.Sprintf("%s/users/things/%s?", us.URL, validID) + tc.query,
 			token:  tc.token,
 		}
 

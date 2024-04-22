@@ -125,23 +125,22 @@ func groupsHandler(svc groups.Service, r *chi.Mux, logger *slog.Logger) http.Han
 			api.EncodeResponse,
 			opts...,
 		), "unassign_groups").ServeHTTP)
+
+		r.Get("/channels/{memberID}", otelhttp.NewHandler(kithttp.NewServer(
+			gapi.ListGroupsEndpoint(svc, "channels"),
+			gapi.DecodeListGroupsRequest,
+			api.EncodeResponse,
+			opts...,
+		), "list_groups_by_channel_id").ServeHTTP)
+
+		r.Get("/users/{memberID}", otelhttp.NewHandler(kithttp.NewServer(
+			gapi.ListGroupsEndpoint(svc, "users"),
+			gapi.DecodeListGroupsRequest,
+			api.EncodeResponse,
+			opts...,
+		), "list_groups_by_user_id").ServeHTTP)
 	})
 
-	// The ideal placeholder name should be {channelID}, but gapi.DecodeListGroupsRequest uses {memberID} as a placeholder for the ID.
-	// So here, we are using {memberID} as the placeholder.
-	r.Get("/channels/{memberID}/groups", otelhttp.NewHandler(kithttp.NewServer(
-		gapi.ListGroupsEndpoint(svc, "channels"),
-		gapi.DecodeListGroupsRequest,
-		api.EncodeResponse,
-		opts...,
-	), "list_groups_by_channel_id").ServeHTTP)
-
-	r.Get("/users/{memberID}/groups", otelhttp.NewHandler(kithttp.NewServer(
-		gapi.ListGroupsEndpoint(svc, "users"),
-		gapi.DecodeListGroupsRequest,
-		api.EncodeResponse,
-		opts...,
-	), "list_groups_by_user_id").ServeHTTP)
 	return r
 }
 
