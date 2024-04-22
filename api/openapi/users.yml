@@ -371,6 +371,44 @@ paths:
         "500":
           $ref: "#/components/responses/ServiceError"
 
+  /users/groups/{groupID}:
+    get:
+      operationId: listUsersInGroup
+      tags:
+        - Users
+      summary: List users in a group
+      description: |
+        Retrieves a list of users in a group. Due to performance concerns, data
+        is retrieved in subsets. The API must ensure that the entire
+        dataset is consumed either by making subsequent requests, or by
+        increasing the subset size of the initial request.
+      parameters:
+        - $ref: "#/components/parameters/GroupID"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+        - $ref: "#/components/parameters/Level"
+        - $ref: "#/components/parameters/Tree"
+        - $ref: "#/components/parameters/Metadata"
+        - $ref: "#/components/parameters/GroupName"
+        - $ref: "#/components/parameters/ParentID"
+      responses:
+        "200":
+          $ref: "#/components/responses/MembersPageRes"
+        "400":
+          description: Failed due to malformed query parameters.
+        "401":
+          description: |
+            Missing or invalid access token provided.
+            This endpoint is available only for administrators.
+        "403":
+          description: Failed to perform authorization over the entity.
+        "404":
+          description: A non-existent entity request.
+        "422":
+          description: Database can't process request.
+        "500":
+          $ref: "#/components/responses/ServiceError"
+
   /password/reset-request:
     post:
       operationId: requestPasswordReset
@@ -426,45 +464,7 @@ paths:
         "500":
           $ref: "#/components/responses/ServiceError"
 
-  /groups/{groupID}/users:
-    get:
-      operationId: listUsersInGroup
-      tags:
-        - Users
-      summary: List users in a group
-      description: |
-        Retrieves a list of users in a group. Due to performance concerns, data
-        is retrieved in subsets. The API must ensure that the entire
-        dataset is consumed either by making subsequent requests, or by
-        increasing the subset size of the initial request.
-      parameters:
-        - $ref: "#/components/parameters/GroupID"
-        - $ref: "#/components/parameters/Limit"
-        - $ref: "#/components/parameters/Offset"
-        - $ref: "#/components/parameters/Level"
-        - $ref: "#/components/parameters/Tree"
-        - $ref: "#/components/parameters/Metadata"
-        - $ref: "#/components/parameters/GroupName"
-        - $ref: "#/components/parameters/ParentID"
-      responses:
-        "200":
-          $ref: "#/components/responses/MembersPageRes"
-        "400":
-          description: Failed due to malformed query parameters.
-        "401":
-          description: |
-            Missing or invalid access token provided.
-            This endpoint is available only for administrators.
-        "403":
-          description: Failed to perform authorization over the entity.
-        "404":
-          description: A non-existent entity request.
-        "422":
-          description: Database can't process request.
-        "500":
-          $ref: "#/components/responses/ServiceError"
-
-  /channels/{channelID}/users:
+  /users/channels/{channelID}:
     get:
       operationId: listUsersInChannel
       tags:
@@ -908,7 +908,7 @@ paths:
         "500":
           $ref: "#/components/responses/ServiceError"
 
-  /channels/{memberID}/groups:
+  /groups/channels/{memberID}:
     get:
       operationId: listGroupsInChannel
       summary: Get group associated with the member
@@ -941,7 +941,7 @@ paths:
         "500":
           $ref: "#/components/responses/ServiceError"
 
-  /users/{memberID}/groups:
+  /groups/users/{memberID}:
     get:
       operationId: listGroupsByUser
       summary: Get group associated with the member
@@ -973,7 +973,7 @@ paths:
           description: Database can't process request.
         "500":
           $ref: "#/components/responses/ServiceError"
-  /domains/{domainID}/users:
+  /users/domains/{domainID}:
     get:
       summary: List users assigned to domain
       description: |
@@ -998,6 +998,37 @@ paths:
           description: Missing or invalid access token provided.
         "403":
           description: Unauthorized access the domain ID.
+        "404":
+          description: A non-existent entity request.
+        "422":
+          description: Database can't process request.
+        "500":
+          $ref: "#/components/responses/ServiceError"
+  /users/things/{memberID}:
+    get:
+      summary: List users assigned to thing.
+      description: |
+        List users assigned to a thing which is identified by the thing ID.
+      tags:
+        - Users
+      parameters:
+        - $ref: "#/components/parameters/MemberID"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+        - $ref: "#/components/parameters/Metadata"
+        - $ref: "#/components/parameters/Status"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          $ref: "#/components/responses/UserPageRes"
+          description: List of users assigned to domain.
+        "400":
+          description: Failed due to malformed thing ID.
+        "401":
+          description: Missing or invalid access token provided.
+        "403":
+          description: Unauthorized access the thing ID.
         "404":
           description: A non-existent entity request.
         "422":

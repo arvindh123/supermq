@@ -115,26 +115,22 @@ func clientsHandler(svc things.Service, r *chi.Mux, logger *slog.Logger) http.Ha
 			api.EncodeResponse,
 			opts...,
 		), "delete_thing").ServeHTTP)
+
+		r.Get("/channels/{groupID}/", otelhttp.NewHandler(kithttp.NewServer(
+			listMembersEndpoint(svc),
+			decodeListMembersRequest,
+			api.EncodeResponse,
+			opts...,
+		), "list_things_by_channel_id").ServeHTTP)
+
+		r.Get("/users/{userID}/", otelhttp.NewHandler(kithttp.NewServer(
+			listClientsEndpoint(svc),
+			decodeListClients,
+			api.EncodeResponse,
+			opts...,
+		), "list_user_things").ServeHTTP)
 	})
 
-	// Ideal location: things service,  channels endpoint
-	// Reason for placing here :
-	// SpiceDB provides list of thing ids present in given channel id
-	// and things service can access spiceDB and get the list of thing ids present in given channel id.
-	// Request to get list of things present in channelID ({groupID}) .
-	r.Get("/channels/{groupID}/things", otelhttp.NewHandler(kithttp.NewServer(
-		listMembersEndpoint(svc),
-		decodeListMembersRequest,
-		api.EncodeResponse,
-		opts...,
-	), "list_things_by_channel_id").ServeHTTP)
-
-	r.Get("/users/{userID}/things", otelhttp.NewHandler(kithttp.NewServer(
-		listClientsEndpoint(svc),
-		decodeListClients,
-		api.EncodeResponse,
-		opts...,
-	), "list_user_things").ServeHTTP)
 	return r
 }
 
