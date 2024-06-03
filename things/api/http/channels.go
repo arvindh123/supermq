@@ -131,27 +131,6 @@ func groupsHandler(svc groups.Service, r *chi.Mux, logger *slog.Logger) http.Han
 			api.EncodeResponse,
 			opts...,
 		), "disconnect_channel_thing").ServeHTTP)
-
-		r.Get("/things/{memberID}", otelhttp.NewHandler(kithttp.NewServer(
-			gapi.ListGroupsEndpoint(svc, "things"),
-			gapi.DecodeListGroupsRequest,
-			api.EncodeResponse,
-			opts...,
-		), "list_channel_by_thing_id").ServeHTTP)
-
-		r.Get("/users/{memberID}", otelhttp.NewHandler(kithttp.NewServer(
-			gapi.ListGroupsEndpoint(svc, "users"),
-			gapi.DecodeListGroupsRequest,
-			api.EncodeResponse,
-			opts...,
-		), "list_channel_by_user_id").ServeHTTP)
-
-		r.Get("/groups/{memberID}", otelhttp.NewHandler(kithttp.NewServer(
-			gapi.ListGroupsEndpoint(svc, "groups"),
-			gapi.DecodeListGroupsRequest,
-			api.EncodeResponse,
-			opts...,
-		), "list_channel_by_user_group_id").ServeHTTP)
 	})
 
 	// Connect channel and thing

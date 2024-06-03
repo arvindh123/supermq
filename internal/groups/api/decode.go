@@ -42,7 +42,22 @@ func DecodeListGroupsRequest(_ context.Context, r *http.Request) (interface{}, e
 		return nil, errors.Wrap(apiutil.ErrValidation, err)
 	}
 
-	memberKind, err := apiutil.ReadStringQuery(r, api.MemberKindKey, "")
+	thing, err := apiutil.ReadStringQuery(r, api.ThingKey, "")
+	if err != nil {
+		return nil, errors.Wrap(apiutil.ErrValidation, err)
+	}
+
+	group, err := apiutil.ReadStringQuery(r, api.GroupKey, "")
+	if err != nil {
+		return nil, errors.Wrap(apiutil.ErrValidation, err)
+	}
+
+	user, err := apiutil.ReadStringQuery(r, api.UserKey, "")
+	if err != nil {
+		return nil, errors.Wrap(apiutil.ErrValidation, err)
+	}
+
+	ch, err := apiutil.ReadStringQuery(r, api.ChannelKey, "")
 	if err != nil {
 		return nil, errors.Wrap(apiutil.ErrValidation, err)
 	}
@@ -56,11 +71,32 @@ func DecodeListGroupsRequest(_ context.Context, r *http.Request) (interface{}, e
 	if err != nil {
 		return nil, errors.Wrap(apiutil.ErrValidation, err)
 	}
+
+	var entityID, memberKind string
+
+	switch {
+	case thing != "":
+		memberKind = api.ThingKey
+		entityID = thing
+	case group != "":
+		memberKind = "groups"
+		entityID = group
+	case ch != "":
+		memberKind = "channels"
+		entityID = ch
+	case user != "":
+		memberKind = api.UserKey
+		entityID = user
+	default:
+		entityID = ""
+		memberKind = "groups"
+	}
+
 	req := listGroupsReq{
 		token:      apiutil.ExtractBearerToken(r),
 		tree:       tree,
 		memberKind: memberKind,
-		memberID:   chi.URLParam(r, "memberID"),
+		memberID:   entityID,
 		Page: mggroups.Page{
 			Level:      level,
 			ID:         parentID,

@@ -70,8 +70,8 @@ func (sdk mgSDK) Channels(pm PageMetadata, token string) (ChannelsPage, errors.S
 	return cp, nil
 }
 
-func (sdk mgSDK) ChannelsByThing(thingID string, pm PageMetadata, token string) (ChannelsPage, errors.SDKError) {
-	url, err := sdk.withQueryParams(sdk.thingsURL, fmt.Sprintf("%s/things/%s", channelsEndpoint, thingID), pm)
+func (sdk mgSDK) ChannelsByThing(pm PageMetadata, token string) (ChannelsPage, errors.SDKError) {
+	url, err := sdk.withQueryParams(sdk.thingsURL, channelsEndpoint, pm)
 	if err != nil {
 		return ChannelsPage{}, errors.NewSDKError(err)
 	}
@@ -89,8 +89,8 @@ func (sdk mgSDK) ChannelsByThing(thingID string, pm PageMetadata, token string) 
 	return cp, nil
 }
 
-func (sdk mgSDK) ListUserChannels(userID string, pm PageMetadata, token string) (ChannelsPage, errors.SDKError) {
-	url, err := sdk.withQueryParams(sdk.thingsURL, fmt.Sprintf("%s/%s/%s", channelsEndpoint, usersEndpoint, userID), pm)
+func (sdk mgSDK) ListUserChannels(pm PageMetadata, token string) (ChannelsPage, errors.SDKError) {
+	url, err := sdk.withQueryParams(sdk.thingsURL, channelsEndpoint, pm)
 	if err != nil {
 		return ChannelsPage{}, errors.NewSDKError(err)
 	}
@@ -107,8 +107,8 @@ func (sdk mgSDK) ListUserChannels(userID string, pm PageMetadata, token string) 
 	return cp, nil
 }
 
-func (sdk mgSDK) ListGroupChannels(groupID string, pm PageMetadata, token string) (GroupsPage, errors.SDKError) {
-	url, err := sdk.withQueryParams(sdk.thingsURL, fmt.Sprintf("%s/%s/%s", channelsEndpoint, groupsEndpoint, groupID), pm)
+func (sdk mgSDK) ListGroupChannels(pm PageMetadata, token string) (GroupsPage, errors.SDKError) {
+	url, err := sdk.withQueryParams(sdk.thingsURL, channelsEndpoint, pm)
 	if err != nil {
 		return GroupsPage{}, errors.NewSDKError(err)
 	}

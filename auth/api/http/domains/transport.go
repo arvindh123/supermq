@@ -34,13 +34,6 @@ func MakeHandler(svc auth.Service, mux *chi.Mux, logger *slog.Logger) *chi.Mux {
 			opts...,
 		), "list_domains").ServeHTTP)
 
-		r.Get("/users/{userID}/", otelhttp.NewHandler(kithttp.NewServer(
-			listUserDomainsEndpoint(svc),
-			decodeListUserDomainsRequest,
-			api.EncodeResponse,
-			opts...,
-		), "list_domains_by_user_id").ServeHTTP)
-
 		r.Route("/{domainID}", func(r chi.Router) {
 			r.Get("/", otelhttp.NewHandler(kithttp.NewServer(
 				retrieveDomainEndpoint(svc),

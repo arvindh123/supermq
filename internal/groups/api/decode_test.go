@@ -39,6 +39,7 @@ func TestDecodeListGroupsRequest(t *testing.T) {
 					Permission: api.DefPermission,
 					Direction:  -1,
 				},
+				memberKind: "groups",
 			},
 			err: nil,
 		},
@@ -67,7 +68,7 @@ func TestDecodeListGroupsRequest(t *testing.T) {
 				},
 				token:      "123",
 				tree:       true,
-				memberKind: "random",
+				memberKind: "groups",
 			},
 			err: nil,
 		},
@@ -103,9 +104,18 @@ func TestDecodeListGroupsRequest(t *testing.T) {
 		},
 		{
 			desc: "valid request with invalid member kind",
-			url:  "http://localhost:8080?member_kind=random&member_kind=random",
-			resp: nil,
-			err:  apiutil.ErrValidation,
+			url:  "http://localhost:8080?member_kind=random",
+			resp: listGroupsReq{
+				Page: groups.Page{
+					PageMeta: groups.PageMeta{
+						Limit: 10,
+					},
+					Permission: api.DefPermission,
+					Direction:  -1,
+				},
+				memberKind: "groups",
+			},
+			err: nil,
 		},
 		{
 			desc: "valid request with invalid permission",
@@ -131,7 +141,7 @@ func TestDecodeListGroupsRequest(t *testing.T) {
 		}
 		resp, err := DecodeListGroupsRequest(context.Background(), req)
 		assert.Equal(t, tc.resp, resp, fmt.Sprintf("%s: expected %s got %s\n", tc.desc, tc.resp, resp))
-		assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("expected error %v to contain %v", err, tc.err))
+		assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s: expected error %v to contain %v", tc.desc, err, tc.err))
 	}
 }
 
