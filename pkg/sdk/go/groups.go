@@ -186,8 +186,8 @@ func (sdk mgSDK) RemoveUserFromGroup(groupID string, req UsersRelationRequest, t
 	return sdkerr
 }
 
-func (sdk mgSDK) ListChannelUserGroups(channelID string, pm PageMetadata, token string) (GroupsPage, errors.SDKError) {
-	url, err := sdk.withQueryParams(sdk.usersURL, fmt.Sprintf("%s/%s/%s", groupsEndpoint, channelsEndpoint, channelID), pm)
+func (sdk mgSDK) ListChannelUserGroups(pm PageMetadata, token string) (GroupsPage, errors.SDKError) {
+	url, err := sdk.withQueryParams(sdk.usersURL, groupsEndpoint, pm)
 	if err != nil {
 		return GroupsPage{}, errors.NewSDKError(err)
 	}
@@ -203,8 +203,8 @@ func (sdk mgSDK) ListChannelUserGroups(channelID string, pm PageMetadata, token 
 	return gp, nil
 }
 
-func (sdk mgSDK) ListUserGroups(userID string, pm PageMetadata, token string) (GroupsPage, errors.SDKError) {
-	url, err := sdk.withQueryParams(sdk.usersURL, fmt.Sprintf("%s/%s/%s", groupsEndpoint, usersEndpoint, userID), pm)
+func (sdk mgSDK) ListUserGroups(pm PageMetadata, token string) (GroupsPage, errors.SDKError) {
+	url, err := sdk.withQueryParams(sdk.usersURL, groupsEndpoint, pm)
 	if err != nil {
 		return GroupsPage{}, errors.NewSDKError(err)
 	}

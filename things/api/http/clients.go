@@ -116,19 +116,12 @@ func clientsHandler(svc things.Service, r *chi.Mux, logger *slog.Logger) http.Ha
 			opts...,
 		), "delete_thing").ServeHTTP)
 
-		r.Get("/channels/{groupID}/", otelhttp.NewHandler(kithttp.NewServer(
+		r.Get("/members", otelhttp.NewHandler(kithttp.NewServer(
 			listMembersEndpoint(svc),
 			decodeListMembersRequest,
 			api.EncodeResponse,
 			opts...,
-		), "list_things_by_channel_id").ServeHTTP)
-
-		r.Get("/users/{userID}/", otelhttp.NewHandler(kithttp.NewServer(
-			listClientsEndpoint(svc),
-			decodeListClients,
-			api.EncodeResponse,
-			opts...,
-		), "list_user_things").ServeHTTP)
+		), "list_things_by_member_id").ServeHTTP)
 	})
 
 	return r
@@ -181,6 +174,10 @@ func decodeListClients(_ context.Context, r *http.Request) (interface{}, error) 
 	if err != nil {
 		return nil, errors.Wrap(apiutil.ErrValidation, err)
 	}
+	u, err := apiutil.ReadStringQuery(r, api.UserKey, "")
+	if err != nil {
+		return nil, errors.Wrap(apiutil.ErrValidation, err)
+	}
 
 	lp, err := apiutil.ReadBoolQuery(r, api.ListPerms, api.DefListPerms)
 	if err != nil {
@@ -200,7 +197,7 @@ func decodeListClients(_ context.Context, r *http.Request) (interface{}, error) 
 		tag:        t,
 		permission: p,
 		listPerms:  lp,
-		userID:     chi.URLParam(r, "userID"),
+		userID:     u,
 	}
 	return req, nil
 }
@@ -317,6 +314,10 @@ func decodeListMembersRequest(_ context.Context, r *http.Request) (interface{}, 
 	if err != nil {
 		return nil, errors.Wrap(apiutil.ErrValidation, err)
 	}
+	g, err := apiutil.ReadStringQuery(r, api.ChannelKey, "")
+	if err != nil {
+		return nil, errors.Wrap(apiutil.ErrValidation, err)
+	}
 
 	lp, err := apiutil.ReadBoolQuery(r, api.ListPerms, api.DefListPerms)
 	if err != nil {
@@ -332,7 +333,7 @@ func decodeListMembersRequest(_ context.Context, r *http.Request) (interface{}, 
 			Metadata:   m,
 			ListPerms:  lp,
 		},
-		groupID: chi.URLParam(r, "groupID"),
+		groupID: g,
 	}
 	return req, nil
 }

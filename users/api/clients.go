@@ -11,7 +11,6 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/absmach/magistrala/auth"
 	"github.com/absmach/magistrala/internal/api"
 	"github.com/absmach/magistrala/internal/apiutil"
 	mgclients "github.com/absmach/magistrala/pkg/clients"
@@ -125,33 +124,12 @@ func clientsHandler(svc users.Service, r *chi.Mux, logger *slog.Logger, pr *rege
 			opts...,
 		), "disable_client").ServeHTTP)
 
-		r.Get("/groups/{groupID}", otelhttp.NewHandler(kithttp.NewServer(
-			listMembersByGroupEndpoint(svc),
-			decodeListMembersByGroup,
+		r.Get("/members", otelhttp.NewHandler(kithttp.NewServer(
+			listMembersEndpoint(svc),
+			decodeListMembers,
 			api.EncodeResponse,
 			opts...,
-		), "list_users_by_user_group_id").ServeHTTP)
-
-		r.Get("/channels/{channelID}", otelhttp.NewHandler(kithttp.NewServer(
-			listMembersByChannelEndpoint(svc),
-			decodeListMembersByChannel,
-			api.EncodeResponse,
-			opts...,
-		), "list_users_by_channel_id").ServeHTTP)
-
-		r.Get("/things/{thingID}", otelhttp.NewHandler(kithttp.NewServer(
-			listMembersByThingEndpoint(svc),
-			decodeListMembersByThing,
-			api.EncodeResponse,
-			opts...,
-		), "list_users_by_thing_id").ServeHTTP)
-
-		r.Get("/domains/{domainID}", otelhttp.NewHandler(kithttp.NewServer(
-			listMembersByDomainEndpoint(svc),
-			decodeListMembersByDomain,
-			api.EncodeResponse,
-			opts...,
-		), "list_users_by_domain_id").ServeHTTP)
+		), "list_users_by_entity_id").ServeHTTP)
 	})
 
 	r.Route("/password", func(r chi.Router) {
@@ -408,58 +386,63 @@ func decodeChangeClientStatus(_ context.Context, r *http.Request) (interface{}, 
 	return req, nil
 }
 
-func decodeListMembersByGroup(_ context.Context, r *http.Request) (interface{}, error) {
+func decodeListMembers(_ context.Context, r *http.Request) (interface{}, error) {
 	page, err := queryPageParams(r, api.DefPermission)
 	if err != nil {
 		return nil, err
 	}
-	req := listMembersByObjectReq{
-		token:    apiutil.ExtractBearerToken(r),
-		Page:     page,
-		objectID: chi.URLParam(r, "groupID"),
-	}
 
-	return req, nil
-}
-
-func decodeListMembersByChannel(_ context.Context, r *http.Request) (interface{}, error) {
-	page, err := queryPageParams(r, api.DefPermission)
+	thing, err := apiutil.ReadStringQuery(r, api.ThingKey, "")
 	if err != nil {
-		return nil, err
-	}
-	req := listMembersByObjectReq{
-		token:    apiutil.ExtractBearerToken(r),
-		Page:     page,
-		objectID: chi.URLParam(r, "channelID"),
+		return nil, errors.Wrap(apiutil.ErrValidation, err)
 	}
 
-	return req, nil
-}
-
-func decodeListMembersByThing(_ context.Context, r *http.Request) (interface{}, error) {
-	page, err := queryPageParams(r, api.DefPermission)
+	ch, err := apiutil.ReadStringQuery(r, api.ChannelKey, "")
 	if err != nil {
-		return nil, err
-	}
-	req := listMembersByObjectReq{
-		token:    apiutil.ExtractBearerToken(r),
-		Page:     page,
-		objectID: chi.URLParam(r, "thingID"),
+		return nil, errors.Wrap(apiutil.ErrValidation, err)
 	}
 
-	return req, nil
-}
-
-func decodeListMembersByDomain(_ context.Context, r *http.Request) (interface{}, error) {
-	page, err := queryPageParams(r, auth.MembershipPermission)
+	dom, err := apiutil.ReadStringQuery(r, api.DomainKey, "")
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(apiutil.ErrValidation, err)
+	}
+	group, err := apiutil.ReadStringQuery(r, api.GroupKey, "")
+	if err != nil {
+		return nil, errors.Wrap(apiutil.ErrValidation, err)
+	}
+
+	user, err := apiutil.ReadStringQuery(r, api.UserKey, "")
+	if err != nil {
+		return nil, errors.Wrap(apiutil.ErrValidation, err)
+	}
+
+	var entityID, entityType string
+
+	switch {
+	case thing != "":
+		entityType = api.ThingKey
+		entityID = thing
+	case ch != "":
+		entityType = "groups"
+		entityID = ch
+	case dom != "":
+		entityType = api.DomainKey
+		entityID = dom
+	case group != "":
+		entityType = "groups"
+		entityID = group
+	case user != "":
+		entityType = api.UserKey
+		entityID = user
+	default:
+		entityID = ""
 	}
 
 	req := listMembersByObjectReq{
-		token:    apiutil.ExtractBearerToken(r),
-		Page:     page,
-		objectID: chi.URLParam(r, "domainID"),
+		token:      apiutil.ExtractBearerToken(r),
+		Page:       page,
+		objectID:   entityID,
+		objectKind: entityType,
 	}
 
 	return req, nil

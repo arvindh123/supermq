@@ -114,6 +114,11 @@ type PageMetadata struct {
 	UserID          string   `json:"user_id,omitempty"`
 	DomainID        string   `json:"domain_id,omitempty"`
 	Relation        string   `json:"relation,omitempty"`
+	User            string   `json:"user,omitempty"`
+	Channel         string   `json:"channel,omitempty"`
+	Group           string   `json:"group,omitempty"`
+	Thing           string   `json:"thing,omitempty"`
+	Domain          string   `json:"domain,omitempty"`
 }
 
 // Credentials represent client credentials: it contains
@@ -282,9 +287,9 @@ type SDK interface {
 	//		Limit:  10,
 	//		Permission: "edit", // available Options:  "administrator", "administrator", "delete", edit", "view", "share", "owner", "owner", "admin", "editor", "viewer", "guest", "editor", "contributor", "create"
 	//	}
-	//  channels, _ := sdk.ListUserChannels("user_id_1", pm, "token")
+	//  channels, _ := sdk.ListUserChannels(pm, "token")
 	//  fmt.Println(channels)
-	ListUserChannels(userID string, pm PageMetadata, token string) (ChannelsPage, errors.SDKError)
+	ListUserChannels(pm PageMetadata, token string) (ChannelsPage, errors.SDKError)
 
 	// ListUserGroups list all groups belongs a particular user id.
 	//
@@ -294,9 +299,9 @@ type SDK interface {
 	//		Limit:  10,
 	//		Permission: "edit", // available Options:  "administrator", "administrator", "delete", edit", "view", "share", "owner", "owner", "admin", "editor", "contributor", "editor", "viewer", "guest", "create"
 	//	}
-	//  groups, _ := sdk.ListUserGroups("user_id_1", pm, "token")
+	//  groups, _ := sdk.ListUserGroups(pm, "token")
 	//  fmt.Println(channels)
-	ListUserGroups(userID string, pm PageMetadata, token string) (GroupsPage, errors.SDKError)
+	ListUserGroups(pm PageMetadata, token string) (GroupsPage, errors.SDKError)
 
 	// ListUserThings list all things belongs a particular user id.
 	//
@@ -306,9 +311,9 @@ type SDK interface {
 	//		Limit:  10,
 	//		Permission: "edit", // available Options:  "administrator", "administrator", "delete", edit", "view", "share", "owner", "owner", "admin", "editor", "contributor", "editor", "viewer", "guest", "create"
 	//	}
-	//  things, _ := sdk.ListUserThings("user_id_1", pm, "token")
+	//  things, _ := sdk.ListUserThings(pm, "token")
 	//  fmt.Println(things)
-	ListUserThings(userID string, pm PageMetadata, token string) (ThingsPage, errors.SDKError)
+	ListUserThings(pm PageMetadata, token string) (ThingsPage, errors.SDKError)
 
 	// CreateThing registers new thing and returns its id.
 	//
@@ -362,11 +367,12 @@ type SDK interface {
 	//  pm := sdk.PageMetadata{
 	//    Offset: 0,
 	//    Limit:  10,
+	//    Channel: "channelID",
 	//    Name:   "My Thing",
 	//  }
 	//  things, _ := sdk.ThingsByChannel("channelID", pm, "token")
 	//  fmt.Println(things)
-	ThingsByChannel(chanID string, pm PageMetadata, token string) (ThingsPage, errors.SDKError)
+	ThingsByChannel(pm PageMetadata, token string) (ThingsPage, errors.SDKError)
 
 	// Thing returns thing object by id.
 	//
@@ -465,9 +471,9 @@ type SDK interface {
 	//		Limit:  10,
 	//		Permission: "edit", // available Options:  "administrator", "administrator", "delete", edit", "view", "share", "owner", "owner", "admin", "editor", "contributor", "editor", "viewer", "guest", "create"
 	//	}
-	//  users, _ := sdk.ListThingUsers("thing_id", pm, "token")
+	//  users, _ := sdk.ListThingUsers(pm, "token")
 	//  fmt.Println(users)
-	ListThingUsers(thingID string, pm PageMetadata, token string) (UsersPage, errors.SDKError)
+	ListThingUsers(pm PageMetadata, token string) (UsersPage, errors.SDKError)
 
 	// DeleteThing deletes a thing with the given id.
 	//
@@ -597,9 +603,9 @@ type SDK interface {
 	//		Limit:  10,
 	//		Permission: "edit", // available Options:  "administrator", "administrator", "delete", edit", "view", "share", "owner", "owner", "admin", "editor", "contributor", "editor", "viewer", "guest", "create"
 	//	}
-	//  groups, _ := sdk.ListGroupUsers("groupID", pm, "token")
+	//  groups, _ := sdk.ListGroupUsers(pm, "token")
 	//  fmt.Println(groups)
-	ListGroupUsers(groupID string, pm PageMetadata, token string) (UsersPage, errors.SDKError)
+	ListGroupUsers(pm PageMetadata, token string) (UsersPage, errors.SDKError)
 
 	// ListGroupChannels list all channels in the group id .
 	//
@@ -609,9 +615,9 @@ type SDK interface {
 	//		Limit:  10,
 	//		Permission: "edit", // available Options:  "administrator", "administrator", "delete", edit", "view", "share", "owner", "owner", "admin", "editor", "contributor", "editor", "viewer", "guest", "create"
 	//	}
-	//  groups, _ := sdk.ListGroupChannels("groupID", pm, "token")
+	//  groups, _ := sdk.ListGroupChannels(pm, "token")
 	//  fmt.Println(groups)
-	ListGroupChannels(groupID string, pm PageMetadata, token string) (GroupsPage, errors.SDKError)
+	ListGroupChannels(pm PageMetadata, token string) (GroupsPage, errors.SDKError)
 
 	// DeleteGroup delete given group id.
 	//
@@ -652,10 +658,11 @@ type SDK interface {
 	//    Offset: 0,
 	//    Limit:  10,
 	//    Name:   "My Channel",
+	//	  Thing:  "thingID",
 	//  }
-	//  channels, _ := sdk.ChannelsByThing("thingID", pm, "token")
+	//  channels, _ := sdk.ChannelsByThing(pm, "token")
 	//  fmt.Println(channels)
-	ChannelsByThing(thingID string, pm PageMetadata, token string) (ChannelsPage, errors.SDKError)
+	ChannelsByThing(pm PageMetadata, token string) (ChannelsPage, errors.SDKError)
 
 	// Channel returns channel data by id.
 	//
@@ -729,9 +736,9 @@ type SDK interface {
 	//		Limit:  10,
 	//		Permission: "edit",  // available Options:  "administrator", "administrator", "delete", edit", "view", "share", "owner", "owner", "admin", "editor", "contributor", "editor", "viewer", "guest", "create"
 	//	}
-	//  users, _ := sdk.ListChannelUsers("channel_id", pm, "token")
+	//  users, _ := sdk.ListChannelUsers(pm, "token")
 	//  fmt.Println(users)
-	ListChannelUsers(channelID string, pm PageMetadata, token string) (UsersPage, errors.SDKError)
+	ListChannelUsers(pm PageMetadata, token string) (UsersPage, errors.SDKError)
 
 	// AddUserGroupToChannel add user group to a channel.
 	//
@@ -759,11 +766,12 @@ type SDK interface {
 	//	pm := sdk.PageMetadata{
 	//		Offset: 0,
 	//		Limit:  10,
+	// 	    Channel: "channel_id",
 	//		Permission: "view",
 	//	}
-	//  groups, _ := sdk.ListChannelUserGroups("channel_id_1", pm, "token")
+	//  groups, _ := sdk.ListChannelUserGroups(pm, "token")
 	//  fmt.Println(groups)
-	ListChannelUserGroups(channelID string, pm PageMetadata, token string) (GroupsPage, errors.SDKError)
+	ListChannelUserGroups(pm PageMetadata, token string) (GroupsPage, errors.SDKError)
 
 	// DeleteChannel delete given group id.
 	//
@@ -1060,11 +1068,12 @@ type SDK interface {
 	//  pm := sdk.PageMetadata{
 	//    Offset: 0,
 	//    Limit:  10,
+	//	  Domain: "domainID",
 	//    Permission : "view"
 	//  }
-	//  users, _ := sdk.ListDomainUsers("domainID", pm, "token")
+	//  users, _ := sdk.ListDomainUsers(pm, "token")
 	//  fmt.Println(users)
-	ListDomainUsers(domainID string, pm PageMetadata, token string) (UsersPage, errors.SDKError)
+	ListDomainUsers(pm PageMetadata, token string) (UsersPage, errors.SDKError)
 
 	// ListUserDomains returns list of domains for the given user ID and filters.
 	//
@@ -1072,11 +1081,12 @@ type SDK interface {
 	//  pm := sdk.PageMetadata{
 	//    Offset: 0,
 	//    Limit:  10,
+	//	  User: "userID",
 	//    Permission : "view"
 	//  }
-	//  domains, _ := sdk.ListUserDomains("userID", pm, "token")
+	//  domains, _ := sdk.ListUserDomains(pm, "token")
 	//  fmt.Println(domains)
-	ListUserDomains(userID string, pm PageMetadata, token string) (DomainsPage, errors.SDKError)
+	ListUserDomains(pm PageMetadata, token string) (DomainsPage, errors.SDKError)
 
 	// EnableDomain changes the status of the domain to enabled.
 	//
@@ -1347,6 +1357,21 @@ func (pm PageMetadata) query() (string, error) {
 	}
 	if pm.Relation != "" {
 		q.Add("relation", pm.Relation)
+	}
+	if pm.User != "" {
+		q.Add("users", pm.User)
+	}
+	if pm.Channel != "" {
+		q.Add("channel", pm.Channel)
+	}
+	if pm.Group != "" {
+		q.Add("group", pm.Group)
+	}
+	if pm.Thing != "" {
+		q.Add("things", pm.Thing)
+	}
+	if pm.Domain != "" {
+		q.Add("domains", pm.Domain)
 	}
 
 	return q.Encode(), nil

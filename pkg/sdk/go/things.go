@@ -97,8 +97,8 @@ func (sdk mgSDK) Things(pm PageMetadata, token string) (ThingsPage, errors.SDKEr
 	return cp, nil
 }
 
-func (sdk mgSDK) ListUserThings(userID string, pm PageMetadata, token string) (ThingsPage, errors.SDKError) {
-	url, err := sdk.withQueryParams(sdk.thingsURL, fmt.Sprintf("%s/%s/%s/", thingsEndpoint, usersEndpoint, userID), pm)
+func (sdk mgSDK) ListUserThings(pm PageMetadata, token string) (ThingsPage, errors.SDKError) {
+	url, err := sdk.withQueryParams(sdk.thingsURL, thingsEndpoint, pm)
 	if err != nil {
 		return ThingsPage{}, errors.NewSDKError(err)
 	}
@@ -114,8 +114,8 @@ func (sdk mgSDK) ListUserThings(userID string, pm PageMetadata, token string) (T
 	return tp, nil
 }
 
-func (sdk mgSDK) ThingsByChannel(chanID string, pm PageMetadata, token string) (ThingsPage, errors.SDKError) {
-	url, err := sdk.withQueryParams(sdk.thingsURL, fmt.Sprintf("%s/channels/%s/", thingsEndpoint, chanID), pm)
+func (sdk mgSDK) ThingsByChannel(pm PageMetadata, token string) (ThingsPage, errors.SDKError) {
+	url, err := sdk.withQueryParams(sdk.thingsURL, fmt.Sprintf("%s/members", thingsEndpoint), pm)
 	if err != nil {
 		return ThingsPage{}, errors.NewSDKError(err)
 	}
