@@ -38,7 +38,7 @@ func setupGroups() (*httptest.Server, *mocks.Repository, *authmocks.AuthClient) 
 
 	auth := new(authmocks.AuthClient)
 	csvc := users.NewService(crepo, auth, emailer, phasher, idProvider, constraintsProvider, true)
-	gsvc := groups.NewService(grepo, idProvider, auth)
+	gsvc := groups.NewService(grepo, idProvider, constraintsProvider, auth)
 
 	logger := mglog.NewMock()
 	mux := chi.NewRouter()
@@ -64,6 +64,7 @@ func TestCreateGroup(t *testing.T) {
 	mgsdk := sdk.NewSDK(conf)
 	cases := []struct {
 		desc  string
+		total uint64
 		group sdk.Group
 		token string
 		err   errors.SDKError
@@ -142,6 +143,7 @@ func TestCreateGroup(t *testing.T) {
 		repoCall1 := auth.On("AddPolicies", mock.Anything, mock.Anything).Return(&magistrala.AddPoliciesRes{Added: true}, nil)
 		repoCall2 := auth.On("Authorize", mock.Anything, mock.Anything).Return(&magistrala.AuthorizeRes{Authorized: true}, nil)
 		repoCall3 := grepo.On("Save", mock.Anything, mock.Anything).Return(convertGroup(sdk.Group{}), tc.err)
+		retrieveAllCall := grepo.On("RetrieveAll", mock.Anything, mggroups.Page{}).Return(mggroups.Page{PageMeta: mggroups.PageMeta{Total: tc.total}}, nil)
 		rGroup, err := mgsdk.CreateGroup(tc.group, tc.token)
 		assert.Equal(t, tc.err, err, fmt.Sprintf("%s: unexpected error %s", tc.desc, err))
 		if err == nil {
@@ -153,6 +155,7 @@ func TestCreateGroup(t *testing.T) {
 		repoCall1.Unset()
 		repoCall2.Unset()
 		repoCall3.Unset()
+		retrieveAllCall.Unset()
 	}
 }
 

@@ -35,8 +35,8 @@ func setupThings() (*httptest.Server, *mocks.Repository, *gmocks.Repository, *au
 	thingCache := new(mocks.Cache)
 
 	auth := new(authmocks.AuthClient)
-	csvc := things.NewService(auth, cRepo, gRepo, thingCache, idProvider)
-	gsvc := groups.NewService(gRepo, idProvider, auth)
+	csvc := things.NewService(auth, cRepo, gRepo, thingCache, idProvider, constraintsProvider)
+	gsvc := groups.NewService(gRepo, idProvider, constraintsProvider, auth)
 
 	logger := mglog.NewMock()
 	mux := chi.NewRouter()
@@ -51,8 +51,8 @@ func setupThingsMinimal() (*httptest.Server, *authmocks.AuthClient) {
 	thingCache := new(mocks.Cache)
 
 	auth := new(authmocks.AuthClient)
-	csvc := things.NewService(auth, cRepo, gRepo, thingCache, idProvider)
-	gsvc := groups.NewService(gRepo, idProvider, auth)
+	csvc := things.NewService(auth, cRepo, gRepo, thingCache, idProvider, constraintsProvider)
+	gsvc := groups.NewService(gRepo, idProvider, constraintsProvider, auth)
 
 	logger := mglog.NewMock()
 	mux := chi.NewRouter()
@@ -76,6 +76,7 @@ func TestCreateThing(t *testing.T) {
 
 	cases := []struct {
 		desc     string
+		total    uint64
 		client   sdk.Thing
 		response sdk.Thing
 		token    string
@@ -187,6 +188,7 @@ func TestCreateThing(t *testing.T) {
 		repoCall1 := auth.On("AddPolicies", mock.Anything, mock.Anything).Return(&magistrala.AddPoliciesRes{Added: true}, nil)
 		repoCall2 := auth.On("Authorize", mock.Anything, mock.Anything).Return(&magistrala.AuthorizeRes{Authorized: true}, nil)
 		repoCall3 := cRepo.On("Save", mock.Anything, mock.Anything).Return(convertThings(tc.response), tc.repoErr)
+		retrieveAllCall := cRepo.On("RetrieveAll", mock.Anything, mgclients.Page{}).Return(mgclients.ClientsPage{Page: mgclients.Page{Total: tc.total}}, nil)
 		rThing, err := mgsdk.CreateThing(tc.client, tc.token)
 
 		tc.response.ID = rThing.ID
@@ -204,6 +206,7 @@ func TestCreateThing(t *testing.T) {
 		repoCall1.Unset()
 		repoCall2.Unset()
 		repoCall3.Unset()
+		retrieveAllCall.Unset()
 	}
 }
 
@@ -228,6 +231,7 @@ func TestCreateThings(t *testing.T) {
 
 	cases := []struct {
 		desc     string
+		total    uint64
 		things   []sdk.Thing
 		response []sdk.Thing
 		token    string
@@ -274,6 +278,7 @@ func TestCreateThings(t *testing.T) {
 		repoCall1 := auth.On("AddPolicies", mock.Anything, mock.Anything).Return(&magistrala.AddPoliciesRes{Added: true}, nil)
 		repoCall2 := auth.On("Authorize", mock.Anything, mock.Anything).Return(&magistrala.AuthorizeRes{Authorized: true}, nil)
 		repoCall3 := cRepo.On("Save", mock.Anything, mock.Anything).Return(convertThings(tc.response...), tc.err)
+		retrieveAllCall := cRepo.On("RetrieveAll", mock.Anything, mgclients.Page{}).Return(mgclients.ClientsPage{Page: mgclients.Page{Total: tc.total}}, nil)
 		if len(tc.things) > 0 {
 			repoCall3 = cRepo.On("Save", mock.Anything, mock.Anything, mock.Anything).Return(convertThings(tc.response...), tc.err)
 		}
@@ -301,6 +306,7 @@ func TestCreateThings(t *testing.T) {
 		repoCall1.Unset()
 		repoCall2.Unset()
 		repoCall3.Unset()
+		retrieveAllCall.Unset()
 	}
 }
 
