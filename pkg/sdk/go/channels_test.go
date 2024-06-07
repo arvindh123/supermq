@@ -406,8 +406,9 @@ func TestListUserChannels(t *testing.T) {
 			Offset: tc.offset,
 			Limit:  tc.limit,
 			Level:  uint64(tc.level),
+			User:   tc.userID,
 		}
-		page, err := mgsdk.ListUserChannels(tc.userID, pm, tc.token)
+		page, err := mgsdk.ListUserChannels(pm, tc.token)
 		assert.Equal(t, tc.err, err, fmt.Sprintf("%s: expected error %s, got %s", tc.desc, tc.err, err))
 		assert.Equal(t, len(tc.response), len(page.Channels), fmt.Sprintf("%s: expected %v got %v\n", tc.desc, tc.response, page))
 		if tc.err == nil {
@@ -676,79 +677,80 @@ func TestListChannelsByThing(t *testing.T) {
 	cases := []struct {
 		desc     string
 		token    string
-		clientID string
 		page     sdk.PageMetadata
 		response []sdk.Channel
 		err      errors.SDKError
 	}{
 		{
-			desc:     "list channel with authorized token",
-			token:    validToken,
-			clientID: testsutil.GenerateUUID(t),
-			page:     sdk.PageMetadata{},
+			desc:  "list channel with authorized token",
+			token: validToken,
+			page: sdk.PageMetadata{
+				Thing: testsutil.GenerateUUID(t),
+			},
 			response: aChannels,
 			err:      nil,
 		},
 		{
-			desc:     "list channel with offset and limit",
-			token:    validToken,
-			clientID: testsutil.GenerateUUID(t),
+			desc:  "list channel with offset and limit",
+			token: validToken,
 			page: sdk.PageMetadata{
 				Offset: 6,
 				Total:  nChannels,
 				Limit:  nChannels,
 				Status: mgclients.AllStatus.String(),
+				Thing:  testsutil.GenerateUUID(t),
 			},
 			response: aChannels[6 : nChannels-1],
 			err:      nil,
 		},
 		{
-			desc:     "list channel with given name",
-			token:    validToken,
-			clientID: testsutil.GenerateUUID(t),
+			desc:  "list channel with given name",
+			token: validToken,
 			page: sdk.PageMetadata{
 				Name:   gName,
 				Offset: 6,
 				Total:  nChannels,
 				Limit:  nChannels,
 				Status: mgclients.AllStatus.String(),
+				Thing:  testsutil.GenerateUUID(t),
 			},
 			response: aChannels[6 : nChannels-1],
 			err:      nil,
 		},
 		{
-			desc:     "list channel with given level",
-			token:    validToken,
-			clientID: testsutil.GenerateUUID(t),
+			desc:  "list channel with given level",
+			token: validToken,
 			page: sdk.PageMetadata{
 				Level:  1,
 				Offset: 6,
 				Total:  nChannels,
 				Limit:  nChannels,
 				Status: mgclients.AllStatus.String(),
+				Thing:  testsutil.GenerateUUID(t),
 			},
 			response: aChannels[6 : nChannels-1],
 			err:      nil,
 		},
 		{
-			desc:     "list channel with metadata",
-			token:    validToken,
-			clientID: testsutil.GenerateUUID(t),
+			desc:  "list channel with metadata",
+			token: validToken,
 			page: sdk.PageMetadata{
 				Metadata: validMetadata,
 				Offset:   6,
 				Total:    nChannels,
 				Limit:    nChannels,
 				Status:   mgclients.AllStatus.String(),
+				Thing:    testsutil.GenerateUUID(t),
 			},
 			response: aChannels[6 : nChannels-1],
 			err:      nil,
 		},
 		{
-			desc:     "list channel with an invalid token",
-			token:    invalidToken,
-			clientID: testsutil.GenerateUUID(t),
-			page:     sdk.PageMetadata{},
+			desc:  "list channel with an invalid token",
+			token: invalidToken,
+			page: sdk.PageMetadata{
+				Thing: testsutil.GenerateUUID(t),
+			},
 			response: []sdk.Channel(nil),
 			err:      errors.NewSDKErrorWithStatus(svcerr.ErrAuthentication, http.StatusUnauthorized),
 		},
@@ -760,7 +762,7 @@ func TestListChannelsByThing(t *testing.T) {
 		repoCall2 := auth.On("ListAllSubjects", mock.Anything, mock.Anything).Return(&magistrala.ListSubjectsRes{Policies: toIDs(tc.response)}, nil)
 		repoCall3 := auth.On("ListAllObjects", mock.Anything, mock.Anything).Return(&magistrala.ListObjectsRes{Policies: toIDs(tc.response)}, nil)
 		repoCall4 := grepo.On("RetrieveByIDs", mock.Anything, mock.Anything, mock.Anything).Return(mggroups.Page{Groups: convertChannels(tc.response)}, tc.err)
-		page, err := mgsdk.ChannelsByThing(tc.clientID, tc.page, tc.token)
+		page, err := mgsdk.ChannelsByThing(tc.page, tc.token)
 		assert.Equal(t, tc.err, err, fmt.Sprintf("%s: expected error %s, got %s", tc.desc, tc.err, err))
 		assert.Equal(t, tc.response, page.Channels, fmt.Sprintf("%s: expected %v got %v\n", tc.desc, tc.response, page.Channels))
 		repoCall.Unset()

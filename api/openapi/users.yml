@@ -371,12 +371,12 @@ paths:
         "500":
           $ref: "#/components/responses/ServiceError"
 
-  /users/groups/{groupID}:
+  /members:
     get:
-      operationId: listUsersInGroup
+      operationId: listUsersByEntityID
       tags:
         - Users
-      summary: List users in a group
+      summary: List users in an entity
       description: |
         Retrieves a list of users in a group. Due to performance concerns, data
         is retrieved in subsets. The API must ensure that the entire
@@ -391,6 +391,11 @@ paths:
         - $ref: "#/components/parameters/Metadata"
         - $ref: "#/components/parameters/GroupName"
         - $ref: "#/components/parameters/ParentID"
+        - $ref: "#/components/parameters/Group"
+        - $ref: "#/components/parameters/Domain"
+        - $ref: "#/components/parameters/Channel"
+        - $ref: "#/components/parameters/Thing"
+        - $ref: "#/components/parameters/User"
       responses:
         "200":
           $ref: "#/components/responses/MembersPageRes"
@@ -1647,6 +1652,56 @@ components:
         maxLength: 36
         pattern: "^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$"
       required: true
+      example: bb7edb32-2eac-4aad-aebe-ed96fe073879
+
+    Channel:
+      name: channel
+      description: Unique channel identifier.
+      in: query
+      schema:
+        type: string
+        format: uuid
+      required: false
+      example: bb7edb32-2eac-4aad-aebe-ed96fe073879
+
+    User:
+      name: user
+      description: Unique user identifier.
+      in: query
+      schema:
+        type: string
+        format: uuid
+      required: false
+      example: bb7edb32-2eac-4aad-aebe-ed96fe073879
+
+    Group:
+      name: group
+      description: Unique group identifier.
+      in: query
+      schema:
+        type: string
+        format: uuid
+      required: false
+      example: bb7edb32-2eac-4aad-aebe-ed96fe073879
+
+    Thing:
+      name: thing
+      description: Unique thing identifier.
+      in: query
+      schema:
+        type: string
+        format: uuid
+      required: false
+      example: bb7edb32-2eac-4aad-aebe-ed96fe073879
+
+    Domain:
+      name: domain
+      description: Unique domain identifier.
+      in: query
+      schema:
+        type: string
+        format: uuid
+      required: false
       example: bb7edb32-2eac-4aad-aebe-ed96fe073879
 
     MemberID:
