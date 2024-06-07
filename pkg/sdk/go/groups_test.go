@@ -588,8 +588,9 @@ func TestListGroupsByUser(t *testing.T) {
 			Offset: tc.offset,
 			Limit:  tc.limit,
 			Level:  uint64(tc.level),
+			User:   tc.userID,
 		}
-		page, err := mgsdk.ListUserGroups(tc.userID, pm, tc.token)
+		page, err := mgsdk.ListUserGroups(pm, tc.token)
 		assert.Equal(t, tc.err, err, fmt.Sprintf("%s: expected error %s, got %s", tc.desc, tc.err, err))
 		assert.Equal(t, len(tc.response), len(page.Groups), fmt.Sprintf("%s: expected %v got %v\n", tc.desc, tc.response, page))
 		if tc.err == nil {
@@ -937,11 +938,12 @@ func TestListGroupsByChannel(t *testing.T) {
 		repoCall3 := auth.On("ListAllObjects", mock.Anything, mock.Anything).Return(&magistrala.ListObjectsRes{Policies: toIDs(tc.response)}, nil)
 		repoCall4 := grepo.On("RetrieveByIDs", mock.Anything, mock.Anything, mock.Anything).Return(mggroups.Page{Groups: convertGroups(tc.response)}, tc.err)
 		pm := sdk.PageMetadata{
-			Offset: tc.offset,
-			Limit:  tc.limit,
-			Level:  uint64(tc.level),
+			Offset:  tc.offset,
+			Limit:   tc.limit,
+			Level:   uint64(tc.level),
+			Channel: tc.channelID,
 		}
-		page, err := mgsdk.ListChannelUserGroups(tc.channelID, pm, tc.token)
+		page, err := mgsdk.ListChannelUserGroups(pm, tc.token)
 		assert.Equal(t, tc.err, err, fmt.Sprintf("%s: expected error %s, got %s", tc.desc, tc.err, err))
 		assert.Equal(t, len(tc.response), len(page.Groups), fmt.Sprintf("%s: expected %v got %v\n", tc.desc, tc.response, page))
 		if tc.err == nil {

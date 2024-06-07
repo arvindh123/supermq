@@ -353,7 +353,7 @@ var cmdThings = []cobra.Command{
 			pm := mgxsdk.PageMetadata{
 				Offset: Offset,
 				Limit:  Limit,
-				Thing: args[0],
+				Thing:  args[0],
 			}
 			ul, err := sdk.ListThingUsers(pm, args[1])
 			if err != nil {

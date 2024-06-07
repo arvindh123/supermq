@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/absmach/magistrala/auth"
 	"github.com/absmach/magistrala/internal/api"
 	"github.com/absmach/magistrala/internal/apiutil"
 	mgclients "github.com/absmach/magistrala/pkg/clients"
@@ -22,7 +23,17 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
-var passRegex = regexp.MustCompile("^.{8,}$")
+var (
+	passRegex   = regexp.MustCompile("^.{8,}$")
+	queryKeys   = []string{api.ThingKey, api.ChannelKey, api.DomainKey, api.GroupKey, api.UserKey}
+	entityTypes = map[string]string{
+		api.ThingKey:   auth.ThingsKind,
+		api.ChannelKey: auth.GroupsKind,
+		api.DomainKey:  auth.DomainsKind,
+		api.GroupKey:   auth.GroupsKind,
+		api.UserKey:    auth.UsersKind,
+	}
+)
 
 // MakeHandler returns a HTTP handler for API endpoints.
 func clientsHandler(svc users.Service, r *chi.Mux, logger *slog.Logger, pr *regexp.Regexp, providers ...oauth2.Provider) http.Handler {
@@ -392,50 +403,17 @@ func decodeListMembers(_ context.Context, r *http.Request) (interface{}, error) 
 		return nil, err
 	}
 
-	thing, err := apiutil.ReadStringQuery(r, api.ThingKey, "")
-	if err != nil {
-		return nil, errors.Wrap(apiutil.ErrValidation, err)
-	}
-
-	ch, err := apiutil.ReadStringQuery(r, api.ChannelKey, "")
-	if err != nil {
-		return nil, errors.Wrap(apiutil.ErrValidation, err)
-	}
-
-	dom, err := apiutil.ReadStringQuery(r, api.DomainKey, "")
-	if err != nil {
-		return nil, errors.Wrap(apiutil.ErrValidation, err)
-	}
-	group, err := apiutil.ReadStringQuery(r, api.GroupKey, "")
-	if err != nil {
-		return nil, errors.Wrap(apiutil.ErrValidation, err)
-	}
-
-	user, err := apiutil.ReadStringQuery(r, api.UserKey, "")
-	if err != nil {
-		return nil, errors.Wrap(apiutil.ErrValidation, err)
-	}
-
 	var entityID, entityType string
 
-	switch {
-	case thing != "":
-		entityType = api.ThingKey
-		entityID = thing
-	case ch != "":
-		entityType = "groups"
-		entityID = ch
-	case dom != "":
-		entityType = api.DomainKey
-		entityID = dom
-	case group != "":
-		entityType = "groups"
-		entityID = group
-	case user != "":
-		entityType = api.UserKey
-		entityID = user
-	default:
-		entityID = ""
+	for _, key := range queryKeys {
+		entityID, err = apiutil.ReadStringQuery(r, key, "")
+		if err != nil {
+			return nil, errors.Wrap(apiutil.ErrValidation, err)
+		}
+		if entityID != "" {
+			entityType = entityTypes[key]
+			break
+		}
 	}
 
 	req := listMembersByObjectReq{

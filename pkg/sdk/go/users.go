@@ -270,7 +270,7 @@ func (sdk mgSDK) UpdateUserRole(user User, token string) (User, errors.SDKError)
 }
 
 func (sdk mgSDK) ListChannelUsers(pm PageMetadata, token string) (UsersPage, errors.SDKError) {
-	url, err := sdk.withQueryParams(sdk.usersURL, fmt.Sprintf("%s/members", usersEndpoint), pm)
+	url, err := sdk.withQueryParams(sdk.usersURL, fmt.Sprintf("%s/%s", usersEndpoint, membersEndpoint), pm)
 	if err != nil {
 		return UsersPage{}, errors.NewSDKError(err)
 	}
@@ -287,7 +287,7 @@ func (sdk mgSDK) ListChannelUsers(pm PageMetadata, token string) (UsersPage, err
 }
 
 func (sdk mgSDK) ListGroupUsers(pm PageMetadata, token string) (UsersPage, errors.SDKError) {
-	url, err := sdk.withQueryParams(sdk.usersURL, fmt.Sprintf("%s/members", usersEndpoint), pm)
+	url, err := sdk.withQueryParams(sdk.usersURL, fmt.Sprintf("%s/%s", usersEndpoint, membersEndpoint), pm)
 	if err != nil {
 		return UsersPage{}, errors.NewSDKError(err)
 	}
@@ -304,7 +304,7 @@ func (sdk mgSDK) ListGroupUsers(pm PageMetadata, token string) (UsersPage, error
 }
 
 func (sdk mgSDK) ListThingUsers(pm PageMetadata, token string) (UsersPage, errors.SDKError) {
-	url, err := sdk.withQueryParams(sdk.usersURL, fmt.Sprintf("%s/members", usersEndpoint), pm)
+	url, err := sdk.withQueryParams(sdk.usersURL, fmt.Sprintf("%s/%s", usersEndpoint, membersEndpoint), pm)
 	if err != nil {
 		return UsersPage{}, errors.NewSDKError(err)
 	}
@@ -322,7 +322,7 @@ func (sdk mgSDK) ListThingUsers(pm PageMetadata, token string) (UsersPage, error
 }
 
 func (sdk mgSDK) ListDomainUsers(pm PageMetadata, token string) (UsersPage, errors.SDKError) {
-	url, err := sdk.withQueryParams(sdk.usersURL, fmt.Sprintf("%s/members", usersEndpoint), pm)
+	url, err := sdk.withQueryParams(sdk.usersURL, fmt.Sprintf("%s/%s", usersEndpoint, membersEndpoint), pm)
 	if err != nil {
 		return UsersPage{}, errors.NewSDKError(err)
 	}

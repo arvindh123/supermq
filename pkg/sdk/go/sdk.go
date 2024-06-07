@@ -1372,7 +1372,7 @@ func (pm PageMetadata) query() (string, error) {
 		q.Add("relation", pm.Relation)
 	}
 	if pm.User != "" {
-		q.Add("users", pm.User)
+		q.Add("user", pm.User)
 	}
 	if pm.Channel != "" {
 		q.Add("channel", pm.Channel)
@@ -1381,10 +1381,10 @@ func (pm PageMetadata) query() (string, error) {
 		q.Add("group", pm.Group)
 	}
 	if pm.Thing != "" {
-		q.Add("things", pm.Thing)
+		q.Add("thing", pm.Thing)
 	}
 	if pm.Domain != "" {
-		q.Add("domains", pm.Domain)
+		q.Add("domain", pm.Domain)
 	}
 
 	return q.Encode(), nil

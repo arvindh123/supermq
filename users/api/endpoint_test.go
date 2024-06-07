@@ -2825,7 +2825,7 @@ func TestListUsersByDomainID(t *testing.T) {
 		req := testRequest{
 			client: us.Client(),
 			method: http.MethodGet,
-			url:    fmt.Sprintf("%s/users/members?domains=%s&", us.URL, validID) + tc.query,
+			url:    fmt.Sprintf("%s/users/members?domain=%s&", us.URL, validID) + tc.query,
 			token:  tc.token,
 		}
 
@@ -3099,7 +3099,7 @@ func TestListUsersByThingID(t *testing.T) {
 		req := testRequest{
 			client: us.Client(),
 			method: http.MethodGet,
-			url:    fmt.Sprintf("%s/users/members?things=%s&", us.URL, validID) + tc.query,
+			url:    fmt.Sprintf("%s/users/members?thing=%s&", us.URL, validID) + tc.query,
 			token:  tc.token,
 		}
 

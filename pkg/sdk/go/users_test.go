@@ -441,6 +441,7 @@ func TestListChannelUsers(t *testing.T) {
 			Name:     tc.name,
 			Metadata: tc.metadata,
 			Tag:      tc.tag,
+			Channel:  tc.channelID,
 		}
 
 		repoCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: tc.token}).Return(&magistrala.IdentityRes{UserId: validID}, nil)
@@ -448,7 +449,7 @@ func TestListChannelUsers(t *testing.T) {
 		repoCall2 := crepo.On("RetrieveAll", mock.Anything, mock.Anything).Return(mgclients.ClientsPage{Page: convertClientPage(pm), Clients: convertClients(tc.response)}, tc.err)
 		listSubjectsCall := auth.On("ListAllSubjects", mock.Anything, mock.Anything).Return(&magistrala.ListSubjectsRes{Policies: toIDs(tc.response)}, tc.err)
 
-		page, err := mgsdk.ListChannelUsers(tc.channelID, pm, tc.token)
+		page, err := mgsdk.ListChannelUsers(pm, tc.token)
 		assert.Equal(t, tc.err, err, fmt.Sprintf("%s: expected error %s, got %s", tc.desc, tc.err, err))
 		assert.Equal(t, tc.response, page.Users, fmt.Sprintf("%s: expected %v got %v\n", tc.desc, tc.response, page))
 		repoCall.Unset()
@@ -530,6 +531,7 @@ func TestListGroupUsers(t *testing.T) {
 			Name:     tc.name,
 			Metadata: tc.metadata,
 			Tag:      tc.tag,
+			Channel:  tc.channelID,
 		}
 
 		repoCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: tc.token}).Return(&magistrala.IdentityRes{UserId: validID}, nil)
@@ -537,7 +539,7 @@ func TestListGroupUsers(t *testing.T) {
 		repoCall2 := crepo.On("RetrieveAll", mock.Anything, mock.Anything).Return(mgclients.ClientsPage{Page: convertClientPage(pm), Clients: convertClients(tc.response)}, tc.err)
 		listSubjectsCall := auth.On("ListAllSubjects", mock.Anything, mock.Anything).Return(&magistrala.ListSubjectsRes{Policies: toIDs(tc.response)}, tc.err)
 
-		page, err := mgsdk.ListGroupUsers(tc.channelID, pm, tc.token)
+		page, err := mgsdk.ListGroupUsers(pm, tc.token)
 		assert.Equal(t, tc.err, err, fmt.Sprintf("%s: expected error %s, got %s", tc.desc, tc.err, err))
 		assert.Equal(t, tc.response, page.Users, fmt.Sprintf("%s: expected %v got %v\n", tc.desc, tc.response, page))
 		repoCall.Unset()
@@ -619,6 +621,7 @@ func TestListThingUsers(t *testing.T) {
 			Name:     tc.name,
 			Metadata: tc.metadata,
 			Tag:      tc.tag,
+			Channel:  tc.channelID,
 		}
 
 		repoCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: tc.token}).Return(&magistrala.IdentityRes{UserId: validID}, nil)
@@ -626,7 +629,7 @@ func TestListThingUsers(t *testing.T) {
 		repoCall2 := crepo.On("RetrieveAll", mock.Anything, mock.Anything).Return(mgclients.ClientsPage{Page: convertClientPage(pm), Clients: convertClients(tc.response)}, tc.err)
 		listSubjectsCall := auth.On("ListAllSubjects", mock.Anything, mock.Anything).Return(&magistrala.ListSubjectsRes{Policies: toIDs(tc.response)}, tc.err)
 
-		page, err := mgsdk.ListThingUsers(tc.channelID, pm, tc.token)
+		page, err := mgsdk.ListThingUsers(pm, tc.token)
 		assert.Equal(t, tc.err, err, fmt.Sprintf("%s: expected error %s, got %s", tc.desc, tc.err, err))
 		assert.Equal(t, tc.response, page.Users, fmt.Sprintf("%s: expected %v got %v\n", tc.desc, tc.response, page))
 		repoCall.Unset()
@@ -666,37 +669,37 @@ func TestListDomainUsers(t *testing.T) {
 		identifier string
 		tag        string
 		metadata   sdk.Metadata
-		channelID  string
+		domainID   string
 		err        errors.SDKError
 		response   []sdk.User
 	}{
 		{
-			desc:      "get a list of users connected to a channel",
-			token:     token,
-			limit:     limit,
-			offset:    offset,
-			total:     total,
-			channelID: validID,
-			err:       nil,
-			response:  cls[offset:limit],
+			desc:     "get a list of users connected to a channel",
+			token:    token,
+			limit:    limit,
+			offset:   offset,
+			total:    total,
+			domainID: validID,
+			err:      nil,
+			response: cls[offset:limit],
 		},
 		{
-			desc:      "get a list of users with invalid token",
-			token:     invalidToken,
-			offset:    offset,
-			limit:     limit,
-			channelID: validID,
-			err:       errors.NewSDKErrorWithStatus(svcerr.ErrAuthentication, http.StatusUnauthorized),
-			response:  nil,
+			desc:     "get a list of users with invalid token",
+			token:    invalidToken,
+			offset:   offset,
+			limit:    limit,
+			domainID: validID,
+			err:      errors.NewSDKErrorWithStatus(svcerr.ErrAuthentication, http.StatusUnauthorized),
+			response: nil,
 		},
 		{
-			desc:      "get a list of users connected to channel with empty token",
-			token:     "",
-			offset:    offset,
-			limit:     limit,
-			channelID: validID,
-			err:       errors.NewSDKErrorWithStatus(errors.Wrap(apiutil.ErrValidation, apiutil.ErrBearerToken), http.StatusUnauthorized),
-			response:  nil,
+			desc:     "get a list of users connected to channel with empty token",
+			token:    "",
+			offset:   offset,
+			limit:    limit,
+			domainID: validID,
+			err:      errors.NewSDKErrorWithStatus(errors.Wrap(apiutil.ErrValidation, apiutil.ErrBearerToken), http.StatusUnauthorized),
+			response: nil,
 		},
 	}
 
@@ -708,6 +711,7 @@ func TestListDomainUsers(t *testing.T) {
 			Name:     tc.name,
 			Metadata: tc.metadata,
 			Tag:      tc.tag,
+			Domain:   tc.domainID,
 		}
 
 		repoCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: tc.token}).Return(&magistrala.IdentityRes{UserId: validID}, nil)
@@ -715,7 +719,7 @@ func TestListDomainUsers(t *testing.T) {
 		repoCall2 := crepo.On("RetrieveAll", mock.Anything, mock.Anything).Return(mgclients.ClientsPage{Page: convertClientPage(pm), Clients: convertClients(tc.response)}, tc.err)
 		listSubjectsCall := auth.On("ListAllSubjects", mock.Anything, mock.Anything).Return(&magistrala.ListSubjectsRes{Policies: toIDs(tc.response)}, tc.err)
 
-		page, err := mgsdk.ListDomainUsers(tc.channelID, pm, tc.token)
+		page, err := mgsdk.ListDomainUsers(pm, tc.token)
 		assert.Equal(t, tc.err, err, fmt.Sprintf("%s: expected error %s, got %s", tc.desc, tc.err, err))
 		assert.Equal(t, tc.response, page.Users, fmt.Sprintf("%s: expected %v got %v\n", tc.desc, tc.response, page))
 		repoCall.Unset()
