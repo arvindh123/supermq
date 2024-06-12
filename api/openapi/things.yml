@@ -1788,10 +1788,6 @@ components:
           operationId: getThing
           parameters:
             thingID: $response.body#/id
-        get_channels:
-          operationId: listChannelsConnectedToThing
-          parameters:
-            thingID: $response.body#/id
         update:
           operationId: updateThing
           parameters:
@@ -1828,10 +1824,6 @@ components:
           schema:
             $ref: "#/components/schemas/Thing"
       links:
-        get_channels:
-          operationId: listChannelsConnectedToThing
-          parameters:
-            thingID: $response.body#/id
         share:
           operationId: shareThing
           parameters:
@@ -1872,18 +1864,6 @@ components:
           operationId: getChannel
           parameters:
             chanID: $response.body#/id
-        get_things:
-          operationId: listThingsInaChannel
-          parameters:
-            chanID: $response.body#/id
-        get_users:
-          operationId: listChannelsConnectedToUser
-          parameters:
-            memberID: $response.body#/id
-        get_groups:
-          operationId: listChannelsConnectedToGroup
-          parameters:
-            memberID: $response.body#/id
         update:
           operationId: updateChannel
           parameters:
@@ -1920,18 +1900,6 @@ components:
           schema:
             $ref: "#/components/schemas/Channel"
       links:
-        get_things:
-          operationId: listThingsInaChannel
-          parameters:
-            chanID: $response.body#/id
-        get_users:
-          operationId: listChannelsConnectedToUser
-          parameters:
-            memberID: $response.body#/id
-        get_groups:
-          operationId: listChannelsConnectedToGroup
-          parameters:
-            memberID: $response.body#/id
         assign_users:
           operationId: assignUsersToChannel
           parameters:

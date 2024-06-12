@@ -79,6 +79,8 @@ paths:
           description: Failed due to malformed query parameters.
         "401":
           description: Missing or invalid access token provided.
+        "403":
+          description: Unauthorized access to domain."
         "404":
           description: A non-existent entity request.
         "422":
