@@ -371,7 +371,7 @@ paths:
         "500":
           $ref: "#/components/responses/ServiceError"
 
-  /members:
+  /users/members:
     get:
       operationId: listUsersByEntityID
       tags:
