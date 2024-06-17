@@ -197,8 +197,9 @@ components:
           enum:
             - administrator
             - editor
-            - viewer
+            - contributor
             - member
+            - guest
             - domain
             - parent_group
             - role_group
@@ -238,8 +239,9 @@ components:
           enum:
             - administrator
             - editor
-            - viewer
+            - contributor
             - member
+            - guest
             - domain
             - parent_group
             - role_group
@@ -406,8 +408,9 @@ components:
         enum:
           - administrator
           - editor
-          - viewer
+          - contributor
           - member
+          - guest
           - domain
           - parent_group
           - role_group
