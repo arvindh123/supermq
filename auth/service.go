@@ -71,6 +71,12 @@ var (
 		AdminPermission,
 		MembershipPermission,
 	}
+
+	errCreatePAT   = errors.New("failed to create PAT")
+	errUpdatePAT   = errors.New("failed to update PAT")
+	errRetrievePAT = errors.New("failed to retrieve PAT")
+	errDeletePAT   = errors.New("failed to delete PAT")
+	errRevokePAT   = errors.New("failed to revoke PAT")
 )
 
 // Authn specifies an API that must be fulfilled by the domain service
@@ -105,6 +111,7 @@ type Service interface {
 	Authn
 	Authz
 	Domains
+	PATS
 }
 
 var _ Service = (*service)(nil)
@@ -112,6 +119,7 @@ var _ Service = (*service)(nil)
 type service struct {
 	keys               KeyRepository
 	domains            DomainsRepository
+	pats               PATSRepository
 	idProvider         magistrala.IDProvider
 	agent              PolicyAgent
 	tokenizer          Tokenizer
@@ -208,10 +216,14 @@ func (svc service) Authorize(ctx context.Context, pr PolicyReq) error {
 			return errors.Wrap(svcerr.ErrAuthentication, err)
 		}
 		if key.Subject == "" {
-			if pr.ObjectType == GroupType || pr.ObjectType == ThingType || pr.ObjectType == DomainType {
+			switch {
+			case pr.ObjectType == GroupType || pr.ObjectType == ThingType || pr.ObjectType == DomainType:
 				return svcerr.ErrDomainAuthorization
+			case pr.ObjectType == UserType:
+				key.Subject = key.User
+			default:
+				return svcerr.ErrAuthentication
 			}
-			return svcerr.ErrAuthentication
 		}
 		pr.Subject = key.Subject
 		pr.Domain = key.Domain
@@ -1065,4 +1077,140 @@ func (svc service) DeleteEntityPolicies(ctx context.Context, entityType, id stri
 	default:
 		return errInvalidEntityType
 	}
+}
+
+func (svc service) Create(ctx context.Context, token, name, description string, duration time.Duration, scope Scope) (PAT, error) {
+	key, err := svc.Identify(ctx, token)
+	if err != nil {
+		return PAT{}, err
+	}
+
+	pat := PAT{
+		User: key.User,
+	}
+	id, err := svc.pats.Save(ctx, pat)
+	if err != nil {
+		return PAT{}, errors.Wrap(errCreatePAT, err)
+	}
+	pat.ID = id
+	return pat, nil
+}
+func (svc service) UpdateName(ctx context.Context, token, patID, name string) (PAT, error) {
+	key, err := svc.Identify(ctx, token)
+	if err != nil {
+		return PAT{}, err
+	}
+	pat, err := svc.pats.UpdateName(ctx, key.User, patID, name)
+	if err != nil {
+		return PAT{}, errors.Wrap(errUpdatePAT, err)
+	}
+	return pat, nil
+}
+func (svc service) UpdateDescription(ctx context.Context, token, patID, description string) (PAT, error) {
+	key, err := svc.Identify(ctx, token)
+	if err != nil {
+		return PAT{}, err
+	}
+	pat, err := svc.pats.UpdateDescription(ctx, key.User, patID, description)
+	if err != nil {
+		return PAT{}, errors.Wrap(errUpdatePAT, err)
+	}
+	return pat, nil
+}
+func (svc service) Retrieve(ctx context.Context, token, patID string) (PAT, error) {
+	key, err := svc.Identify(ctx, token)
+	if err != nil {
+		return PAT{}, err
+	}
+
+	pat, err := svc.pats.Retrieve(ctx, key.User, patID)
+	if err != nil {
+		return PAT{}, errors.Wrap(errRetrievePAT, err)
+	}
+	return pat, nil
+}
+func (svc service) List(ctx context.Context, token string) (PATSPage, error) {
+	key, err := svc.Identify(ctx, token)
+	if err != nil {
+		return PATSPage{}, err
+	}
+	patsPage, err := svc.pats.RetrieveAll(ctx, key.User)
+	if err != nil {
+		return PATSPage{}, errors.Wrap(errRetrievePAT, err)
+	}
+	return patsPage, nil
+}
+func (svc service) Delete(ctx context.Context, token, patID string) error {
+	key, err := svc.Identify(ctx, token)
+	if err != nil {
+		return err
+	}
+	if err := svc.pats.Remove(ctx, key.User, patID); err != nil {
+		return errors.Wrap(errDeletePAT, err)
+	}
+	return nil
+}
+func (svc service) ResetToken(ctx context.Context, token, patID string, duration time.Duration) (PAT, error) {
+	key, err := svc.Identify(ctx, token)
+	if err != nil {
+		return PAT{}, err
+	}
+
+	var newTokenHash string
+	var newExpiry time.Time
+	// Generate new HashToken take place here
+
+	pat, err := svc.pats.UpdateTokenHash(ctx, key.User, patID, newTokenHash, newExpiry)
+	if err != nil {
+		return PAT{}, errors.Wrap(errUpdatePAT, err)
+	}
+	return pat, nil
+}
+func (svc service) RevokeToken(ctx context.Context, token, patID string) error {
+	key, err := svc.Identify(ctx, token)
+	if err != nil {
+		return err
+	}
+
+	if err := svc.pats.Revoke(ctx, key.User, patID); err != nil {
+		return errors.Wrap(errRevokePAT, err)
+	}
+	return nil
+}
+func (svc service) AddScope(ctx context.Context, token, patID string, platformEntityType PlatformEntityType, optionalDomainID string, optionalDomainEntityType DomainEntityType, operation OperationType, entityIDs ...string) (Scope, error) {
+	key, err := svc.Identify(ctx, token)
+	if err != nil {
+		return Scope{}, err
+	}
+	if err := svc.pats.AddScope(ctx, key.User, patID); err != nil {
+		return errors.Wrap(errRevokePAT, err)
+	}
+	return nil
+}
+func (svc service) RemoveScope(ctx context.Context, token, patID string, platformEntityType PlatformEntityType, optionalDomainID string, optionalDomainEntityType DomainEntityType, operation OperationType, entityIDs ...string) (Scope, error) {
+	key, err := svc.Identify(ctx, token)
+	if err != nil {
+		return Scope{}, err
+	}
+	return nil
+}
+func (svc service) ClearAllScope(ctx context.Context, token, patID string) error {
+	key, err := svc.Identify(ctx, token)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+func (svc service) TestCheckScope(ctx context.Context, token, patID string, platformEntityType PlatformEntityType, optionalDomainID string, optionalDomainEntityType DomainEntityType, operation OperationType, entityIDs ...string) error {
+	key, err := svc.Identify(ctx, token)
+	if err != nil {
+		return PAT{}, err
+	}
+	return nil
+}
+func (svc service) IdentifyPAT(ctx context.Context, paToken string) (PAT, error) {
+	return PAT{}, nil
+}
+func (svc service) AuthorizationPAT(ctx context.Context, paToken string) (PAT, error) {
+	return PAT{}, nil
 }
