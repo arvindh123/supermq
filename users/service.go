@@ -181,19 +181,23 @@ func (svc service) ListClients(ctx context.Context, token string, pm mgclients.P
 	if err != nil {
 		return mgclients.ClientsPage{}, err
 	}
-	if err := svc.checkSuperAdmin(ctx, res.GetUserId()); err == nil {
-		isSuperAdmin = true
-	}
 
+	switch {
 	// If pm.EntityType and pm.EntityID are not empty, then it is /users?thing=<id> or /users?channel=<id> or /users?group=<id>or /users?domain=<id> request.
 	// For this request we need to list all users present in the requested entity id , i.e users of requested thing ID  or users of requested channel ID or  users of requested group ID or users of requested domain ID.
-	if pm.EntityType != "" && pm.EntityID != "" {
+	case pm.EntityType != "" && pm.EntityID != "":
 		// Get users list from spiceDB
 		userIDs, err := svc.listUsers(ctx, res.GetDomainId(), res.GetId(), pm.EntityType, pm.EntityID, pm.Permission)
 		if err != nil {
 			return mgclients.ClientsPage{}, err
 		}
 		pm.IDs = userIDs
+	// If pm.EntityType or pm.EntityID is not empty, then the request is consider for /users
+	default:
+		// After implementing search API, this will be removed for accessing by normal user. At here if err it should return after search API becomes stable.
+		if err := svc.checkSuperAdmin(ctx, res.GetUserId()); err == nil {
+			isSuperAdmin = true
+		}
 	}
 
 	// If length of pm.IDs is zero, then it is a list users request i.e /users request. This endpoint should be accessible only by SuperAdmin.
