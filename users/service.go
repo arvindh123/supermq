@@ -176,6 +176,7 @@ func (svc service) ViewProfile(ctx context.Context, token string) (mgclients.Cli
 }
 
 func (svc service) ListClients(ctx context.Context, token string, pm mgclients.Page) (mgclients.ClientsPage, error) {
+	// After implementing search API, this will be removed for accessing by normal user. At here if err it should return after search API becomes stable.
 	var isSuperAdmin bool = false
 	res, err := svc.identify(ctx, token)
 	if err != nil {
@@ -195,21 +196,20 @@ func (svc service) ListClients(ctx context.Context, token string, pm mgclients.P
 	// If pm.EntityType or pm.EntityID is not empty, then the request is consider for /users
 	default:
 		// After implementing search API, this will be removed for accessing by normal user. At here if err it should return after search API becomes stable.
+		// if err := svc.checkSuperAdmin(ctx, res.GetUserId()); err != nil {
+		// 	mgclients.ClientsPage{}, err
+		// }
 		if err := svc.checkSuperAdmin(ctx, res.GetUserId()); err == nil {
 			isSuperAdmin = true
 		}
 	}
 
-	// If length of pm.IDs is zero, then it is a list users request i.e /users request. This endpoint should be accessible only by SuperAdmin.
-	// Uncomment the below lines to disable list users (/users) by any authenticated users. This can be uncommented when /search api is implemented.
-	// if len(pm.IDs) == 0 && !isSuperAdmin {
-	// 	return mgclients.ClientsPage{}, errors.Wrap(svcerr.ErrAuthorization, err)
-	// }
-
 	usersPage, err := svc.clients.RetrieveAll(ctx, pm)
 	if err != nil {
 		return mgclients.ClientsPage{}, errors.Wrap(svcerr.ErrViewEntity, err)
 	}
+
+	// After implementing search API, this will be removed for accessing by normal user. At here if err it should return after search API becomes stable.
 	// Remove user information if request user is not SuperAdmin
 	if !isSuperAdmin {
 		for i, c := range usersPage.Clients {
