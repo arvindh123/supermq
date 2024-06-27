@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -16,6 +17,7 @@ import (
 	"time"
 
 	"github.com/absmach/magistrala/pkg/errors"
+	"moul.io/http2curl"
 )
 
 const (
@@ -951,9 +953,9 @@ type SDK interface {
 	// IssueCert issues a certificate for a thing required for mTLS.
 	//
 	// example:
-	//  cert, _ := sdk.IssueCert("thingID", "valid", "token")
+	//  cert, _ := sdk.IssueCert("thingID", "24h", "token")
 	//  fmt.Println(cert)
-	IssueCert(thingID, valid, token string) (Cert, errors.SDKError)
+	IssueCert(thingID, validity, token string) (Cert, errors.SDKError)
 
 	// ViewCert returns a certificate given certificate ID
 	//
@@ -1178,6 +1180,7 @@ type mgSDK struct {
 
 	msgContentType ContentType
 	client         *http.Client
+	curlFlag       bool
 }
 
 // Config contains sdk configuration parameters.
@@ -1194,6 +1197,7 @@ type Config struct {
 
 	MsgContentType  ContentType
 	TLSVerification bool
+	CurlFlag        bool
 }
 
 // NewSDK returns new magistrala SDK instance.
@@ -1217,6 +1221,7 @@ func NewSDK(conf Config) SDK {
 				},
 			},
 		},
+		curlFlag: conf.CurlFlag,
 	}
 }
 
@@ -1241,6 +1246,14 @@ func (sdk mgSDK) processRequest(method, reqUrl, token string, data []byte, heade
 			token = BearerPrefix + token
 		}
 		req.Header.Set("Authorization", token)
+	}
+
+	if sdk.curlFlag {
+		curlCommand, err := http2curl.GetCurlCommand(req)
+		if err != nil {
+			return nil, nil, errors.NewSDKError(err)
+		}
+		log.Println(curlCommand.String())
 	}
 
 	resp, err := sdk.client.Do(req)
