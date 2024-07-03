@@ -21,6 +21,23 @@ const (
 	DeleteOp
 )
 
+func (ot OperationType) ValidString() (string, error) {
+	switch ot {
+	case CreateOp:
+		return "create", nil
+	case ReadOp:
+		return "read", nil
+	case ListOp:
+		return "list", nil
+	case UpdateOp:
+		return "update", nil
+	case DeleteOp:
+		return "delete", nil
+	default:
+		return "", fmt.Errorf("unknown operation type %d", ot)
+	}
+}
+
 func (ot OperationType) String() string {
 	switch ot {
 	case CreateOp:
@@ -79,6 +96,21 @@ const (
 	DomainNullScope
 )
 
+func (det DomainEntityType) ValidString() (string, error) {
+	switch det {
+	case DomainManagementScope:
+		return "domain_management", nil
+	case DomainGroupsScope:
+		return "groups", nil
+	case DomainChannelsScope:
+		return "channels", nil
+	case DomainThingsScope:
+		return "things", nil
+	default:
+		return "", fmt.Errorf("unknown domain entity type %d", det)
+	}
+}
+
 func (det DomainEntityType) String() string {
 	switch det {
 	case DomainManagementScope:
@@ -130,6 +162,17 @@ const (
 	PlatformDomainsScope
 )
 
+func (pet PlatformEntityType) ValidString() (string, error) {
+	switch pet {
+	case PlatformUsersScope:
+		return "users", nil
+	case PlatformDomainsScope:
+		return "domains", nil
+	default:
+		return "", fmt.Errorf("unknown platform entity type %d", pet)
+	}
+}
+
 func (pet PlatformEntityType) String() string {
 	switch pet {
 	case PlatformUsersScope:
@@ -168,17 +211,26 @@ func (pet *PlatformEntityType) UnmarshalText(data []byte) (err error) {
 // ScopeValue interface for Any entity ids or for sets of entity ids.
 type ScopeValue interface {
 	Contains(id string) bool
+	Values() []string
 }
 
 // AnyIDs implements ScopeValue for any entity id value.
 type AnyIDs struct{}
 
 func (s AnyIDs) Contains(id string) bool { return true }
+func (s AnyIDs) Values() []string        { return []string{"*"} }
 
 // SelectedIDs implements ScopeValue for sets of entity ids.
 type SelectedIDs map[string]struct{}
 
 func (s SelectedIDs) Contains(id string) bool { _, ok := s[id]; return ok }
+func (s SelectedIDs) Values() []string {
+	values := []string{}
+	for value := range s {
+		values = append(values, value)
+	}
+	return values
+}
 
 // OperationScope contains map of OperationType with value of AnyIDs or SelectedIDs.
 type OperationScope struct {
@@ -536,8 +588,8 @@ type PAT struct {
 	ID          string    `json:"id,omitempty"`
 	User        string    `json:"user,omitempty"`
 	Name        string    `json:"name,omitempty"`
-	Description string    `json:"Description,omitempty"`
-	Token       string    `json:"Token,omitempty"`
+	Description string    `json:"description,omitempty"`
+	Token       string    `json:"token,omitempty"`
 	Scope       Scope     `json:"scope,omitempty"`
 	IssuedAt    time.Time `json:"issued_at,omitempty"`
 	ExpiresAt   time.Time `json:"expires_at,omitempty"`
@@ -619,7 +671,7 @@ type PATS interface {
 //go:generate mockery --name PATSRepository --output=./mocks --filename patsrepo.go --quiet --note "Copyright (c) Abstract Machines"
 type PATSRepository interface {
 	// Save persists the PAT
-	Save(ctx context.Context, pat PAT) (id string, err error)
+	Save(ctx context.Context, pat PAT) (err error)
 
 	// Retrieve retrieves users PAT by its unique identifier.
 	Retrieve(ctx context.Context, userID, patID string) (pat PAT, err error)
@@ -632,9 +684,6 @@ type PATSRepository interface {
 
 	// UpdateTokenHash updates the token hash of a PAT.
 	UpdateTokenHash(ctx context.Context, userID, patID, tokenHash string, expiryAt time.Time) (PAT, error)
-
-	// UpdateLastUsed updates the last used details of a PAT.
-	UpdateLastUsed(ctx context.Context, token, patID, description string) (PAT, error)
 
 	// RetrieveAll retrieves all PATs belongs to userID.
 	RetrieveAll(ctx context.Context, userID string) (pats PATSPage, err error)

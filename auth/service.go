@@ -1091,13 +1091,12 @@ func (svc service) Create(ctx context.Context, token, name, description string, 
 	pat := PAT{
 		User: key.User,
 	}
-	id, err := svc.pats.Save(ctx, pat)
-	if err != nil {
+	if err := svc.pats.Save(ctx, pat); err != nil {
 		return PAT{}, errors.Wrap(errCreatePAT, err)
 	}
-	pat.ID = id
 	return pat, nil
 }
+
 func (svc service) UpdateName(ctx context.Context, token, patID, name string) (PAT, error) {
 	key, err := svc.Identify(ctx, token)
 	if err != nil {
