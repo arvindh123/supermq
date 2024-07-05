@@ -36,20 +36,20 @@ func main() {
 		Scope: auth.Scope{
 			Users: auth.OperationScope{
 				Operations: map[auth.OperationType]auth.ScopeValue{
-					auth.ReadOp: auth.AnyIDs{},
+					auth.ReadOp: &auth.AnyIDs{},
 				},
 			},
 			Domains: map[string]auth.DomainScope{
 				"domain_1": {
 					DomainManagement: auth.OperationScope{
 						Operations: map[auth.OperationType]auth.ScopeValue{
-							auth.ReadOp: auth.AnyIDs{},
+							auth.ReadOp: &auth.AnyIDs{},
 						},
 					},
 					Entities: map[auth.DomainEntityType]auth.OperationScope{
 						auth.DomainGroupsScope: {
 							Operations: map[auth.OperationType]auth.ScopeValue{
-								auth.ReadOp: auth.SelectedIDs{"group_1": {}, "group_2": {}},
+								auth.ReadOp: &auth.SelectedIDs{"group_1": {}, "group_2": {}},
 							},
 						},
 					},
@@ -67,5 +67,13 @@ func main() {
 		panic(err)
 	}
 	fmt.Println(rPAT.String())
+
+	fmt.Println(patrepo.CheckScopeEntry(context.Background(), pat.User, pat.ID, auth.PlatformDomainsScope, "domain_1", auth.DomainGroupsScope, auth.ReadOp, "group_1"))
+	fmt.Println(patrepo.CheckScopeEntry(context.Background(), pat.User, pat.ID, auth.PlatformDomainsScope, "domain_1", auth.DomainGroupsScope, auth.ReadOp, "group_2"))
+	fmt.Println(patrepo.CheckScopeEntry(context.Background(), pat.User, pat.ID, auth.PlatformDomainsScope, "domain_1", auth.DomainGroupsScope, auth.UpdateOp, "group_1"))
+	fmt.Println(patrepo.CheckScopeEntry(context.Background(), pat.User, pat.ID, auth.PlatformDomainsScope, "domain_1", auth.DomainGroupsScope, auth.UpdateOp, "group_2"))
+	fmt.Println(patrepo.CheckScopeEntry(context.Background(), pat.User, pat.ID, auth.PlatformDomainsScope, "domain_1", auth.DomainThingsScope, auth.UpdateOp, "group_2"))
+	fmt.Println(patrepo.CheckScopeEntry(context.Background(), pat.User, pat.ID, auth.PlatformUsersScope, "", auth.DomainNullScope, auth.ReadOp, "user_123"))
+	fmt.Println(patrepo.CheckScopeEntry(context.Background(), pat.User, pat.ID, auth.PlatformUsersScope, "", auth.DomainNullScope, auth.UpdateOp, "user_123"))
 
 }

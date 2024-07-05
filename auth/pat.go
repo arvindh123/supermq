@@ -8,6 +8,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
+
+	"github.com/absmach/magistrala/pkg/errors"
+)
+
+var (
+	errAddEntityToAnyIDs = errors.New("could not add entity id to any ID scope value")
 )
 
 // Define OperationType.
@@ -212,13 +218,17 @@ func (pet *PlatformEntityType) UnmarshalText(data []byte) (err error) {
 type ScopeValue interface {
 	Contains(id string) bool
 	Values() []string
+	AddValues(ids ...string) error
+	RemoveValues(ids ...string) error
 }
 
 // AnyIDs implements ScopeValue for any entity id value.
 type AnyIDs struct{}
 
-func (s AnyIDs) Contains(id string) bool { return true }
-func (s AnyIDs) Values() []string        { return []string{"*"} }
+func (s AnyIDs) Contains(id string) bool           { return true }
+func (s AnyIDs) Values() []string                  { return []string{"*"} }
+func (s *AnyIDs) AddValues(ids ...string) error    { return errAddEntityToAnyIDs }
+func (s *AnyIDs) RemoveValues(ids ...string) error { return errAddEntityToAnyIDs }
 
 // SelectedIDs implements ScopeValue for sets of entity ids.
 type SelectedIDs map[string]struct{}
@@ -230,6 +240,25 @@ func (s SelectedIDs) Values() []string {
 		values = append(values, value)
 	}
 	return values
+}
+func (s *SelectedIDs) AddValues(ids ...string) error {
+	if *s == nil {
+		*s = make(SelectedIDs)
+	}
+	for _, id := range ids {
+		(*s)[id] = struct{}{}
+	}
+	return nil
+}
+
+func (s *SelectedIDs) RemoveValues(ids ...string) error {
+	if *s == nil {
+		return nil
+	}
+	for _, id := range ids {
+		delete(*s, id)
+	}
+	return nil
 }
 
 // OperationScope contains map of OperationType with value of AnyIDs or SelectedIDs.
@@ -257,9 +286,9 @@ func (os *OperationScope) UnmarshalJSON(data []byte) error {
 		if err := json.Unmarshal(rawMessage, &stringValue); err == nil {
 			switch {
 			case stringValue == "*":
-				os.Operations[opType] = AnyIDs{}
+				os.Operations[opType] = &AnyIDs{}
 			default:
-				os.Operations[opType] = SelectedIDs{stringValue: {}}
+				os.Operations[opType] = &SelectedIDs{stringValue: {}}
 			}
 			continue
 		}
@@ -270,7 +299,7 @@ func (os *OperationScope) UnmarshalJSON(data []byte) error {
 			for _, stringVal := range stringArrayValue {
 				sids[stringVal] = struct{}{}
 			}
-			os.Operations[opType] = sids
+			os.Operations[opType] = &sids
 			continue
 		}
 
@@ -293,7 +322,7 @@ func (os *OperationScope) Add(operation OperationType, entityIDs ...string) erro
 	}
 	switch {
 	case len(entityIDs) == 1 && entityIDs[0] == "*":
-		value = AnyIDs{}
+		value = &AnyIDs{}
 	default:
 		var sids SelectedIDs
 		for _, entityID := range entityIDs {
@@ -305,7 +334,7 @@ func (os *OperationScope) Add(operation OperationType, entityIDs ...string) erro
 			}
 			sids[entityID] = struct{}{}
 		}
-		value = sids
+		value = &sids
 	}
 	os.Operations[operation] = value
 	return nil
@@ -326,21 +355,21 @@ func (os *OperationScope) Delete(operation OperationType, entityIDs ...string) e
 	}
 
 	switch eIDs := opEntityIDs.(type) {
-	case AnyIDs:
+	case *AnyIDs:
 		if !(len(entityIDs) == 1 && entityIDs[0] == "*") {
 			return fmt.Errorf("failed to delete operation %s: invalid list", operation.String())
 		}
 		delete(os.Operations, operation)
 		return nil
-	case SelectedIDs:
+	case *SelectedIDs:
 		for _, entityID := range entityIDs {
 			if !eIDs.Contains(entityID) {
 				return fmt.Errorf("failed to delete operation %s: invalid entity ID in list", operation.String())
 			}
 		}
 		for _, entityID := range entityIDs {
-			delete(eIDs, entityID)
-			if len(eIDs) == 0 {
+			delete(*eIDs, entityID)
+			if len(*eIDs) == 0 {
 				delete(os.Operations, operation)
 			}
 		}
@@ -357,7 +386,7 @@ func (os *OperationScope) Check(operation OperationType, entityIDs ...string) bo
 
 	if scopeValue, ok := os.Operations[operation]; ok {
 		if len(entityIDs) == 0 {
-			_, ok := scopeValue.(AnyIDs)
+			_, ok := scopeValue.(*AnyIDs)
 			return ok
 		}
 		for _, entityID := range entityIDs {
