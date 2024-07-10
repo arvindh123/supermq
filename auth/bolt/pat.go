@@ -87,7 +87,7 @@ func (pr *patRepo) Save(ctx context.Context, pat auth.PAT) error {
 func (pr *patRepo) Retrieve(ctx context.Context, userID, patID string) (auth.PAT, error) {
 	prefix := []byte(patID + keySeparator)
 	kv := map[string][]byte{}
-	if err := pr.db.Update(func(tx *bolt.Tx) error {
+	if err := pr.db.View(func(tx *bolt.Tx) error {
 		b, err := pr.retrieveUserBucket(tx, userID)
 		if err != nil {
 			return errors.Wrap(repoerr.ErrRemoveEntity, err)
@@ -141,10 +141,10 @@ func (pr *patRepo) RetrieveAll(ctx context.Context, userID string, pm auth.PATSP
 	prefix := []byte(userID + keySeparator + patKey + keySeparator)
 
 	patIDs := []string{}
-	if err := pr.db.Update(func(tx *bolt.Tx) error {
+	if err := pr.db.View(func(tx *bolt.Tx) error {
 		b, err := pr.retrieveUserBucket(tx, userID)
 		if err != nil {
-			return errors.Wrap(repoerr.ErrRemoveEntity, err)
+			return errors.Wrap(repoerr.ErrViewEntity, err)
 		}
 		c := b.Cursor()
 		for k, v := c.Seek(prefix); k != nil && bytes.HasPrefix(k, prefix); k, v = c.Next() {
@@ -342,7 +342,11 @@ func (pr *patRepo) retrieveUserBucket(tx *bolt.Tx, userID string) (*bolt.Bucket,
 		return nil, fmt.Errorf("bucket %s not found", pr.bucketName)
 	}
 
-	return rootBucket.Bucket([]byte(userID)), nil
+	userBucket := rootBucket.Bucket([]byte(userID))
+	if userBucket == nil {
+		return nil, fmt.Errorf("user %s not found", userID)
+	}
+	return userBucket, nil
 }
 
 func (pr *patRepo) updatePATField(_ context.Context, userID, patID, key string, value []byte) (auth.PAT, error) {

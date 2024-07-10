@@ -1089,7 +1089,12 @@ func (svc service) CreatePAT(ctx context.Context, token, name, description strin
 		return PAT{}, err
 	}
 
+	id, err := svc.idProvider.ID()
+	if err != nil {
+		return PAT{}, errors.Wrap(svcerr.ErrCreateEntity, err)
+	}
 	pat := PAT{
+		ID:   id,
 		User: key.User,
 	}
 	if err := svc.pats.Save(ctx, pat); err != nil {

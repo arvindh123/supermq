@@ -10,7 +10,6 @@ import (
 
 	"github.com/absmach/magistrala/auth"
 	"github.com/absmach/magistrala/pkg/apiutil"
-	"github.com/absmach/magistrala/pkg/errors"
 )
 
 type createPatReq struct {
@@ -51,9 +50,6 @@ func (req createPatReq) validate() (err error) {
 		return apiutil.ErrMissingName
 	}
 
-	if _, err := time.ParseDuration(req.Description); err != nil {
-		return errors.Wrap(apiutil.ErrInvalidInterval, err)
-	}
 	return nil
 }
 
