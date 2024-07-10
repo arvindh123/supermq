@@ -25,18 +25,26 @@ const (
 	DeleteOp
 )
 
+const (
+	createOpStr = "create"
+	readOpStr   = "read"
+	listOpStr   = "list"
+	updateOpStr = "update"
+	deleteOpStr = "delete"
+)
+
 func (ot OperationType) ValidString() (string, error) {
 	switch ot {
 	case CreateOp:
-		return "create", nil
+		return createOpStr, nil
 	case ReadOp:
-		return "read", nil
+		return readOpStr, nil
 	case ListOp:
-		return "list", nil
+		return listOpStr, nil
 	case UpdateOp:
-		return "update", nil
+		return updateOpStr, nil
 	case DeleteOp:
-		return "delete", nil
+		return deleteOpStr, nil
 	default:
 		return "", fmt.Errorf("unknown operation type %d", ot)
 	}
@@ -45,15 +53,15 @@ func (ot OperationType) ValidString() (string, error) {
 func (ot OperationType) String() string {
 	switch ot {
 	case CreateOp:
-		return "create"
+		return createOpStr
 	case ReadOp:
-		return "read"
+		return readOpStr
 	case ListOp:
-		return "list"
+		return listOpStr
 	case UpdateOp:
-		return "update"
+		return updateOpStr
 	case DeleteOp:
-		return "delete"
+		return deleteOpStr
 	default:
 		return fmt.Sprintf("unknown operation type %d", ot)
 	}
@@ -61,15 +69,15 @@ func (ot OperationType) String() string {
 
 func ParseOperationType(ot string) (OperationType, error) {
 	switch ot {
-	case "create":
+	case createOpStr:
 		return CreateOp, nil
-	case "read":
+	case readOpStr:
 		return ReadOp, nil
-	case "list":
+	case listOpStr:
 		return ListOp, nil
-	case "update":
+	case updateOpStr:
 		return UpdateOp, nil
-	case "delete":
+	case deleteOpStr:
 		return DeleteOp, nil
 	default:
 		return 0, fmt.Errorf("unknown operation type %s", ot)
@@ -100,16 +108,23 @@ const (
 	DomainNullScope
 )
 
+const (
+	domainManagementScopeStr = "domain_management"
+	domainGroupsScopeStr     = "groups"
+	domainChannelsScopeStr   = "channels"
+	domainThingsScopeStr     = "things"
+)
+
 func (det DomainEntityType) ValidString() (string, error) {
 	switch det {
 	case DomainManagementScope:
-		return "domain_management", nil
+		return domainManagementScopeStr, nil
 	case DomainGroupsScope:
-		return "groups", nil
+		return domainGroupsScopeStr, nil
 	case DomainChannelsScope:
-		return "channels", nil
+		return domainChannelsScopeStr, nil
 	case DomainThingsScope:
-		return "things", nil
+		return domainThingsScopeStr, nil
 	default:
 		return "", fmt.Errorf("unknown domain entity type %d", det)
 	}
@@ -118,13 +133,13 @@ func (det DomainEntityType) ValidString() (string, error) {
 func (det DomainEntityType) String() string {
 	switch det {
 	case DomainManagementScope:
-		return "domain_management"
+		return domainManagementScopeStr
 	case DomainGroupsScope:
-		return "groups"
+		return domainGroupsScopeStr
 	case DomainChannelsScope:
-		return "channels"
+		return domainChannelsScopeStr
 	case DomainThingsScope:
-		return "things"
+		return domainThingsScopeStr
 	default:
 		return fmt.Sprintf("unknown domain entity type %d", det)
 	}
@@ -132,13 +147,13 @@ func (det DomainEntityType) String() string {
 
 func ParseDomainEntityType(det string) (DomainEntityType, error) {
 	switch det {
-	case "domain_management":
+	case domainManagementScopeStr:
 		return DomainManagementScope, nil
-	case "groups":
+	case domainGroupsScopeStr:
 		return DomainGroupsScope, nil
-	case "channels":
+	case domainChannelsScopeStr:
 		return DomainChannelsScope, nil
-	case "things":
+	case domainThingsScopeStr:
 		return DomainThingsScope, nil
 	default:
 		return 0, fmt.Errorf("unknown domain entity type %s", det)

@@ -197,6 +197,6 @@ func testCheckPATScopeEntryEndpoint(svc auth.Service) endpoint.Endpoint {
 			return nil, err
 		}
 
-		return revokePatSecretRes{}, nil
+		return testCheckPatScopeRes{}, nil
 	}
 }
