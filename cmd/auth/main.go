@@ -51,6 +51,7 @@ const (
 	envPrefixHTTP  = "MG_AUTH_HTTP_"
 	envPrefixGrpc  = "MG_AUTH_GRPC_"
 	envPrefixDB    = "MG_AUTH_DB_"
+	envPrefixPATDB = "MG_AUTH_PAT_DB_"
 	defDB          = "auth"
 	defSvcHTTPPort = "8189"
 	defSvcGRPCPort = "8181"
@@ -132,13 +133,17 @@ func main() {
 	}
 
 	boltDBConfig := boltclient.Config{}
-	if err := env.ParseWithOptions(&boltDBConfig, env.Options{}); err != nil {
-		panic(err)
+	if err := env.ParseWithOptions(&boltDBConfig, env.Options{Prefix: envPrefixPATDB}); err != nil {
+		logger.Error(fmt.Sprintf("failed to parse bolt db config : %s\n", err.Error()))
+		exitCode = 1
+		return
 	}
 
 	client, err := boltclient.Connect(boltDBConfig, bolt.Init)
 	if err != nil {
-		panic(err)
+		logger.Error(fmt.Sprintf("failed to connect to bolt db : %s\n", err.Error()))
+		exitCode = 1
+		return
 	}
 	defer client.Close()
 

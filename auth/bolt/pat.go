@@ -64,7 +64,11 @@ func (pr *patRepo) Save(ctx context.Context, pat auth.PAT) error {
 		return err
 	}
 	return pr.db.Update(func(tx *bolt.Tx) error {
-		b, err := pr.createRetrieveUserBucket(tx, pat.User)
+		rootBucket, err := pr.retrieveRootBucket(tx)
+		if err != nil {
+			return errors.Wrap(repoerr.ErrCreateEntity, err)
+		}
+		b, err := pr.createUserBucket(rootBucket, pat.User)
 		if err != nil {
 			return errors.Wrap(repoerr.ErrCreateEntity, err)
 		}
@@ -74,7 +78,7 @@ func (pr *patRepo) Save(ctx context.Context, pat auth.PAT) error {
 				return errors.Wrap(repoerr.ErrCreateEntity, err)
 			}
 		}
-		if err := b.Put([]byte(pat.User+keySeparator+patKey+pat.ID), []byte(pat.ID)); err != nil {
+		if err := rootBucket.Put([]byte(pat.User+keySeparator+patKey+keySeparator+pat.ID), []byte(pat.ID)); err != nil {
 			return errors.Wrap(repoerr.ErrCreateEntity, err)
 		}
 		return nil
@@ -139,7 +143,7 @@ func (pr *patRepo) RetrieveAll(ctx context.Context, userID string, pm auth.PATSP
 
 	patIDs := []string{}
 	if err := pr.db.View(func(tx *bolt.Tx) error {
-		b, err := pr.retrieveUserBucket(tx, userID)
+		b, err := pr.retrieveRootBucket(tx)
 		if err != nil {
 			return errors.Wrap(repoerr.ErrViewEntity, err)
 		}
@@ -175,7 +179,7 @@ func (pr *patRepo) RetrieveAll(ctx context.Context, userID string, pm auth.PATSP
 	}
 
 	for i := pm.Offset; i < aLimit; i++ {
-		if total < int(i) {
+		if int(i) < total {
 			pat, err := pr.Retrieve(ctx, userID, patIDs[i])
 			if err != nil {
 				return patsPage, err
@@ -319,12 +323,7 @@ func (pr *patRepo) RemoveAllScopeEntry(ctx context.Context, userID, patID string
 	return nil
 }
 
-func (pr *patRepo) createRetrieveUserBucket(tx *bolt.Tx, userID string) (*bolt.Bucket, error) {
-	rootBucket := tx.Bucket([]byte(pr.bucketName))
-	if rootBucket == nil {
-		return nil, errors.Wrap(repoerr.ErrCreateEntity, fmt.Errorf("bucket %s not found", pr.bucketName))
-	}
-
+func (pr *patRepo) createUserBucket(rootBucket *bolt.Bucket, userID string) (*bolt.Bucket, error) {
 	userBucket, err := rootBucket.CreateBucketIfNotExists([]byte(userID))
 	if err != nil {
 		return nil, errors.Wrap(repoerr.ErrCreateEntity, fmt.Errorf("failed to retrieve or create bucket for user %s : %w", userID, err))
@@ -334,9 +333,9 @@ func (pr *patRepo) createRetrieveUserBucket(tx *bolt.Tx, userID string) (*bolt.B
 }
 
 func (pr *patRepo) retrieveUserBucket(tx *bolt.Tx, userID string) (*bolt.Bucket, error) {
-	rootBucket := tx.Bucket([]byte(pr.bucketName))
-	if rootBucket == nil {
-		return nil, fmt.Errorf("bucket %s not found", pr.bucketName)
+	rootBucket, err := pr.retrieveRootBucket(tx)
+	if err != nil {
+		return nil, err
 	}
 
 	userBucket := rootBucket.Bucket([]byte(userID))
@@ -344,6 +343,14 @@ func (pr *patRepo) retrieveUserBucket(tx *bolt.Tx, userID string) (*bolt.Bucket,
 		return nil, fmt.Errorf("user %s not found", userID)
 	}
 	return userBucket, nil
+}
+
+func (pr *patRepo) retrieveRootBucket(tx *bolt.Tx) (*bolt.Bucket, error) {
+	rootBucket := tx.Bucket([]byte(pr.bucketName))
+	if rootBucket == nil {
+		return nil, fmt.Errorf("bucket %s not found", pr.bucketName)
+	}
+	return rootBucket, nil
 }
 
 func (pr *patRepo) updatePATField(_ context.Context, userID, patID, key string, value []byte) (auth.PAT, error) {

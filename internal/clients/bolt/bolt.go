@@ -32,10 +32,11 @@ func (fm *FileMode) UnmarshalText(text []byte) error {
 
 // Config contains BoltDB specific parameters.
 type Config struct {
-	FilePath string        `env:"FILE_PATH"    envDefault:"./bolt.db"`
-	FileMode FileMode      `env:"FILE_MODE"    envDefault:"0600"`
-	Bucket   string        `env:"BUCKET"      envDefault:"magistrala"`
-	Timeout  time.Duration `env:"TIMEOUT"      envDefault:"0"`
+	FileDirPath string        `env:"FILE_DIR_PATH"  envDefault:"./magistrala-data"`
+	FileName    string        `env:"FILE_NAME"      envDefault:"magistrala-pat.db"`
+	FileMode    FileMode      `env:"FILE_MODE"      envDefault:"0600"`
+	Bucket      string        `env:"BUCKET"         envDefault:"magistrala"`
+	Timeout     time.Duration `env:"TIMEOUT"        envDefault:"0"`
 }
 
 // Setup load configuration from environment and creates new BoltDB.
@@ -59,7 +60,8 @@ func SetupDB(envPrefix string, initFn func(*bolt.Tx, string) error) (*bolt.DB, e
 
 // Connect establishes connection to the BoltDB.
 func Connect(cfg Config, initFn func(*bolt.Tx, string) error) (*bolt.DB, error) {
-	db, err := bolt.Open(cfg.FilePath, fs.FileMode(cfg.FileMode), nil)
+	filePath := cfg.FileDirPath + "/" + cfg.FileName
+	db, err := bolt.Open(filePath, fs.FileMode(cfg.FileMode), nil)
 	if err != nil {
 		return nil, errors.Wrap(errConnect, err)
 	}
