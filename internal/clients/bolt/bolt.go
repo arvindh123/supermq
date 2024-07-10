@@ -10,7 +10,6 @@ import (
 
 	"github.com/absmach/magistrala/pkg/errors"
 	"github.com/caarlos0/env/v10"
-
 	bolt "go.etcd.io/bbolt"
 )
 
@@ -44,7 +43,7 @@ func Setup(envPrefix string, initFn func(*bolt.Tx, string) error) (*bolt.DB, err
 	return SetupDB(envPrefix, initFn)
 }
 
-// SetupDB load configuration from environment,
+// SetupDB load configuration from environment,.
 func SetupDB(envPrefix string, initFn func(*bolt.Tx, string) error) (*bolt.DB, error) {
 	cfg := Config{}
 	if err := env.ParseWithOptions(&cfg, env.Options{Prefix: envPrefix}); err != nil {

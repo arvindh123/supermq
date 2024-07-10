@@ -287,6 +287,7 @@ func (ms *metricsMiddleware) ListPATS(ctx context.Context, token string, pm auth
 	}(time.Now())
 	return ms.svc.ListPATS(ctx, token, pm)
 }
+
 func (ms *metricsMiddleware) DeletePAT(ctx context.Context, token, patID string) error {
 	defer func(begin time.Time) {
 		ms.counter.With("method", "delete_pat").Add(1)
@@ -310,6 +311,7 @@ func (ms *metricsMiddleware) RevokePATSecret(ctx context.Context, token, patID s
 	}(time.Now())
 	return ms.svc.RevokePATSecret(ctx, token, patID)
 }
+
 func (ms *metricsMiddleware) AddPATScopeEntry(ctx context.Context, token, patID string, platformEntityType auth.PlatformEntityType, optionalDomainID string, optionalDomainEntityType auth.DomainEntityType, operation auth.OperationType, entityIDs ...string) (auth.Scope, error) {
 	defer func(begin time.Time) {
 		ms.counter.With("method", "add_pat_scope_entry").Add(1)

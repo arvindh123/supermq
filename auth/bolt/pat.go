@@ -14,7 +14,6 @@ import (
 	"github.com/absmach/magistrala/auth"
 	"github.com/absmach/magistrala/pkg/errors"
 	repoerr "github.com/absmach/magistrala/pkg/errors/repository"
-
 	bolt "go.etcd.io/bbolt"
 )
 
@@ -161,7 +160,7 @@ func (pr *patRepo) RetrieveAll(ctx context.Context, userID string, pm auth.PATSP
 
 	var pats []auth.PAT
 
-	var patsPage = auth.PATSPage{
+	patsPage := auth.PATSPage{
 		Total:  uint64(total),
 		Limit:  pm.Limit,
 		Offset: pm.Offset,
@@ -276,7 +275,7 @@ func (pr *patRepo) RemoveScopeEntry(ctx context.Context, userID, patID string, p
 		if err != nil {
 			return err
 		}
-		for key, _ := range kv {
+		for key := range kv {
 			fullKey := []byte(patID + keySeparator + key)
 			if err := b.Delete(fullKey); err != nil {
 				return errors.Wrap(repoerr.ErrRemoveEntity, err)
@@ -430,6 +429,7 @@ func scopeToKeyValue(scope auth.Scope) (map[string][]byte, error) {
 	}
 	return kv, nil
 }
+
 func scopeEntryToKeyValue(platformEntityType auth.PlatformEntityType, optionalDomainID string, optionalDomainEntityType auth.DomainEntityType, operation auth.OperationType, entityIDs ...string) (map[string][]byte, error) {
 	if len(entityIDs) == 0 {
 		return nil, repoerr.ErrMalformedEntity

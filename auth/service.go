@@ -1114,6 +1114,7 @@ func (svc service) UpdatePATName(ctx context.Context, token, patID, name string)
 	}
 	return pat, nil
 }
+
 func (svc service) UpdatePATDescription(ctx context.Context, token, patID, description string) (PAT, error) {
 	key, err := svc.Identify(ctx, token)
 	if err != nil {
@@ -1125,6 +1126,7 @@ func (svc service) UpdatePATDescription(ctx context.Context, token, patID, descr
 	}
 	return pat, nil
 }
+
 func (svc service) RetrievePAT(ctx context.Context, token, patID string) (PAT, error) {
 	key, err := svc.Identify(ctx, token)
 	if err != nil {
@@ -1137,6 +1139,7 @@ func (svc service) RetrievePAT(ctx context.Context, token, patID string) (PAT, e
 	}
 	return pat, nil
 }
+
 func (svc service) ListPATS(ctx context.Context, token string, pm PATSPageMeta) (PATSPage, error) {
 	key, err := svc.Identify(ctx, token)
 	if err != nil {
@@ -1148,6 +1151,7 @@ func (svc service) ListPATS(ctx context.Context, token string, pm PATSPageMeta) 
 	}
 	return patsPage, nil
 }
+
 func (svc service) DeletePAT(ctx context.Context, token, patID string) error {
 	key, err := svc.Identify(ctx, token)
 	if err != nil {
@@ -1158,6 +1162,7 @@ func (svc service) DeletePAT(ctx context.Context, token, patID string) error {
 	}
 	return nil
 }
+
 func (svc service) ResetPATSecret(ctx context.Context, token, patID string, duration time.Duration) (PAT, error) {
 	key, err := svc.Identify(ctx, token)
 	if err != nil {
@@ -1174,6 +1179,7 @@ func (svc service) ResetPATSecret(ctx context.Context, token, patID string, dura
 	}
 	return pat, nil
 }
+
 func (svc service) RevokePATSecret(ctx context.Context, token, patID string) error {
 	key, err := svc.Identify(ctx, token)
 	if err != nil {
@@ -1193,11 +1199,11 @@ func (svc service) AddPATScopeEntry(ctx context.Context, token, patID string, pl
 	}
 	scope, err := svc.pats.AddScopeEntry(ctx, key.User, patID, platformEntityType, optionalDomainID, optionalDomainEntityType, operation, entityIDs...)
 	if err != nil {
-
 		return Scope{}, errors.Wrap(errRevokePAT, err)
 	}
 	return scope, nil
 }
+
 func (svc service) RemovePATScopeEntry(ctx context.Context, token, patID string, platformEntityType PlatformEntityType, optionalDomainID string, optionalDomainEntityType DomainEntityType, operation OperationType, entityIDs ...string) (Scope, error) {
 	key, err := svc.Identify(ctx, token)
 	if err != nil {
@@ -1209,6 +1215,7 @@ func (svc service) RemovePATScopeEntry(ctx context.Context, token, patID string,
 	}
 	return scope, nil
 }
+
 func (svc service) ClearPATAllScopeEntry(ctx context.Context, token, patID string) error {
 	key, err := svc.Identify(ctx, token)
 	if err != nil {

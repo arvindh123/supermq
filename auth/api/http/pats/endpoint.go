@@ -169,7 +169,6 @@ func removePATScopeEntryEndpoint(svc auth.Service) endpoint.Endpoint {
 		}
 		return removePatScopeEntryRes{scope}, nil
 	}
-
 }
 
 func clearPATAllScopeEntryEndpoint(svc auth.Service) endpoint.Endpoint {

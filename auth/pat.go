@@ -12,9 +12,7 @@ import (
 	"github.com/absmach/magistrala/pkg/errors"
 )
 
-var (
-	errAddEntityToAnyIDs = errors.New("could not add entity id to any ID scope value")
-)
+var errAddEntityToAnyIDs = errors.New("could not add entity id to any ID scope value")
 
 // Define OperationType.
 type OperationType uint32
@@ -241,6 +239,7 @@ func (s SelectedIDs) Values() []string {
 	}
 	return values
 }
+
 func (s *SelectedIDs) AddValues(ids ...string) error {
 	if *s == nil {
 		*s = make(SelectedIDs)

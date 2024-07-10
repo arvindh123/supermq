@@ -526,6 +526,7 @@ func (lm *loggingMiddleware) CreatePAT(ctx context.Context, token, name, descrip
 	}(time.Now())
 	return lm.svc.CreatePAT(ctx, token, name, description, duration, scope)
 }
+
 func (lm *loggingMiddleware) UpdatePATName(ctx context.Context, token, patID, name string) (pa auth.PAT, err error) {
 	defer func(begin time.Time) {
 		args := []any{
@@ -542,6 +543,7 @@ func (lm *loggingMiddleware) UpdatePATName(ctx context.Context, token, patID, na
 	}(time.Now())
 	return lm.svc.UpdatePATName(ctx, token, patID, name)
 }
+
 func (lm *loggingMiddleware) UpdatePATDescription(ctx context.Context, token, patID, description string) (pa auth.PAT, err error) {
 	defer func(begin time.Time) {
 		args := []any{
@@ -558,6 +560,7 @@ func (lm *loggingMiddleware) UpdatePATDescription(ctx context.Context, token, pa
 	}(time.Now())
 	return lm.svc.UpdatePATDescription(ctx, token, patID, description)
 }
+
 func (lm *loggingMiddleware) RetrievePAT(ctx context.Context, token, patID string) (pa auth.PAT, err error) {
 	defer func(begin time.Time) {
 		args := []any{
@@ -573,6 +576,7 @@ func (lm *loggingMiddleware) RetrievePAT(ctx context.Context, token, patID strin
 	}(time.Now())
 	return lm.svc.RetrievePAT(ctx, token, patID)
 }
+
 func (lm *loggingMiddleware) ListPATS(ctx context.Context, token string, pm auth.PATSPageMeta) (pp auth.PATSPage, err error) {
 	defer func(begin time.Time) {
 		args := []any{
@@ -589,6 +593,7 @@ func (lm *loggingMiddleware) ListPATS(ctx context.Context, token string, pm auth
 	}(time.Now())
 	return lm.svc.ListPATS(ctx, token, pm)
 }
+
 func (lm *loggingMiddleware) DeletePAT(ctx context.Context, token, patID string) (err error) {
 	defer func(begin time.Time) {
 		args := []any{
@@ -604,6 +609,7 @@ func (lm *loggingMiddleware) DeletePAT(ctx context.Context, token, patID string)
 	}(time.Now())
 	return lm.svc.DeletePAT(ctx, token, patID)
 }
+
 func (lm *loggingMiddleware) ResetPATSecret(ctx context.Context, token, patID string, duration time.Duration) (pa auth.PAT, err error) {
 	defer func(begin time.Time) {
 		args := []any{
@@ -620,6 +626,7 @@ func (lm *loggingMiddleware) ResetPATSecret(ctx context.Context, token, patID st
 	}(time.Now())
 	return lm.svc.ResetPATSecret(ctx, token, patID, duration)
 }
+
 func (lm *loggingMiddleware) RevokePATSecret(ctx context.Context, token, patID string) (err error) {
 	defer func(begin time.Time) {
 		args := []any{
@@ -635,6 +642,7 @@ func (lm *loggingMiddleware) RevokePATSecret(ctx context.Context, token, patID s
 	}(time.Now())
 	return lm.svc.RevokePATSecret(ctx, token, patID)
 }
+
 func (lm *loggingMiddleware) AddPATScopeEntry(ctx context.Context, token, patID string, platformEntityType auth.PlatformEntityType, optionalDomainID string, optionalDomainEntityType auth.DomainEntityType, operation auth.OperationType, entityIDs ...string) (sc auth.Scope, err error) {
 	defer func(begin time.Time) {
 		args := []any{
@@ -655,6 +663,7 @@ func (lm *loggingMiddleware) AddPATScopeEntry(ctx context.Context, token, patID 
 	}(time.Now())
 	return lm.svc.AddPATScopeEntry(ctx, token, patID, platformEntityType, optionalDomainID, optionalDomainEntityType, operation, entityIDs...)
 }
+
 func (lm *loggingMiddleware) RemovePATScopeEntry(ctx context.Context, token, patID string, platformEntityType auth.PlatformEntityType, optionalDomainID string, optionalDomainEntityType auth.DomainEntityType, operation auth.OperationType, entityIDs ...string) (sc auth.Scope, err error) {
 	defer func(begin time.Time) {
 		args := []any{
@@ -675,6 +684,7 @@ func (lm *loggingMiddleware) RemovePATScopeEntry(ctx context.Context, token, pat
 	}(time.Now())
 	return lm.svc.RemovePATScopeEntry(ctx, token, patID, platformEntityType, optionalDomainID, optionalDomainEntityType, operation, entityIDs...)
 }
+
 func (lm *loggingMiddleware) ClearPATAllScopeEntry(ctx context.Context, token, patID string) (err error) {
 	defer func(begin time.Time) {
 		args := []any{
@@ -690,6 +700,7 @@ func (lm *loggingMiddleware) ClearPATAllScopeEntry(ctx context.Context, token, p
 	}(time.Now())
 	return lm.svc.ClearPATAllScopeEntry(ctx, token, patID)
 }
+
 func (lm *loggingMiddleware) TestCheckPATScopeEntry(ctx context.Context, paToken string, platformEntityType auth.PlatformEntityType, optionalDomainID string, optionalDomainEntityType auth.DomainEntityType, operation auth.OperationType, entityIDs ...string) (err error) {
 	defer func(begin time.Time) {
 		args := []any{
@@ -709,6 +720,7 @@ func (lm *loggingMiddleware) TestCheckPATScopeEntry(ctx context.Context, paToken
 	}(time.Now())
 	return lm.svc.TestCheckPATScopeEntry(ctx, paToken, platformEntityType, optionalDomainID, optionalDomainEntityType, operation, entityIDs...)
 }
+
 func (lm *loggingMiddleware) IdentifyPAT(ctx context.Context, paToken string) (pa auth.PAT, err error) {
 	defer func(begin time.Time) {
 		args := []any{
@@ -723,6 +735,7 @@ func (lm *loggingMiddleware) IdentifyPAT(ctx context.Context, paToken string) (p
 	}(time.Now())
 	return lm.svc.IdentifyPAT(ctx, paToken)
 }
+
 func (lm *loggingMiddleware) AuthorizePAT(ctx context.Context, paToken string) (pa auth.PAT, err error) {
 	defer func(begin time.Time) {
 		args := []any{

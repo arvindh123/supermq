@@ -222,8 +222,8 @@ func (apser *addPatScopeEntryReq) UnmarshalJSON(data []byte) error {
 	apser.Operation = op
 	apser.EntityIDs = temp.EntityIDs
 	return nil
-
 }
+
 func (req addPatScopeEntryReq) validate() (err error) {
 	if req.token == "" {
 		return apiutil.ErrBearerToken
@@ -275,7 +275,6 @@ func (rpser *removePatScopeEntryReq) UnmarshalJSON(data []byte) error {
 	rpser.Operation = op
 	rpser.EntityIDs = temp.EntityIDs
 	return nil
-
 }
 
 func (req removePatScopeEntryReq) validate() (err error) {
