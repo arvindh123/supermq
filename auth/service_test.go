@@ -58,15 +58,17 @@ var (
 )
 
 var (
-	krepo *mocks.KeyRepository
-	prepo *mocks.PolicyAgent
-	drepo *mocks.DomainsRepository
+	krepo    *mocks.KeyRepository
+	prepo    *mocks.PolicyAgent
+	drepo    *mocks.DomainsRepository
+	patsrepo *mocks.PATSRepository
 )
 
 func newService() (auth.Service, string) {
 	krepo = new(mocks.KeyRepository)
 	prepo = new(mocks.PolicyAgent)
 	drepo = new(mocks.DomainsRepository)
+	patsrepo = new(mocks.PATSRepository)
 	idProvider := uuid.NewMock()
 
 	t := jwt.New([]byte(secret))
@@ -80,7 +82,7 @@ func newService() (auth.Service, string) {
 	}
 	token, _ := t.Issue(key)
 
-	return auth.New(krepo, drepo, idProvider, t, prepo, loginDuration, refreshDuration, invalidDuration), token
+	return auth.New(krepo, drepo, patsrepo, idProvider, t, prepo, loginDuration, refreshDuration, invalidDuration), token
 }
 
 func TestIssue(t *testing.T) {

@@ -19,8 +19,8 @@ type PATS struct {
 	mock.Mock
 }
 
-// AddScope provides a mock function with given fields: ctx, token, patID, platformEntityType, optionalDomainID, optionalDomainEntityType, operation, entityIDs
-func (_m *PATS) AddScope(ctx context.Context, token string, patID string, platformEntityType auth.PlatformEntityType, optionalDomainID string, optionalDomainEntityType auth.DomainEntityType, operation auth.OperationType, entityIDs ...string) (auth.Scope, error) {
+// AddScopeEntry provides a mock function with given fields: ctx, token, patID, platformEntityType, optionalDomainID, optionalDomainEntityType, operation, entityIDs
+func (_m *PATS) AddScopeEntry(ctx context.Context, token string, patID string, platformEntityType auth.PlatformEntityType, optionalDomainID string, optionalDomainEntityType auth.DomainEntityType, operation auth.OperationType, entityIDs ...string) (auth.Scope, error) {
 	_va := make([]interface{}, len(entityIDs))
 	for _i := range entityIDs {
 		_va[_i] = entityIDs[_i]
@@ -31,7 +31,7 @@ func (_m *PATS) AddScope(ctx context.Context, token string, patID string, platfo
 	ret := _m.Called(_ca...)
 
 	if len(ret) == 0 {
-		panic("no return value specified for AddScope")
+		panic("no return value specified for AddScopeEntry")
 	}
 
 	var r0 auth.Scope
@@ -82,12 +82,12 @@ func (_m *PATS) AuthorizePAT(ctx context.Context, paToken string) (auth.PAT, err
 	return r0, r1
 }
 
-// ClearAllScope provides a mock function with given fields: ctx, token, patID
-func (_m *PATS) ClearAllScope(ctx context.Context, token string, patID string) error {
+// ClearAllScopeEntry provides a mock function with given fields: ctx, token, patID
+func (_m *PATS) ClearAllScopeEntry(ctx context.Context, token string, patID string) error {
 	ret := _m.Called(ctx, token, patID)
 
 	if len(ret) == 0 {
-		panic("no return value specified for ClearAllScope")
+		panic("no return value specified for ClearAllScopeEntry")
 	}
 
 	var r0 error
@@ -174,9 +174,9 @@ func (_m *PATS) IdentifyPAT(ctx context.Context, paToken string) (auth.PAT, erro
 	return r0, r1
 }
 
-// List provides a mock function with given fields: ctx, token
-func (_m *PATS) List(ctx context.Context, token string) (auth.PATSPage, error) {
-	ret := _m.Called(ctx, token)
+// List provides a mock function with given fields: ctx, token, pm
+func (_m *PATS) List(ctx context.Context, token string, pm auth.PATSPageMeta) (auth.PATSPage, error) {
+	ret := _m.Called(ctx, token, pm)
 
 	if len(ret) == 0 {
 		panic("no return value specified for List")
@@ -184,17 +184,17 @@ func (_m *PATS) List(ctx context.Context, token string) (auth.PATSPage, error) {
 
 	var r0 auth.PATSPage
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) (auth.PATSPage, error)); ok {
-		return rf(ctx, token)
+	if rf, ok := ret.Get(0).(func(context.Context, string, auth.PATSPageMeta) (auth.PATSPage, error)); ok {
+		return rf(ctx, token, pm)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) auth.PATSPage); ok {
-		r0 = rf(ctx, token)
+	if rf, ok := ret.Get(0).(func(context.Context, string, auth.PATSPageMeta) auth.PATSPage); ok {
+		r0 = rf(ctx, token, pm)
 	} else {
 		r0 = ret.Get(0).(auth.PATSPage)
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = rf(ctx, token)
+	if rf, ok := ret.Get(1).(func(context.Context, string, auth.PATSPageMeta) error); ok {
+		r1 = rf(ctx, token, pm)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -202,8 +202,8 @@ func (_m *PATS) List(ctx context.Context, token string) (auth.PATSPage, error) {
 	return r0, r1
 }
 
-// RemoveScope provides a mock function with given fields: ctx, token, patID, platformEntityType, optionalDomainID, optionalDomainEntityType, operation, entityIDs
-func (_m *PATS) RemoveScope(ctx context.Context, token string, patID string, platformEntityType auth.PlatformEntityType, optionalDomainID string, optionalDomainEntityType auth.DomainEntityType, operation auth.OperationType, entityIDs ...string) (auth.Scope, error) {
+// RemoveScopeEntry provides a mock function with given fields: ctx, token, patID, platformEntityType, optionalDomainID, optionalDomainEntityType, operation, entityIDs
+func (_m *PATS) RemoveScopeEntry(ctx context.Context, token string, patID string, platformEntityType auth.PlatformEntityType, optionalDomainID string, optionalDomainEntityType auth.DomainEntityType, operation auth.OperationType, entityIDs ...string) (auth.Scope, error) {
 	_va := make([]interface{}, len(entityIDs))
 	for _i := range entityIDs {
 		_va[_i] = entityIDs[_i]
@@ -214,7 +214,7 @@ func (_m *PATS) RemoveScope(ctx context.Context, token string, patID string, pla
 	ret := _m.Called(_ca...)
 
 	if len(ret) == 0 {
-		panic("no return value specified for RemoveScope")
+		panic("no return value specified for RemoveScopeEntry")
 	}
 
 	var r0 auth.Scope
@@ -311,8 +311,8 @@ func (_m *PATS) RevokeSecret(ctx context.Context, token string, patID string) er
 	return r0
 }
 
-// TestCheckScope provides a mock function with given fields: ctx, paToken, platformEntityType, optionalDomainID, optionalDomainEntityType, operation, entityIDs
-func (_m *PATS) TestCheckScope(ctx context.Context, paToken string, platformEntityType auth.PlatformEntityType, optionalDomainID string, optionalDomainEntityType auth.DomainEntityType, operation auth.OperationType, entityIDs ...string) error {
+// TestCheckScopeEntry provides a mock function with given fields: ctx, paToken, platformEntityType, optionalDomainID, optionalDomainEntityType, operation, entityIDs
+func (_m *PATS) TestCheckScopeEntry(ctx context.Context, paToken string, platformEntityType auth.PlatformEntityType, optionalDomainID string, optionalDomainEntityType auth.DomainEntityType, operation auth.OperationType, entityIDs ...string) error {
 	_va := make([]interface{}, len(entityIDs))
 	for _i := range entityIDs {
 		_va[_i] = entityIDs[_i]
@@ -323,7 +323,7 @@ func (_m *PATS) TestCheckScope(ctx context.Context, paToken string, platformEnti
 	ret := _m.Called(_ca...)
 
 	if len(ret) == 0 {
-		panic("no return value specified for TestCheckScope")
+		panic("no return value specified for TestCheckScopeEntry")
 	}
 
 	var r0 error

@@ -178,9 +178,9 @@ func (_m *PATSRepository) Retrieve(ctx context.Context, userID string, patID str
 	return r0, r1
 }
 
-// RetrieveAll provides a mock function with given fields: ctx, userID
-func (_m *PATSRepository) RetrieveAll(ctx context.Context, userID string) (auth.PATSPage, error) {
-	ret := _m.Called(ctx, userID)
+// RetrieveAll provides a mock function with given fields: ctx, userID, pm
+func (_m *PATSRepository) RetrieveAll(ctx context.Context, userID string, pm auth.PATSPageMeta) (auth.PATSPage, error) {
+	ret := _m.Called(ctx, userID, pm)
 
 	if len(ret) == 0 {
 		panic("no return value specified for RetrieveAll")
@@ -188,17 +188,17 @@ func (_m *PATSRepository) RetrieveAll(ctx context.Context, userID string) (auth.
 
 	var r0 auth.PATSPage
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) (auth.PATSPage, error)); ok {
-		return rf(ctx, userID)
+	if rf, ok := ret.Get(0).(func(context.Context, string, auth.PATSPageMeta) (auth.PATSPage, error)); ok {
+		return rf(ctx, userID, pm)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) auth.PATSPage); ok {
-		r0 = rf(ctx, userID)
+	if rf, ok := ret.Get(0).(func(context.Context, string, auth.PATSPageMeta) auth.PATSPage); ok {
+		r0 = rf(ctx, userID, pm)
 	} else {
 		r0 = ret.Get(0).(auth.PATSPage)
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = rf(ctx, userID)
+	if rf, ok := ret.Get(1).(func(context.Context, string, auth.PATSPageMeta) error); ok {
+		r1 = rf(ctx, userID, pm)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -225,31 +225,21 @@ func (_m *PATSRepository) Revoke(ctx context.Context, userID string, patID strin
 }
 
 // Save provides a mock function with given fields: ctx, pat
-func (_m *PATSRepository) Save(ctx context.Context, pat auth.PAT) (string, error) {
+func (_m *PATSRepository) Save(ctx context.Context, pat auth.PAT) error {
 	ret := _m.Called(ctx, pat)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Save")
 	}
 
-	var r0 string
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, auth.PAT) (string, error)); ok {
-		return rf(ctx, pat)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, auth.PAT) string); ok {
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, auth.PAT) error); ok {
 		r0 = rf(ctx, pat)
 	} else {
-		r0 = ret.Get(0).(string)
+		r0 = ret.Error(0)
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, auth.PAT) error); ok {
-		r1 = rf(ctx, pat)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
+	return r0
 }
 
 // UpdateDescription provides a mock function with given fields: ctx, userID, patID, description
@@ -273,34 +263,6 @@ func (_m *PATSRepository) UpdateDescription(ctx context.Context, userID string, 
 
 	if rf, ok := ret.Get(1).(func(context.Context, string, string, string) error); ok {
 		r1 = rf(ctx, userID, patID, description)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// UpdateLastUsed provides a mock function with given fields: ctx, token, patID, description
-func (_m *PATSRepository) UpdateLastUsed(ctx context.Context, token string, patID string, description string) (auth.PAT, error) {
-	ret := _m.Called(ctx, token, patID, description)
-
-	if len(ret) == 0 {
-		panic("no return value specified for UpdateLastUsed")
-	}
-
-	var r0 auth.PAT
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, string) (auth.PAT, error)); ok {
-		return rf(ctx, token, patID, description)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, string) auth.PAT); ok {
-		r0 = rf(ctx, token, patID, description)
-	} else {
-		r0 = ret.Get(0).(auth.PAT)
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, string, string, string) error); ok {
-		r1 = rf(ctx, token, patID, description)
 	} else {
 		r1 = ret.Error(1)
 	}

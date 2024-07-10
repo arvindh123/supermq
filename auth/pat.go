@@ -618,7 +618,7 @@ type PAT struct {
 	User        string    `json:"user,omitempty"`
 	Name        string    `json:"name,omitempty"`
 	Description string    `json:"description,omitempty"`
-	Token       string    `json:"token,omitempty"`
+	Secret      string    `json:"secret,omitempty"`
 	Scope       Scope     `json:"scope,omitempty"`
 	IssuedAt    time.Time `json:"issued_at,omitempty"`
 	ExpiresAt   time.Time `json:"expires_at,omitempty"`
@@ -628,6 +628,10 @@ type PAT struct {
 	RevokedAt   time.Time `json:"revoked_at,omitempty"`
 }
 
+type PATSPageMeta struct {
+	Offset uint64 `json:"offset"`
+	Limit  uint64 `json:"limit"`
+}
 type PATSPage struct {
 	Total  uint64 `json:"total"`
 	Offset uint64 `json:"offset"`
@@ -665,7 +669,7 @@ type PATS interface {
 	Retrieve(ctx context.Context, token, patID string) (PAT, error)
 
 	// List function lists all the PATs for the user.
-	List(ctx context.Context, token string) (PATSPage, error)
+	List(ctx context.Context, token string, pm PATSPageMeta) (PATSPage, error)
 
 	// Delete function deletes the PAT for given ID.
 	Delete(ctx context.Context, token, patID string) error
@@ -677,16 +681,16 @@ type PATS interface {
 	RevokeSecret(ctx context.Context, token, patID string) error
 
 	// AddScope function adds a new scope entry.
-	AddScope(ctx context.Context, token, patID string, platformEntityType PlatformEntityType, optionalDomainID string, optionalDomainEntityType DomainEntityType, operation OperationType, entityIDs ...string) (Scope, error)
+	AddScopeEntry(ctx context.Context, token, patID string, platformEntityType PlatformEntityType, optionalDomainID string, optionalDomainEntityType DomainEntityType, operation OperationType, entityIDs ...string) (Scope, error)
 
 	// RemoveScope function removes a scope entry.
-	RemoveScope(ctx context.Context, token, patID string, platformEntityType PlatformEntityType, optionalDomainID string, optionalDomainEntityType DomainEntityType, operation OperationType, entityIDs ...string) (Scope, error)
+	RemoveScopeEntry(ctx context.Context, token, patID string, platformEntityType PlatformEntityType, optionalDomainID string, optionalDomainEntityType DomainEntityType, operation OperationType, entityIDs ...string) (Scope, error)
 
 	// ClearAllScope function removes all scope entry.
-	ClearAllScope(ctx context.Context, token, patID string) error
+	ClearAllScopeEntry(ctx context.Context, token, patID string) error
 
 	// This will be removed during PR merge. TestCheckScope will check the given scope exists.
-	TestCheckScope(ctx context.Context, paToken string, platformEntityType PlatformEntityType, optionalDomainID string, optionalDomainEntityType DomainEntityType, operation OperationType, entityIDs ...string) error
+	TestCheckScopeEntry(ctx context.Context, paToken string, platformEntityType PlatformEntityType, optionalDomainID string, optionalDomainEntityType DomainEntityType, operation OperationType, entityIDs ...string) error
 
 	// IdentifyPAT function will valid the secret.
 	IdentifyPAT(ctx context.Context, paToken string) (PAT, error)
@@ -715,7 +719,7 @@ type PATSRepository interface {
 	UpdateTokenHash(ctx context.Context, userID, patID, tokenHash string, expiryAt time.Time) (PAT, error)
 
 	// RetrieveAll retrieves all PATs belongs to userID.
-	RetrieveAll(ctx context.Context, userID string) (pats PATSPage, err error)
+	RetrieveAll(ctx context.Context, userID string, pm PATSPageMeta) (pats PATSPage, err error)
 
 	// Revoke PAT with provided ID.
 	Revoke(ctx context.Context, userID, patID string) error

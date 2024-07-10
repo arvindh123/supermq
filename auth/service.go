@@ -132,11 +132,12 @@ type service struct {
 }
 
 // New instantiates the auth service implementation.
-func New(keys KeyRepository, domains DomainsRepository, idp magistrala.IDProvider, tokenizer Tokenizer, policyAgent PolicyAgent, loginDuration, refreshDuration, invitationDuration time.Duration) Service {
+func New(keys KeyRepository, domains DomainsRepository, pats PATSRepository, idp magistrala.IDProvider, tokenizer Tokenizer, policyAgent PolicyAgent, loginDuration, refreshDuration, invitationDuration time.Duration) Service {
 	return &service{
 		tokenizer:          tokenizer,
 		domains:            domains,
 		keys:               keys,
+		pats:               pats,
 		idProvider:         idp,
 		agent:              policyAgent,
 		loginDuration:      loginDuration,
@@ -1131,12 +1132,12 @@ func (svc service) Retrieve(ctx context.Context, token, patID string) (PAT, erro
 	}
 	return pat, nil
 }
-func (svc service) List(ctx context.Context, token string) (PATSPage, error) {
+func (svc service) List(ctx context.Context, token string, pm PATSPageMeta) (PATSPage, error) {
 	key, err := svc.Identify(ctx, token)
 	if err != nil {
 		return PATSPage{}, err
 	}
-	patsPage, err := svc.pats.RetrieveAll(ctx, key.User)
+	patsPage, err := svc.pats.RetrieveAll(ctx, key.User, pm)
 	if err != nil {
 		return PATSPage{}, errors.Wrap(errRetrievePAT, err)
 	}
@@ -1158,11 +1159,11 @@ func (svc service) ResetSecret(ctx context.Context, token, patID string, duratio
 		return PAT{}, err
 	}
 
-	var newTokenHash string
+	var paTokenHash string
 	var newExpiry time.Time
 	// Generate new HashToken take place here
 
-	pat, err := svc.pats.UpdateTokenHash(ctx, key.User, patID, newTokenHash, newExpiry)
+	pat, err := svc.pats.UpdateTokenHash(ctx, key.User, patID, paTokenHash, newExpiry)
 	if err != nil {
 		return PAT{}, errors.Wrap(errUpdatePAT, err)
 	}
@@ -1180,7 +1181,7 @@ func (svc service) RevokeSecret(ctx context.Context, token, patID string) error 
 	return nil
 }
 
-func (svc service) AddScope(ctx context.Context, token, patID string, platformEntityType PlatformEntityType, optionalDomainID string, optionalDomainEntityType DomainEntityType, operation OperationType, entityIDs ...string) (Scope, error) {
+func (svc service) AddScopeEntry(ctx context.Context, token, patID string, platformEntityType PlatformEntityType, optionalDomainID string, optionalDomainEntityType DomainEntityType, operation OperationType, entityIDs ...string) (Scope, error) {
 	key, err := svc.Identify(ctx, token)
 	if err != nil {
 		return Scope{}, err
@@ -1192,7 +1193,7 @@ func (svc service) AddScope(ctx context.Context, token, patID string, platformEn
 	}
 	return scope, nil
 }
-func (svc service) RemoveScope(ctx context.Context, token, patID string, platformEntityType PlatformEntityType, optionalDomainID string, optionalDomainEntityType DomainEntityType, operation OperationType, entityIDs ...string) (Scope, error) {
+func (svc service) RemoveScopeEntry(ctx context.Context, token, patID string, platformEntityType PlatformEntityType, optionalDomainID string, optionalDomainEntityType DomainEntityType, operation OperationType, entityIDs ...string) (Scope, error) {
 	key, err := svc.Identify(ctx, token)
 	if err != nil {
 		return Scope{}, err
@@ -1203,7 +1204,7 @@ func (svc service) RemoveScope(ctx context.Context, token, patID string, platfor
 	}
 	return scope, nil
 }
-func (svc service) ClearAllScope(ctx context.Context, token, patID string) error {
+func (svc service) ClearAllScopeEntry(ctx context.Context, token, patID string) error {
 	key, err := svc.Identify(ctx, token)
 	if err != nil {
 		return err
@@ -1214,7 +1215,7 @@ func (svc service) ClearAllScope(ctx context.Context, token, patID string) error
 	return nil
 }
 
-func (svc service) TestCheckScope(ctx context.Context, paToken string, platformEntityType PlatformEntityType, optionalDomainID string, optionalDomainEntityType DomainEntityType, operation OperationType, entityIDs ...string) error {
+func (svc service) TestCheckScopeEntry(ctx context.Context, paToken string, platformEntityType PlatformEntityType, optionalDomainID string, optionalDomainEntityType DomainEntityType, operation OperationType, entityIDs ...string) error {
 	res, err := svc.IdentifyPAT(ctx, paToken)
 	if err != nil {
 		return err

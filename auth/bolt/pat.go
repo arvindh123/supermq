@@ -23,7 +23,7 @@ const (
 	userKey             = "user"
 	nameKey             = "name"
 	descriptionKey      = "description"
-	tokenHashKey        = "token_hash"
+	secretKey           = "secret_key"
 	scopeKey            = "scope"
 	issuedAtKey         = "issued_at"
 	expiresAtKey        = "expires_at"
@@ -32,6 +32,7 @@ const (
 	revokedKey          = "revoked"
 	revokedAtKey        = "revoked_at"
 	platformEntitiesKey = "platform_entities"
+	patKey              = "pat"
 
 	keySeparator = ":"
 	anyID        = "*"
@@ -76,6 +77,9 @@ func (pr *patRepo) Save(ctx context.Context, pat auth.PAT) error {
 				return errors.Wrap(repoerr.ErrCreateEntity, err)
 			}
 		}
+		if err := b.Put([]byte(pat.User+keySeparator+patKey+pat.ID), []byte(pat.ID)); err != nil {
+			return errors.Wrap(repoerr.ErrCreateEntity, err)
+		}
 		return nil
 	})
 }
@@ -116,7 +120,7 @@ func (pr *patRepo) UpdateTokenHash(ctx context.Context, userID, patID, tokenHash
 		if err != nil {
 			return errors.Wrap(repoerr.ErrUpdateEntity, err)
 		}
-		if err := b.Put([]byte(patID+keySeparator+tokenHashKey), []byte(tokenHash)); err != nil {
+		if err := b.Put([]byte(patID+keySeparator+secretKey), []byte(tokenHash)); err != nil {
 			return errors.Wrap(repoerr.ErrUpdateEntity, err)
 		}
 		if err := b.Put([]byte(patID+keySeparator+expiresAtKey), timeToBytes(expiryAt)); err != nil {
@@ -133,8 +137,57 @@ func (pr *patRepo) UpdateTokenHash(ctx context.Context, userID, patID, tokenHash
 	return keyValueToPAT(kv)
 }
 
-func (pr *patRepo) RetrieveAll(ctx context.Context, userID string) (pats auth.PATSPage, err error) {
-	return auth.PATSPage{}, nil
+func (pr *patRepo) RetrieveAll(ctx context.Context, userID string, pm auth.PATSPageMeta) (auth.PATSPage, error) {
+	prefix := []byte(userID + keySeparator + patKey + keySeparator)
+
+	patIDs := []string{}
+	if err := pr.db.Update(func(tx *bolt.Tx) error {
+		b, err := pr.retrieveUserBucket(tx, userID)
+		if err != nil {
+			return errors.Wrap(repoerr.ErrRemoveEntity, err)
+		}
+		c := b.Cursor()
+		for k, v := c.Seek(prefix); k != nil && bytes.HasPrefix(k, prefix); k, v = c.Next() {
+			if v != nil {
+				patIDs = append(patIDs, string(v))
+			}
+		}
+		return nil
+	}); err != nil {
+		return auth.PATSPage{}, err
+	}
+
+	total := len(patIDs)
+
+	var pats []auth.PAT
+
+	var patsPage = auth.PATSPage{
+		Total:  uint64(total),
+		Limit:  pm.Limit,
+		Offset: pm.Offset,
+		PATS:   pats,
+	}
+
+	if int(pm.Offset) >= total {
+		return patsPage, nil
+	}
+
+	aLimit := pm.Limit
+	if rLimit := total - int(pm.Offset); int(pm.Limit) > rLimit {
+		aLimit = uint64(rLimit)
+	}
+
+	for i := pm.Offset; i < aLimit; i++ {
+		if total < int(i) {
+			pat, err := pr.Retrieve(ctx, userID, patIDs[i])
+			if err != nil {
+				return patsPage, err
+			}
+			patsPage.PATS = append(patsPage.PATS, pat)
+		}
+	}
+
+	return patsPage, nil
 }
 
 func (pr *patRepo) Revoke(ctx context.Context, userID, patID string) error {
@@ -320,7 +373,7 @@ func patToKeyValue(pat auth.PAT) (map[string][]byte, error) {
 		userKey:        []byte(pat.User),
 		nameKey:        []byte(pat.Name),
 		descriptionKey: []byte(pat.Description),
-		tokenHashKey:   []byte(pat.Token),
+		secretKey:      []byte(pat.Secret),
 		issuedAtKey:    timeToBytes(pat.IssuedAt),
 		expiresAtKey:   timeToBytes(pat.ExpiresAt),
 		updatedAtKey:   timeToBytes(pat.UpdatedAt),

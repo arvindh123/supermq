@@ -507,3 +507,233 @@ func (lm *loggingMiddleware) DeleteEntityPolicies(ctx context.Context, entityTyp
 	}(time.Now())
 	return lm.svc.DeleteEntityPolicies(ctx, entityType, id)
 }
+
+func (lm *loggingMiddleware) Create(ctx context.Context, token, name, description string, duration time.Duration, scope auth.Scope) (pa auth.PAT, err error) {
+	defer func(begin time.Time) {
+		args := []any{
+			slog.String("duration", time.Since(begin).String()),
+			slog.String("name", name),
+			slog.String("description", description),
+			slog.String("pat_duration", duration.String()),
+			slog.String("scope", scope.String()),
+		}
+		if err != nil {
+			args = append(args, slog.Any("error", err))
+			lm.logger.Warn("Create PAT failed to complete successfully", args...)
+			return
+		}
+		lm.logger.Info("Create PAT completed successfully", args...)
+	}(time.Now())
+	return lm.svc.Create(ctx, token, name, description, duration, scope)
+}
+func (lm *loggingMiddleware) UpdateName(ctx context.Context, token, patID, name string) (pa auth.PAT, err error) {
+	defer func(begin time.Time) {
+		args := []any{
+			slog.String("duration", time.Since(begin).String()),
+			slog.String("pat_id", patID),
+			slog.String("name", name),
+		}
+		if err != nil {
+			args = append(args, slog.Any("error", err))
+			lm.logger.Warn("Update PAT name failed to complete successfully", args...)
+			return
+		}
+		lm.logger.Info("Update PAT name completed successfully", args...)
+	}(time.Now())
+	return lm.svc.UpdateName(ctx, token, patID, name)
+}
+func (lm *loggingMiddleware) UpdateDescription(ctx context.Context, token, patID, description string) (pa auth.PAT, err error) {
+	defer func(begin time.Time) {
+		args := []any{
+			slog.String("duration", time.Since(begin).String()),
+			slog.String("pat_id", patID),
+			slog.String("description", description),
+		}
+		if err != nil {
+			args = append(args, slog.Any("error", err))
+			lm.logger.Warn("Update PAT description failed to complete successfully", args...)
+			return
+		}
+		lm.logger.Info("Update PAT description completed successfully", args...)
+	}(time.Now())
+	return lm.svc.UpdateDescription(ctx, token, patID, description)
+}
+func (lm *loggingMiddleware) Retrieve(ctx context.Context, token, patID string) (pa auth.PAT, err error) {
+	defer func(begin time.Time) {
+		args := []any{
+			slog.String("duration", time.Since(begin).String()),
+			slog.String("pat_id", patID),
+		}
+		if err != nil {
+			args = append(args, slog.Any("error", err))
+			lm.logger.Warn("Retrieve PAT  failed to complete successfully", args...)
+			return
+		}
+		lm.logger.Info("Retrieve PAT completed successfully", args...)
+	}(time.Now())
+	return lm.svc.Retrieve(ctx, token, patID)
+}
+func (lm *loggingMiddleware) List(ctx context.Context, token string, pm auth.PATSPageMeta) (pp auth.PATSPage, err error) {
+	defer func(begin time.Time) {
+		args := []any{
+			slog.String("duration", time.Since(begin).String()),
+			slog.Uint64("limit", pm.Limit),
+			slog.Uint64("offset", pm.Offset),
+		}
+		if err != nil {
+			args = append(args, slog.Any("error", err))
+			lm.logger.Warn("List PATS  failed to complete successfully", args...)
+			return
+		}
+		lm.logger.Info("List PATS completed successfully", args...)
+	}(time.Now())
+	return lm.svc.List(ctx, token, pm)
+}
+func (lm *loggingMiddleware) Delete(ctx context.Context, token, patID string) (err error) {
+	defer func(begin time.Time) {
+		args := []any{
+			slog.String("duration", time.Since(begin).String()),
+			slog.String("pat_id", patID),
+		}
+		if err != nil {
+			args = append(args, slog.Any("error", err))
+			lm.logger.Warn("Delete PAT  failed to complete successfully", args...)
+			return
+		}
+		lm.logger.Info("Delete PAT completed successfully", args...)
+	}(time.Now())
+	return lm.svc.Delete(ctx, token, patID)
+}
+func (lm *loggingMiddleware) ResetSecret(ctx context.Context, token, patID string, duration time.Duration) (pa auth.PAT, err error) {
+	defer func(begin time.Time) {
+		args := []any{
+			slog.String("duration", time.Since(begin).String()),
+			slog.String("pat_id", patID),
+			slog.String("pat_duration", duration.String()),
+		}
+		if err != nil {
+			args = append(args, slog.Any("error", err))
+			lm.logger.Warn("Reset PAT secret failed to complete successfully", args...)
+			return
+		}
+		lm.logger.Info("Reset PAT secret completed successfully", args...)
+	}(time.Now())
+	return lm.svc.ResetSecret(ctx, token, patID, duration)
+}
+func (lm *loggingMiddleware) RevokeSecret(ctx context.Context, token, patID string) (err error) {
+	defer func(begin time.Time) {
+		args := []any{
+			slog.String("duration", time.Since(begin).String()),
+			slog.String("pat_id", patID),
+		}
+		if err != nil {
+			args = append(args, slog.Any("error", err))
+			lm.logger.Warn("Revoke PAT secret failed to complete successfully", args...)
+			return
+		}
+		lm.logger.Info("Revoke PAT secret completed successfully", args...)
+	}(time.Now())
+	return lm.svc.RevokeSecret(ctx, token, patID)
+}
+func (lm *loggingMiddleware) AddScopeEntry(ctx context.Context, token, patID string, platformEntityType auth.PlatformEntityType, optionalDomainID string, optionalDomainEntityType auth.DomainEntityType, operation auth.OperationType, entityIDs ...string) (sc auth.Scope, err error) {
+	defer func(begin time.Time) {
+		args := []any{
+			slog.String("duration", time.Since(begin).String()),
+			slog.String("pat_id", patID),
+			slog.String("platform_entity_type", platformEntityType.String()),
+			slog.String("optional_domain_id", optionalDomainID),
+			slog.String("optional_domain_entity_type", optionalDomainEntityType.String()),
+			slog.String("operation", operation.String()),
+			slog.Any("entities", entityIDs),
+		}
+		if err != nil {
+			args = append(args, slog.Any("error", err))
+			lm.logger.Warn("Add entry to PAT scope failed to complete successfully", args...)
+			return
+		}
+		lm.logger.Info("Add entry to PAT scope completed successfully", args...)
+	}(time.Now())
+	return lm.svc.AddScopeEntry(ctx, token, patID, platformEntityType, optionalDomainID, optionalDomainEntityType, operation, entityIDs...)
+}
+func (lm *loggingMiddleware) RemoveScopeEntry(ctx context.Context, token, patID string, platformEntityType auth.PlatformEntityType, optionalDomainID string, optionalDomainEntityType auth.DomainEntityType, operation auth.OperationType, entityIDs ...string) (sc auth.Scope, err error) {
+	defer func(begin time.Time) {
+		args := []any{
+			slog.String("duration", time.Since(begin).String()),
+			slog.String("pat_id", patID),
+			slog.String("platform_entity_type", platformEntityType.String()),
+			slog.String("optional_domain_id", optionalDomainID),
+			slog.String("optional_domain_entity_type", optionalDomainEntityType.String()),
+			slog.String("operation", operation.String()),
+			slog.Any("entities", entityIDs),
+		}
+		if err != nil {
+			args = append(args, slog.Any("error", err))
+			lm.logger.Warn("Remove entry from PAT scope failed to complete successfully", args...)
+			return
+		}
+		lm.logger.Info("Remove entry from PAT scope completed successfully", args...)
+	}(time.Now())
+	return lm.svc.RemoveScopeEntry(ctx, token, patID, platformEntityType, optionalDomainID, optionalDomainEntityType, operation, entityIDs...)
+}
+func (lm *loggingMiddleware) ClearAllScopeEntry(ctx context.Context, token, patID string) (err error) {
+	defer func(begin time.Time) {
+		args := []any{
+			slog.String("duration", time.Since(begin).String()),
+			slog.String("pat_id", patID),
+		}
+		if err != nil {
+			args = append(args, slog.Any("error", err))
+			lm.logger.Warn("Clear all entry from PAT scope failed to complete successfully", args...)
+			return
+		}
+		lm.logger.Info("Clear all entry from PAT scope completed successfully", args...)
+	}(time.Now())
+	return lm.svc.ClearAllScopeEntry(ctx, token, patID)
+}
+func (lm *loggingMiddleware) TestCheckScopeEntry(ctx context.Context, paToken string, platformEntityType auth.PlatformEntityType, optionalDomainID string, optionalDomainEntityType auth.DomainEntityType, operation auth.OperationType, entityIDs ...string) (err error) {
+	defer func(begin time.Time) {
+		args := []any{
+			slog.String("duration", time.Since(begin).String()),
+			slog.String("platform_entity_type", platformEntityType.String()),
+			slog.String("optional_domain_id", optionalDomainID),
+			slog.String("optional_domain_entity_type", optionalDomainEntityType.String()),
+			slog.String("operation", operation.String()),
+			slog.Any("entities", entityIDs),
+		}
+		if err != nil {
+			args = append(args, slog.Any("error", err))
+			lm.logger.Warn("Test Check entry in PAT scope failed complete successfully", args...)
+			return
+		}
+		lm.logger.Info("Test Check entry in PAT scope completed successfully", args...)
+	}(time.Now())
+	return lm.svc.TestCheckScopeEntry(ctx, paToken, platformEntityType, optionalDomainID, optionalDomainEntityType, operation, entityIDs...)
+}
+func (lm *loggingMiddleware) IdentifyPAT(ctx context.Context, paToken string) (pa auth.PAT, err error) {
+	defer func(begin time.Time) {
+		args := []any{
+			slog.String("duration", time.Since(begin).String()),
+		}
+		if err != nil {
+			args = append(args, slog.Any("error", err))
+			lm.logger.Warn("Identify PAT failed to complete successfully", args...)
+			return
+		}
+		lm.logger.Info("Identify PAT completed successfully", args...)
+	}(time.Now())
+	return lm.svc.IdentifyPAT(ctx, paToken)
+}
+func (lm *loggingMiddleware) AuthorizePAT(ctx context.Context, paToken string) (pa auth.PAT, err error) {
+	defer func(begin time.Time) {
+		args := []any{
+			slog.String("duration", time.Since(begin).String()),
+		}
+		if err != nil {
+			args = append(args, slog.Any("error", err))
+			lm.logger.Warn("Authorize PAT failed to complete successfully", args...)
+			return
+		}
+		lm.logger.Info("Authorize PAT completed successfully", args...)
+	}(time.Now())
+	return lm.svc.AuthorizePAT(ctx, paToken)
+}
