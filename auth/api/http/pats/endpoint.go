@@ -10,14 +10,14 @@ import (
 	"github.com/go-kit/kit/endpoint"
 )
 
-func createPatEndpoint(svc auth.Service) endpoint.Endpoint {
+func createPATEndpoint(svc auth.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(createPatReq)
 		if err := req.validate(); err != nil {
 			return nil, err
 		}
 
-		pat, err := svc.Create(ctx, req.token, req.Name, req.Description, req.Duration, req.Scope)
+		pat, err := svc.CreatePAT(ctx, req.token, req.Name, req.Description, req.Duration, req.Scope)
 		if err != nil {
 			return nil, err
 		}
@@ -26,14 +26,14 @@ func createPatEndpoint(svc auth.Service) endpoint.Endpoint {
 	}
 }
 
-func retrieveEndpoint(svc auth.Service) endpoint.Endpoint {
+func retrievePATEndpoint(svc auth.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(retrievePatReq)
 		if err := req.validate(); err != nil {
 			return nil, err
 		}
 
-		pat, err := svc.Retrieve(ctx, req.token, req.id)
+		pat, err := svc.RetrievePAT(ctx, req.token, req.id)
 		if err != nil {
 			return nil, err
 		}
@@ -42,14 +42,14 @@ func retrieveEndpoint(svc auth.Service) endpoint.Endpoint {
 	}
 }
 
-func updateNameEndpoint(svc auth.Service) endpoint.Endpoint {
+func updatePATNameEndpoint(svc auth.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(updatePatNameReq)
 		if err := req.validate(); err != nil {
 			return nil, err
 		}
 
-		pat, err := svc.UpdateName(ctx, req.token, req.id, req.Name)
+		pat, err := svc.UpdatePATName(ctx, req.token, req.id, req.Name)
 		if err != nil {
 			return nil, err
 		}
@@ -58,14 +58,14 @@ func updateNameEndpoint(svc auth.Service) endpoint.Endpoint {
 	}
 }
 
-func updateDescriptionEndpoint(svc auth.Service) endpoint.Endpoint {
+func updatePATDescriptionEndpoint(svc auth.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(updatePatDescriptionReq)
 		if err := req.validate(); err != nil {
 			return nil, err
 		}
 
-		pat, err := svc.UpdateDescription(ctx, req.token, req.id, req.Description)
+		pat, err := svc.UpdatePATDescription(ctx, req.token, req.id, req.Description)
 		if err != nil {
 			return nil, err
 		}
@@ -74,7 +74,7 @@ func updateDescriptionEndpoint(svc auth.Service) endpoint.Endpoint {
 	}
 }
 
-func listEndpoint(svc auth.Service) endpoint.Endpoint {
+func listPATSEndpoint(svc auth.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(listPatsReq)
 		if err := req.validate(); err != nil {
@@ -85,7 +85,7 @@ func listEndpoint(svc auth.Service) endpoint.Endpoint {
 			Limit:  req.limit,
 			Offset: req.offset,
 		}
-		patsPage, err := svc.List(ctx, req.token, pm)
+		patsPage, err := svc.ListPATS(ctx, req.token, pm)
 		if err != nil {
 			return nil, err
 		}
@@ -94,14 +94,14 @@ func listEndpoint(svc auth.Service) endpoint.Endpoint {
 	}
 }
 
-func deleteEndpoint(svc auth.Service) endpoint.Endpoint {
+func deletePATEndpoint(svc auth.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(deletePatReq)
 		if err := req.validate(); err != nil {
 			return nil, err
 		}
 
-		if err := svc.Delete(ctx, req.token, req.id); err != nil {
+		if err := svc.DeletePAT(ctx, req.token, req.id); err != nil {
 			return nil, err
 		}
 
@@ -109,14 +109,14 @@ func deleteEndpoint(svc auth.Service) endpoint.Endpoint {
 	}
 }
 
-func resetSecretEndpoint(svc auth.Service) endpoint.Endpoint {
+func resetPATSecretEndpoint(svc auth.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(resetPatSecretReq)
 		if err := req.validate(); err != nil {
 			return nil, err
 		}
 
-		pat, err := svc.ResetSecret(ctx, req.token, req.id, req.Duration)
+		pat, err := svc.ResetPATSecret(ctx, req.token, req.id, req.Duration)
 		if err != nil {
 			return nil, err
 		}
@@ -125,14 +125,14 @@ func resetSecretEndpoint(svc auth.Service) endpoint.Endpoint {
 	}
 }
 
-func revokeSecretEndpoint(svc auth.Service) endpoint.Endpoint {
+func revokePATSecretEndpoint(svc auth.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(revokePatSecretReq)
 		if err := req.validate(); err != nil {
 			return nil, err
 		}
 
-		if err := svc.RevokeSecret(ctx, req.token, req.id); err != nil {
+		if err := svc.RevokePATSecret(ctx, req.token, req.id); err != nil {
 			return nil, err
 		}
 
@@ -140,14 +140,14 @@ func revokeSecretEndpoint(svc auth.Service) endpoint.Endpoint {
 	}
 }
 
-func addScopeEntryEndpoint(svc auth.Service) endpoint.Endpoint {
+func addPATScopeEntryEndpoint(svc auth.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(addPatScopeEntryReq)
 		if err := req.validate(); err != nil {
 			return nil, err
 		}
 
-		scope, err := svc.AddScopeEntry(ctx, req.token, req.id, req.PlatformEntityType, req.OptionalDomainID, req.OptionalDomainEntityType, req.Operation, req.EntityIDs...)
+		scope, err := svc.AddPATScopeEntry(ctx, req.token, req.id, req.PlatformEntityType, req.OptionalDomainID, req.OptionalDomainEntityType, req.Operation, req.EntityIDs...)
 		if err != nil {
 			return nil, err
 		}
@@ -156,14 +156,14 @@ func addScopeEntryEndpoint(svc auth.Service) endpoint.Endpoint {
 	}
 }
 
-func removeScopeEntryEndpoint(svc auth.Service) endpoint.Endpoint {
+func removePATScopeEntryEndpoint(svc auth.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(removePatScopeEntryReq)
 		if err := req.validate(); err != nil {
 			return nil, err
 		}
 
-		scope, err := svc.RemoveScopeEntry(ctx, req.token, req.id, req.PlatformEntityType, req.OptionalDomainID, req.OptionalDomainEntityType, req.Operation, req.EntityIDs...)
+		scope, err := svc.RemovePATScopeEntry(ctx, req.token, req.id, req.PlatformEntityType, req.OptionalDomainID, req.OptionalDomainEntityType, req.Operation, req.EntityIDs...)
 		if err != nil {
 			return nil, err
 		}
@@ -172,14 +172,14 @@ func removeScopeEntryEndpoint(svc auth.Service) endpoint.Endpoint {
 
 }
 
-func clearAllScopeEntryEndpoint(svc auth.Service) endpoint.Endpoint {
+func clearPATAllScopeEntryEndpoint(svc auth.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(clearAllScopeEntryReq)
 		if err := req.validate(); err != nil {
 			return nil, err
 		}
 
-		if err := svc.ClearAllScopeEntry(ctx, req.token, req.id); err != nil {
+		if err := svc.ClearPATAllScopeEntry(ctx, req.token, req.id); err != nil {
 			return nil, err
 		}
 
@@ -187,14 +187,14 @@ func clearAllScopeEntryEndpoint(svc auth.Service) endpoint.Endpoint {
 	}
 }
 
-func testCheckScopeEntryEndpoint(svc auth.Service) endpoint.Endpoint {
+func testCheckPATScopeEntryEndpoint(svc auth.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(testCheckPatScopeReq)
 		if err := req.validate(); err != nil {
 			return nil, err
 		}
 
-		if err := svc.TestCheckScopeEntry(ctx, req.token, req.PlatformEntityType, req.OptionalDomainID, req.OptionalDomainEntityType, req.Operation, req.EntityIDs...); err != nil {
+		if err := svc.TestCheckPATScopeEntry(ctx, req.token, req.PlatformEntityType, req.OptionalDomainID, req.OptionalDomainEntityType, req.Operation, req.EntityIDs...); err != nil {
 			return nil, err
 		}
 

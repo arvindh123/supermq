@@ -12,7 +12,7 @@ import (
 
 	"github.com/absmach/magistrala/auth"
 	"github.com/absmach/magistrala/internal/api"
-	"github.com/absmach/magistrala/internal/apiutil"
+	"github.com/absmach/magistrala/pkg/apiutil"
 	"github.com/absmach/magistrala/pkg/errors"
 	"github.com/go-chi/chi/v5"
 	kithttp "github.com/go-kit/kit/transport/http"
@@ -30,85 +30,85 @@ func MakeHandler(svc auth.Service, mux *chi.Mux, logger *slog.Logger) *chi.Mux {
 	}
 	mux.Route("/pats", func(r chi.Router) {
 		r.Post("/", kithttp.NewServer(
-			createPatEndpoint(svc),
-			decodeCreatePatRequest,
+			createPATEndpoint(svc),
+			decodeCreatePATRequest,
 			api.EncodeResponse,
 			opts...,
 		).ServeHTTP)
 
 		r.Get("/{id}", kithttp.NewServer(
-			(retrieveEndpoint(svc)),
-			decodeRetrievePatRequest,
+			(retrievePATEndpoint(svc)),
+			decodeRetrievePATRequest,
 			api.EncodeResponse,
 			opts...,
 		).ServeHTTP)
 
 		r.Put("/{id}/name", kithttp.NewServer(
-			(updateNameEndpoint(svc)),
-			decodeUpdateNameRequest,
+			(updatePATNameEndpoint(svc)),
+			decodeUpdatePATNameRequest,
 			api.EncodeResponse,
 			opts...,
 		).ServeHTTP)
 
 		r.Put("/{id}/description", kithttp.NewServer(
-			(updateDescriptionEndpoint(svc)),
-			decodeUpdateDescriptionRequest,
+			(updatePATDescriptionEndpoint(svc)),
+			decodeUpdatePATDescriptionRequest,
 			api.EncodeResponse,
 			opts...,
 		).ServeHTTP)
 
 		r.Get("/", kithttp.NewServer(
-			(listEndpoint(svc)),
-			decodeListRequest,
+			(listPATSEndpoint(svc)),
+			decodeListPATSRequest,
 			api.EncodeResponse,
 			opts...,
 		).ServeHTTP)
 
 		r.Delete("/{id}", kithttp.NewServer(
-			(deleteEndpoint(svc)),
-			decodeDeleteRequest,
+			(deletePATEndpoint(svc)),
+			decodeDeletePATRequest,
 			api.EncodeResponse,
 			opts...,
 		).ServeHTTP)
 
 		r.Put("/{id}/secret/reset", kithttp.NewServer(
-			(resetSecretEndpoint(svc)),
-			decodeResetSecretRequest,
+			(resetPATSecretEndpoint(svc)),
+			decodeResetPATSecretRequest,
 			api.EncodeResponse,
 			opts...,
 		).ServeHTTP)
 
 		r.Put("/{id}/secret/revoke", kithttp.NewServer(
-			(revokeSecretEndpoint(svc)),
-			decodeRevokeSecretRequest,
+			(revokePATSecretEndpoint(svc)),
+			decodeRevokePATSecretRequest,
 			api.EncodeResponse,
 			opts...,
 		).ServeHTTP)
 
 		r.Put("/{id}/scope/add", kithttp.NewServer(
-			(addScopeEntryEndpoint(svc)),
-			decodeAddScopeEntryRequest,
+			(addPATScopeEntryEndpoint(svc)),
+			decodeAddPATScopeEntryRequest,
 			api.EncodeResponse,
 			opts...,
 		).ServeHTTP)
 
 		r.Put("/{id}/scope/remove", kithttp.NewServer(
-			(removeScopeEntryEndpoint(svc)),
-			decodeRemoveScopeEntryRequest,
+			(removePATScopeEntryEndpoint(svc)),
+			decodeRemovePATScopeEntryRequest,
 			api.EncodeResponse,
 			opts...,
 		).ServeHTTP)
 
 		r.Delete("/{id}/scope", kithttp.NewServer(
-			(clearAllScopeEntryEndpoint(svc)),
-			decodeClearAllScopeEntryRequest,
+			(clearPATAllScopeEntryEndpoint(svc)),
+			decodeClearPATAllScopeEntryRequest,
 			api.EncodeResponse,
 			opts...,
 		).ServeHTTP)
 
 		r.Get("/check", kithttp.NewServer(
-			(testCheckScopeEntryEndpoint(svc)),
-			decodeTestCheckScopeEntryRequest,
+			(testCheckPATScopeEntryEndpoint(svc)),
+			decodeTestCheckPATScopeEntryRequest,
 			api.EncodeResponse,
 			opts...,
 		).ServeHTTP)
@@ -116,7 +116,7 @@ func MakeHandler(svc auth.Service, mux *chi.Mux, logger *slog.Logger) *chi.Mux {
 	return mux
 }
 
-func decodeCreatePatRequest(_ context.Context, r *http.Request) (interface{}, error) {
+func decodeCreatePATRequest(_ context.Context, r *http.Request) (interface{}, error) {
 	if !strings.Contains(r.Header.Get("Content-Type"), contentType) {
 		return nil, apiutil.ErrUnsupportedContentType
 	}
@@ -128,7 +128,7 @@ func decodeCreatePatRequest(_ context.Context, r *http.Request) (interface{}, er
 	return req, nil
 }
 
-func decodeRetrievePatRequest(_ context.Context, r *http.Request) (interface{}, error) {
+func decodeRetrievePATRequest(_ context.Context, r *http.Request) (interface{}, error) {
 	req := retrievePatReq{
 		token: apiutil.ExtractBearerToken(r),
 		id:    chi.URLParam(r, "id"),
@@ -136,7 +136,7 @@ func decodeRetrievePatRequest(_ context.Context, r *http.Request) (interface{}, 
 	return req, nil
 }
 
-func decodeUpdateNameRequest(_ context.Context, r *http.Request) (interface{}, error) {
+func decodeUpdatePATNameRequest(_ context.Context, r *http.Request) (interface{}, error) {
 	if !strings.Contains(r.Header.Get("Content-Type"), contentType) {
 		return nil, apiutil.ErrUnsupportedContentType
 	}
@@ -151,7 +151,7 @@ func decodeUpdateNameRequest(_ context.Context, r *http.Request) (interface{}, e
 	return req, nil
 }
 
-func decodeUpdateDescriptionRequest(_ context.Context, r *http.Request) (interface{}, error) {
+func decodeUpdatePATDescriptionRequest(_ context.Context, r *http.Request) (interface{}, error) {
 	if !strings.Contains(r.Header.Get("Content-Type"), contentType) {
 		return nil, apiutil.ErrUnsupportedContentType
 	}
@@ -166,7 +166,7 @@ func decodeUpdateDescriptionRequest(_ context.Context, r *http.Request) (interfa
 	return req, nil
 }
 
-func decodeListRequest(_ context.Context, r *http.Request) (interface{}, error) {
+func decodeListPATSRequest(_ context.Context, r *http.Request) (interface{}, error) {
 	l, err := apiutil.ReadNumQuery[uint64](r, api.LimitKey, api.DefLimit)
 	if err != nil {
 		return nil, errors.Wrap(apiutil.ErrValidation, err)
@@ -186,7 +186,7 @@ func decodeListRequest(_ context.Context, r *http.Request) (interface{}, error) 
 	return req, nil
 }
 
-func decodeDeleteRequest(_ context.Context, r *http.Request) (interface{}, error) {
+func decodeDeletePATRequest(_ context.Context, r *http.Request) (interface{}, error) {
 	if !strings.Contains(r.Header.Get("Content-Type"), contentType) {
 		return nil, apiutil.ErrUnsupportedContentType
 	}
@@ -197,7 +197,7 @@ func decodeDeleteRequest(_ context.Context, r *http.Request) (interface{}, error
 	}, nil
 }
 
-func decodeResetSecretRequest(_ context.Context, r *http.Request) (interface{}, error) {
+func decodeResetPATSecretRequest(_ context.Context, r *http.Request) (interface{}, error) {
 	if !strings.Contains(r.Header.Get("Content-Type"), contentType) {
 		return nil, apiutil.ErrUnsupportedContentType
 	}
@@ -212,7 +212,7 @@ func decodeResetSecretRequest(_ context.Context, r *http.Request) (interface{}, 
 	return req, nil
 }
 
-func decodeRevokeSecretRequest(_ context.Context, r *http.Request) (interface{}, error) {
+func decodeRevokePATSecretRequest(_ context.Context, r *http.Request) (interface{}, error) {
 	if !strings.Contains(r.Header.Get("Content-Type"), contentType) {
 		return nil, apiutil.ErrUnsupportedContentType
 	}
@@ -223,7 +223,7 @@ func decodeRevokeSecretRequest(_ context.Context, r *http.Request) (interface{},
 	}, nil
 }
 
-func decodeAddScopeEntryRequest(_ context.Context, r *http.Request) (interface{}, error) {
+func decodeAddPATScopeEntryRequest(_ context.Context, r *http.Request) (interface{}, error) {
 	if !strings.Contains(r.Header.Get("Content-Type"), contentType) {
 		return nil, apiutil.ErrUnsupportedContentType
 	}
@@ -238,7 +238,7 @@ func decodeAddScopeEntryRequest(_ context.Context, r *http.Request) (interface{}
 	return req, nil
 }
 
-func decodeRemoveScopeEntryRequest(_ context.Context, r *http.Request) (interface{}, error) {
+func decodeRemovePATScopeEntryRequest(_ context.Context, r *http.Request) (interface{}, error) {
 	if !strings.Contains(r.Header.Get("Content-Type"), contentType) {
 		return nil, apiutil.ErrUnsupportedContentType
 	}
@@ -253,7 +253,7 @@ func decodeRemoveScopeEntryRequest(_ context.Context, r *http.Request) (interfac
 	return req, nil
 }
 
-func decodeClearAllScopeEntryRequest(_ context.Context, r *http.Request) (interface{}, error) {
+func decodeClearPATAllScopeEntryRequest(_ context.Context, r *http.Request) (interface{}, error) {
 	if !strings.Contains(r.Header.Get("Content-Type"), contentType) {
 		return nil, apiutil.ErrUnsupportedContentType
 	}
@@ -264,7 +264,7 @@ func decodeClearAllScopeEntryRequest(_ context.Context, r *http.Request) (interf
 	}, nil
 }
 
-func decodeTestCheckScopeEntryRequest(_ context.Context, r *http.Request) (interface{}, error) {
+func decodeTestCheckPATScopeEntryRequest(_ context.Context, r *http.Request) (interface{}, error) {
 	if !strings.Contains(r.Header.Get("Content-Type"), contentType) {
 		return nil, apiutil.ErrUnsupportedContentType
 	}
