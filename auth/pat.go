@@ -181,12 +181,17 @@ const (
 	PlatformDomainsScope
 )
 
+const (
+	platformUsersScopeStr   = "users"
+	platformDomainsScopeStr = "domains"
+)
+
 func (pet PlatformEntityType) ValidString() (string, error) {
 	switch pet {
 	case PlatformUsersScope:
-		return "users", nil
+		return platformUsersScopeStr, nil
 	case PlatformDomainsScope:
-		return "domains", nil
+		return platformDomainsScopeStr, nil
 	default:
 		return "", fmt.Errorf("unknown platform entity type %d", pet)
 	}
@@ -195,9 +200,9 @@ func (pet PlatformEntityType) ValidString() (string, error) {
 func (pet PlatformEntityType) String() string {
 	switch pet {
 	case PlatformUsersScope:
-		return "users"
+		return platformUsersScopeStr
 	case PlatformDomainsScope:
-		return "domains"
+		return platformDomainsScopeStr
 	default:
 		return fmt.Sprintf("unknown platform entity type %d", pet)
 	}
@@ -205,9 +210,9 @@ func (pet PlatformEntityType) String() string {
 
 func ParsePlatformEntityType(pet string) (PlatformEntityType, error) {
 	switch pet {
-	case "users":
+	case platformUsersScopeStr:
 		return PlatformUsersScope, nil
-	case "domains":
+	case platformDomainsScopeStr:
 		return PlatformDomainsScope, nil
 	default:
 		return 0, fmt.Errorf("unknown platform entity type %s", pet)
