@@ -193,16 +193,16 @@ func (res clearAllScopeEntryRes) Empty() bool {
 	return true
 }
 
-type testCheckPatScopeRes struct{}
+type authorizePATRes struct{}
 
-func (res testCheckPatScopeRes) Code() int {
-	return http.StatusOK
+func (res authorizePATRes) Code() int {
+	return http.StatusNoContent
 }
 
-func (res testCheckPatScopeRes) Headers() map[string]string {
+func (res authorizePATRes) Headers() map[string]string {
 	return map[string]string{}
 }
 
-func (res testCheckPatScopeRes) Empty() bool {
+func (res authorizePATRes) Empty() bool {
 	return true
 }

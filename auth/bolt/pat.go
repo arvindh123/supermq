@@ -38,6 +38,7 @@ const (
 )
 
 var (
+	activateValue    = []byte{0x00}
 	revokedValue     = []byte{0x01}
 	entityValue      = []byte{0x02}
 	anyIDValue       = []byte{0x03}
@@ -59,6 +60,7 @@ func NewPATSRepository(db *bolt.DB, bucketName string) auth.PATSRepository {
 }
 
 func (pr *patRepo) Save(ctx context.Context, pat auth.PAT) error {
+	idxKey := []byte(pat.User + keySeparator + patKey + keySeparator + pat.ID)
 	kv, err := patToKeyValue(pat)
 	if err != nil {
 		return err
@@ -78,7 +80,7 @@ func (pr *patRepo) Save(ctx context.Context, pat auth.PAT) error {
 				return errors.Wrap(repoerr.ErrCreateEntity, err)
 			}
 		}
-		if err := rootBucket.Put([]byte(pat.User+keySeparator+patKey+keySeparator+pat.ID), []byte(pat.ID)); err != nil {
+		if err := rootBucket.Put(idxKey, []byte(pat.ID)); err != nil {
 			return errors.Wrap(repoerr.ErrCreateEntity, err)
 		}
 		return nil
@@ -89,9 +91,9 @@ func (pr *patRepo) Retrieve(ctx context.Context, userID, patID string) (auth.PAT
 	prefix := []byte(patID + keySeparator)
 	kv := map[string][]byte{}
 	if err := pr.db.View(func(tx *bolt.Tx) error {
-		b, err := pr.retrieveUserBucket(tx, userID)
+		b, err := pr.retrieveUserBucket(tx, userID, patID, repoerr.ErrViewEntity)
 		if err != nil {
-			return errors.Wrap(repoerr.ErrRemoveEntity, err)
+			return err
 		}
 		c := b.Cursor()
 		for k, v := c.Seek(prefix); k != nil && bytes.HasPrefix(k, prefix); k, v = c.Next() {
@@ -103,6 +105,25 @@ func (pr *patRepo) Retrieve(ctx context.Context, userID, patID string) (auth.PAT
 	}
 
 	return keyValueToPAT(kv)
+}
+
+func (pr *patRepo) RetrieveSecretAndRevokeStatus(ctx context.Context, userID, patID string) (string, bool, error) {
+	revoked := true
+	keySecret := patID + keySeparator + secretKey
+	keyRevoked := patID + keySeparator + revokedKey
+	var secretHash string
+	if err := pr.db.View(func(tx *bolt.Tx) error {
+		b, err := pr.retrieveUserBucket(tx, userID, patID, repoerr.ErrViewEntity)
+		if err != nil {
+			return err
+		}
+		secretHash = string(b.Get([]byte(keySecret)))
+		revoked = bytesToBoolean(b.Get([]byte(keyRevoked)))
+		return nil
+	}); err != nil {
+		return "", true, err
+	}
+	return secretHash, revoked, nil
 }
 
 func (pr *patRepo) UpdateName(ctx context.Context, userID, patID, name string) (auth.PAT, error) {
@@ -117,14 +138,17 @@ func (pr *patRepo) UpdateTokenHash(ctx context.Context, userID, patID, tokenHash
 	prefix := []byte(patID + keySeparator)
 	kv := map[string][]byte{}
 	if err := pr.db.Update(func(tx *bolt.Tx) error {
-		b, err := pr.retrieveUserBucket(tx, userID)
+		b, err := pr.retrieveUserBucket(tx, userID, patID, repoerr.ErrUpdateEntity)
 		if err != nil {
-			return errors.Wrap(repoerr.ErrUpdateEntity, err)
+			return err
 		}
 		if err := b.Put([]byte(patID+keySeparator+secretKey), []byte(tokenHash)); err != nil {
 			return errors.Wrap(repoerr.ErrUpdateEntity, err)
 		}
 		if err := b.Put([]byte(patID+keySeparator+expiresAtKey), timeToBytes(expiryAt)); err != nil {
+			return errors.Wrap(repoerr.ErrUpdateEntity, err)
+		}
+		if err := b.Put([]byte(patID+keySeparator+updatedAtKey), timeToBytes(time.Now())); err != nil {
 			return errors.Wrap(repoerr.ErrUpdateEntity, err)
 		}
 		c := b.Cursor()
@@ -178,7 +202,7 @@ func (pr *patRepo) RetrieveAll(ctx context.Context, userID string, pm auth.PATSP
 		aLimit = uint64(rLimit)
 	}
 
-	for i := pm.Offset; i < aLimit; i++ {
+	for i := pm.Offset; i < pm.Offset+aLimit; i++ {
 		if int(i) < total {
 			pat, err := pr.Retrieve(ctx, userID, patIDs[i])
 			if err != nil {
@@ -193,9 +217,9 @@ func (pr *patRepo) RetrieveAll(ctx context.Context, userID string, pm auth.PATSP
 
 func (pr *patRepo) Revoke(ctx context.Context, userID, patID string) error {
 	if err := pr.db.Update(func(tx *bolt.Tx) error {
-		b, err := pr.retrieveUserBucket(tx, userID)
+		b, err := pr.retrieveUserBucket(tx, userID, patID, repoerr.ErrUpdateEntity)
 		if err != nil {
-			return errors.Wrap(repoerr.ErrUpdateEntity, err)
+			return err
 		}
 		if err := b.Put([]byte(patID+keySeparator+revokedKey), revokedValue); err != nil {
 			return errors.Wrap(repoerr.ErrUpdateEntity, err)
@@ -210,19 +234,45 @@ func (pr *patRepo) Revoke(ctx context.Context, userID, patID string) error {
 	return nil
 }
 
+func (pr *patRepo) Reactivate(ctx context.Context, userID, patID string) error {
+	if err := pr.db.Update(func(tx *bolt.Tx) error {
+		b, err := pr.retrieveUserBucket(tx, userID, patID, repoerr.ErrUpdateEntity)
+		if err != nil {
+			return err
+		}
+		if err := b.Put([]byte(patID+keySeparator+revokedKey), activateValue); err != nil {
+			return errors.Wrap(repoerr.ErrUpdateEntity, err)
+		}
+		if err := b.Put([]byte(patID+keySeparator+revokedAtKey), []byte{}); err != nil {
+			return errors.Wrap(repoerr.ErrUpdateEntity, err)
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (pr *patRepo) Remove(ctx context.Context, userID, patID string) error {
 	prefix := []byte(patID + keySeparator)
-
+	idxKey := []byte(userID + keySeparator + patKey + keySeparator + patID)
 	if err := pr.db.Update(func(tx *bolt.Tx) error {
-		b, err := pr.retrieveUserBucket(tx, userID)
+		b, err := pr.retrieveUserBucket(tx, userID, patID, repoerr.ErrRemoveEntity)
 		if err != nil {
-			return errors.Wrap(repoerr.ErrRemoveEntity, err)
+			return err
 		}
 		c := b.Cursor()
 		for k, _ := c.Seek(prefix); k != nil && bytes.HasPrefix(k, prefix); k, _ = c.Next() {
 			if err := b.Delete(k); err != nil {
 				return errors.Wrap(repoerr.ErrRemoveEntity, err)
 			}
+		}
+		rb, err := pr.retrieveRootBucket(tx)
+		if err != nil {
+			return err
+		}
+		if err := rb.Delete(idxKey); err != nil {
+			return errors.Wrap(repoerr.ErrRemoveEntity, err)
 		}
 		return nil
 	}); err != nil {
@@ -236,9 +286,9 @@ func (pr *patRepo) AddScopeEntry(ctx context.Context, userID, patID string, plat
 	prefix := []byte(patID + keySeparator + scopeKey)
 	var rKV map[string][]byte
 	if err := pr.db.Update(func(tx *bolt.Tx) error {
-		b, err := pr.retrieveUserBucket(tx, userID)
+		b, err := pr.retrieveUserBucket(tx, userID, patID, repoerr.ErrCreateEntity)
 		if err != nil {
-			return errors.Wrap(repoerr.ErrCreateEntity, err)
+			return err
 		}
 		kv, err := scopeEntryToKeyValue(platformEntityType, optionalDomainID, optionalDomainEntityType, operation, entityIDs...)
 		if err != nil {
@@ -269,9 +319,9 @@ func (pr *patRepo) RemoveScopeEntry(ctx context.Context, userID, patID string, p
 	prefix := []byte(patID + keySeparator + scopeKey)
 	var rKV map[string][]byte
 	if err := pr.db.Update(func(tx *bolt.Tx) error {
-		b, err := pr.retrieveUserBucket(tx, userID)
+		b, err := pr.retrieveUserBucket(tx, userID, patID, repoerr.ErrRemoveEntity)
 		if err != nil {
-			return errors.Wrap(repoerr.ErrRemoveEntity, err)
+			return err
 		}
 		kv, err := scopeEntryToKeyValue(platformEntityType, optionalDomainID, optionalDomainEntityType, operation, entityIDs...)
 		if err != nil {
@@ -296,7 +346,7 @@ func (pr *patRepo) RemoveScopeEntry(ctx context.Context, userID, patID string, p
 
 func (pr *patRepo) CheckScopeEntry(ctx context.Context, userID, patID string, platformEntityType auth.PlatformEntityType, optionalDomainID string, optionalDomainEntityType auth.DomainEntityType, operation auth.OperationType, entityIDs ...string) error {
 	return pr.db.Update(func(tx *bolt.Tx) error {
-		b, err := pr.retrieveUserBucket(tx, userID)
+		b, err := pr.retrieveUserBucket(tx, userID, patID, repoerr.ErrViewEntity)
 		if err != nil {
 			return errors.Wrap(repoerr.ErrViewEntity, err)
 		}
@@ -323,45 +373,18 @@ func (pr *patRepo) RemoveAllScopeEntry(ctx context.Context, userID, patID string
 	return nil
 }
 
-func (pr *patRepo) createUserBucket(rootBucket *bolt.Bucket, userID string) (*bolt.Bucket, error) {
-	userBucket, err := rootBucket.CreateBucketIfNotExists([]byte(userID))
-	if err != nil {
-		return nil, errors.Wrap(repoerr.ErrCreateEntity, fmt.Errorf("failed to retrieve or create bucket for user %s : %w", userID, err))
-	}
-
-	return userBucket, nil
-}
-
-func (pr *patRepo) retrieveUserBucket(tx *bolt.Tx, userID string) (*bolt.Bucket, error) {
-	rootBucket, err := pr.retrieveRootBucket(tx)
-	if err != nil {
-		return nil, err
-	}
-
-	userBucket := rootBucket.Bucket([]byte(userID))
-	if userBucket == nil {
-		return nil, fmt.Errorf("user %s not found", userID)
-	}
-	return userBucket, nil
-}
-
-func (pr *patRepo) retrieveRootBucket(tx *bolt.Tx) (*bolt.Bucket, error) {
-	rootBucket := tx.Bucket([]byte(pr.bucketName))
-	if rootBucket == nil {
-		return nil, fmt.Errorf("bucket %s not found", pr.bucketName)
-	}
-	return rootBucket, nil
-}
-
 func (pr *patRepo) updatePATField(_ context.Context, userID, patID, key string, value []byte) (auth.PAT, error) {
 	prefix := []byte(patID + keySeparator)
 	kv := map[string][]byte{}
 	if err := pr.db.Update(func(tx *bolt.Tx) error {
-		b, err := pr.retrieveUserBucket(tx, userID)
+		b, err := pr.retrieveUserBucket(tx, userID, patID, repoerr.ErrUpdateEntity)
 		if err != nil {
-			return errors.Wrap(repoerr.ErrUpdateEntity, err)
+			return err
 		}
 		if err := b.Put([]byte(patID+keySeparator+key), value); err != nil {
+			return errors.Wrap(repoerr.ErrUpdateEntity, err)
+		}
+		if err := b.Put([]byte(patID+keySeparator+updatedAtKey), timeToBytes(time.Now())); err != nil {
 			return errors.Wrap(repoerr.ErrUpdateEntity, err)
 		}
 		c := b.Cursor()
@@ -373,6 +396,41 @@ func (pr *patRepo) updatePATField(_ context.Context, userID, patID, key string, 
 		return auth.PAT{}, err
 	}
 	return keyValueToPAT(kv)
+}
+
+func (pr *patRepo) createUserBucket(rootBucket *bolt.Bucket, userID string) (*bolt.Bucket, error) {
+	userBucket, err := rootBucket.CreateBucketIfNotExists([]byte(userID))
+	if err != nil {
+		return nil, errors.Wrap(repoerr.ErrCreateEntity, fmt.Errorf("failed to retrieve or create bucket for user %s : %w", userID, err))
+	}
+
+	return userBucket, nil
+}
+
+func (pr *patRepo) retrieveUserBucket(tx *bolt.Tx, userID, patID string, wrap error) (*bolt.Bucket, error) {
+	rootBucket, err := pr.retrieveRootBucket(tx)
+	if err != nil {
+		return nil, errors.Wrap(wrap, err)
+	}
+
+	vPatID := rootBucket.Get([]byte(userID + keySeparator + patKey + keySeparator + patID))
+	if vPatID == nil {
+		return nil, repoerr.ErrNotFound
+	}
+
+	userBucket := rootBucket.Bucket([]byte(userID))
+	if userBucket == nil {
+		return nil, errors.Wrap(wrap, fmt.Errorf("user %s not found", userID))
+	}
+	return userBucket, nil
+}
+
+func (pr *patRepo) retrieveRootBucket(tx *bolt.Tx) (*bolt.Bucket, error) {
+	rootBucket := tx.Bucket([]byte(pr.bucketName))
+	if rootBucket == nil {
+		return nil, fmt.Errorf("bucket %s not found", pr.bucketName)
+	}
+	return rootBucket, nil
 }
 
 func patToKeyValue(pat auth.PAT) (map[string][]byte, error) {
@@ -401,7 +459,7 @@ func patToKeyValue(pat auth.PAT) (map[string][]byte, error) {
 
 func scopeToKeyValue(scope auth.Scope) (map[string][]byte, error) {
 	kv := map[string][]byte{}
-	for opType, scopeValue := range scope.Users.Operations {
+	for opType, scopeValue := range scope.Users {
 		tempKV, err := scopeEntryToKeyValue(auth.PlatformUsersScope, "", auth.DomainNullScope, opType, scopeValue.Values()...)
 		if err != nil {
 			return nil, err
@@ -411,7 +469,7 @@ func scopeToKeyValue(scope auth.Scope) (map[string][]byte, error) {
 		}
 	}
 	for domainID, domainScope := range scope.Domains {
-		for opType, scopeValue := range domainScope.DomainManagement.Operations {
+		for opType, scopeValue := range domainScope.DomainManagement {
 			tempKV, err := scopeEntryToKeyValue(auth.PlatformDomainsScope, domainID, auth.DomainManagementScope, opType, scopeValue.Values()...)
 			if err != nil {
 				return nil, errors.Wrap(repoerr.ErrCreateEntity, err)
@@ -421,7 +479,7 @@ func scopeToKeyValue(scope auth.Scope) (map[string][]byte, error) {
 			}
 		}
 		for entityType, scope := range domainScope.Entities {
-			for opType, scopeValue := range scope.Operations {
+			for opType, scopeValue := range scope {
 				tempKV, err := scopeEntryToKeyValue(auth.PlatformDomainsScope, domainID, entityType, opType, scopeValue.Values()...)
 				if err != nil {
 					return nil, errors.Wrap(repoerr.ErrCreateEntity, err)
@@ -496,7 +554,7 @@ func scopeRootKey(platformEntityType auth.PlatformEntityType, optionalDomainID s
 	return rootKey.String(), nil
 }
 
-func keyValueToPAT(kv map[string][]byte) (auth.PAT, error) {
+func keyValueToBasicPAT(kv map[string][]byte) auth.PAT {
 	var pat auth.PAT
 	for k, v := range kv {
 		switch {
@@ -522,6 +580,11 @@ func keyValueToPAT(kv map[string][]byte) (auth.PAT, error) {
 			pat.RevokedAt = bytesToTime(v)
 		}
 	}
+	return pat
+}
+
+func keyValueToPAT(kv map[string][]byte) (auth.PAT, error) {
+	pat := keyValueToBasicPAT(kv)
 	scope, err := parseKeyValueToScope(kv)
 	if err != nil {
 		return auth.PAT{}, err
@@ -599,8 +662,8 @@ func parseKeyValueToScope(kv map[string][]byte) (auth.Scope, error) {
 }
 
 func parseOperation(platformEntityType auth.PlatformEntityType, opScope auth.OperationScope, key string, keyParts []string, value []byte) (auth.OperationScope, error) {
-	if opScope.Operations == nil {
-		opScope.Operations = make(map[auth.OperationType]auth.ScopeValue)
+	if opScope == nil {
+		opScope = make(map[auth.OperationType]auth.ScopeValue)
 	}
 
 	if err := validateOperation(platformEntityType, opScope, key, keyParts, value); err != nil {
@@ -615,38 +678,38 @@ func parseOperation(platformEntityType auth.PlatformEntityType, opScope auth.Ope
 		}
 		entityID := keyParts[len(keyParts)-1]
 
-		if _, oValueExists := opScope.Operations[opType]; !oValueExists {
-			opScope.Operations[opType] = &auth.SelectedIDs{}
+		if _, oValueExists := opScope[opType]; !oValueExists {
+			opScope[opType] = &auth.SelectedIDs{}
 		}
-		oValue := opScope.Operations[opType]
+		oValue := opScope[opType]
 		if err := oValue.AddValues(entityID); err != nil {
 			return auth.OperationScope{}, fmt.Errorf("failed to add scope key %s with entity value %v : %w", key, entityID, err)
 		}
-		opScope.Operations[opType] = oValue
+		opScope[opType] = oValue
 	case string(anyIDValue):
 		opType, err := auth.ParseOperationType(keyParts[len(keyParts)-1])
 		if err != nil {
 			return auth.OperationScope{}, errors.Wrap(repoerr.ErrViewEntity, err)
 		}
-		if oValue, oValueExists := opScope.Operations[opType]; oValueExists && oValue != nil {
+		if oValue, oValueExists := opScope[opType]; oValueExists && oValue != nil {
 			if _, ok := oValue.(*auth.AnyIDs); !ok {
 				return auth.OperationScope{}, fmt.Errorf("failed to add scope key %s with entity anyIDs scope value : key already initialized with different type", key)
 			}
 		}
-		opScope.Operations[opType] = &auth.AnyIDs{}
+		opScope[opType] = &auth.AnyIDs{}
 	case string(selectedIDsValue):
 		opType, err := auth.ParseOperationType(keyParts[len(keyParts)-1])
 		if err != nil {
 			return auth.OperationScope{}, errors.Wrap(repoerr.ErrViewEntity, err)
 		}
-		oValue, oValueExists := opScope.Operations[opType]
+		oValue, oValueExists := opScope[opType]
 		if oValueExists && oValue != nil {
 			if _, ok := oValue.(*auth.SelectedIDs); !ok {
 				return auth.OperationScope{}, fmt.Errorf("failed to add scope key %s with entity selectedIDs scope value : key already initialized with different type", key)
 			}
 		}
 		if !oValueExists {
-			opScope.Operations[opType] = &auth.SelectedIDs{}
+			opScope[opType] = &auth.SelectedIDs{}
 		}
 	default:
 		return auth.OperationScope{}, fmt.Errorf("key %s have invalid value %v", key, value)
@@ -686,14 +749,13 @@ func validateOperation(platformEntityType auth.PlatformEntityType, opScope auth.
 
 func timeToBytes(t time.Time) []byte {
 	timeBytes := make([]byte, 8)
-	binary.BigEndian.PutUint64(timeBytes, uint64(t.Nanosecond()))
+	binary.BigEndian.PutUint64(timeBytes, uint64(t.Unix()))
 	return timeBytes
 }
 
 func bytesToTime(b []byte) time.Time {
-	var timeAtNs uint64
-	binary.BigEndian.AppendUint64(b, timeAtNs)
-	return time.Unix(0, int64(timeAtNs))
+	timeAtSeconds := binary.BigEndian.Uint64(b)
+	return time.Unix(int64(timeAtSeconds), 0)
 }
 
 func booleanToBytes(b bool) []byte {
@@ -704,7 +766,7 @@ func booleanToBytes(b bool) []byte {
 }
 
 func bytesToBoolean(b []byte) bool {
-	if len(b) > 0 && b[0] == 1 {
+	if len(b) > 1 || b[0] != activateValue[0] {
 		return true
 	}
 	return false

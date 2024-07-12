@@ -308,14 +308,14 @@ func (es *eventStore) ClearPATAllScopeEntry(ctx context.Context, token, patID st
 	return es.svc.ClearPATAllScopeEntry(ctx, token, patID)
 }
 
-func (es *eventStore) TestCheckPATScopeEntry(ctx context.Context, paToken string, platformEntityType auth.PlatformEntityType, optionalDomainID string, optionalDomainEntityType auth.DomainEntityType, operation auth.OperationType, entityIDs ...string) error {
-	return es.svc.TestCheckPATScopeEntry(ctx, paToken, platformEntityType, optionalDomainID, optionalDomainEntityType, operation, entityIDs...)
-}
-
 func (es *eventStore) IdentifyPAT(ctx context.Context, paToken string) (auth.PAT, error) {
 	return es.svc.IdentifyPAT(ctx, paToken)
 }
 
-func (es *eventStore) AuthorizePAT(ctx context.Context, paToken string) (auth.PAT, error) {
-	return es.svc.AuthorizePAT(ctx, paToken)
+func (es *eventStore) AuthorizePAT(ctx context.Context, paToken string, platformEntityType auth.PlatformEntityType, optionalDomainID string, optionalDomainEntityType auth.DomainEntityType, operation auth.OperationType, entityIDs ...string) error {
+	return es.svc.AuthorizePAT(ctx, paToken, platformEntityType, optionalDomainID, optionalDomainEntityType, operation, entityIDs...)
+}
+
+func (es *eventStore) CheckPAT(ctx context.Context, userID, patID string, platformEntityType auth.PlatformEntityType, optionalDomainID string, optionalDomainEntityType auth.DomainEntityType, operation auth.OperationType, entityIDs ...string) error {
+	return es.svc.CheckPAT(ctx, userID, patID, platformEntityType, optionalDomainID, optionalDomainEntityType, operation, entityIDs...)
 }

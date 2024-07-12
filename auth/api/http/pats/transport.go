@@ -106,9 +106,9 @@ func MakeHandler(svc auth.Service, mux *chi.Mux, logger *slog.Logger) *chi.Mux {
 			opts...,
 		).ServeHTTP)
 
-		r.Get("/check", kithttp.NewServer(
-			(testCheckPATScopeEntryEndpoint(svc)),
-			decodeTestCheckPATScopeEntryRequest,
+		r.Post("/authorize", kithttp.NewServer(
+			(authorizePATEndpoint(svc)),
+			decodeAuthorizePATRequest,
 			api.EncodeResponse,
 			opts...,
 		).ServeHTTP)
@@ -184,10 +184,6 @@ func decodeListPATSRequest(_ context.Context, r *http.Request) (interface{}, err
 }
 
 func decodeDeletePATRequest(_ context.Context, r *http.Request) (interface{}, error) {
-	if !strings.Contains(r.Header.Get("Content-Type"), contentType) {
-		return nil, apiutil.ErrUnsupportedContentType
-	}
-
 	return deletePatReq{
 		token: apiutil.ExtractBearerToken(r),
 		id:    chi.URLParam(r, "id"),
@@ -210,10 +206,6 @@ func decodeResetPATSecretRequest(_ context.Context, r *http.Request) (interface{
 }
 
 func decodeRevokePATSecretRequest(_ context.Context, r *http.Request) (interface{}, error) {
-	if !strings.Contains(r.Header.Get("Content-Type"), contentType) {
-		return nil, apiutil.ErrUnsupportedContentType
-	}
-
 	return revokePatSecretReq{
 		token: apiutil.ExtractBearerToken(r),
 		id:    chi.URLParam(r, "id"),
@@ -261,12 +253,12 @@ func decodeClearPATAllScopeEntryRequest(_ context.Context, r *http.Request) (int
 	}, nil
 }
 
-func decodeTestCheckPATScopeEntryRequest(_ context.Context, r *http.Request) (interface{}, error) {
+func decodeAuthorizePATRequest(_ context.Context, r *http.Request) (interface{}, error) {
 	if !strings.Contains(r.Header.Get("Content-Type"), contentType) {
 		return nil, apiutil.ErrUnsupportedContentType
 	}
 
-	req := testCheckPatScopeReq{token: apiutil.ExtractBearerToken(r)}
+	req := authorizePATReq{token: apiutil.ExtractBearerToken(r)}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return nil, errors.Wrap(errors.ErrMalformedEntity, err)
 	}

@@ -302,7 +302,7 @@ func (req clearAllScopeEntryReq) validate() (err error) {
 	return nil
 }
 
-type testCheckPatScopeReq struct {
+type authorizePATReq struct {
 	token                    string
 	PlatformEntityType       auth.PlatformEntityType `json:"platform_entity_type,omitempty"`
 	OptionalDomainID         string                  `json:"optional_domain_id,omitempty"`
@@ -311,7 +311,7 @@ type testCheckPatScopeReq struct {
 	EntityIDs                []string                `json:"entity_ids,omitempty"`
 }
 
-func (tcpsr *testCheckPatScopeReq) UnmarshalJSON(data []byte) error {
+func (tcpsr *authorizePATReq) UnmarshalJSON(data []byte) error {
 	var temp struct {
 		PlatformEntityType       string   `json:"platform_entity_type,omitempty"`
 		OptionalDomainID         string   `json:"optional_domain_id,omitempty"`
@@ -324,27 +324,35 @@ func (tcpsr *testCheckPatScopeReq) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
+	tcpsr.OptionalDomainID = temp.OptionalDomainID
+	tcpsr.EntityIDs = temp.EntityIDs
+
 	pet, err := auth.ParsePlatformEntityType(temp.PlatformEntityType)
 	if err != nil {
 		return err
 	}
-	odt, err := auth.ParseDomainEntityType(temp.OptionalDomainEntityType)
-	if err != nil {
-		return err
-	}
-	op, err := auth.ParseOperationType(temp.Operation)
-	if err != nil {
-		return err
-	}
 	tcpsr.PlatformEntityType = pet
-	tcpsr.OptionalDomainID = temp.OptionalDomainID
-	tcpsr.OptionalDomainEntityType = odt
-	tcpsr.Operation = op
-	tcpsr.EntityIDs = temp.EntityIDs
+
+	if temp.OptionalDomainEntityType != "" {
+		odt, err := auth.ParseDomainEntityType(temp.OptionalDomainEntityType)
+		if err != nil {
+			return err
+		}
+		tcpsr.OptionalDomainEntityType = odt
+	}
+
+	if temp.OptionalDomainID != "" {
+		op, err := auth.ParseOperationType(temp.Operation)
+		if err != nil {
+			return err
+		}
+		tcpsr.Operation = op
+	}
+
 	return nil
 }
 
-func (req testCheckPatScopeReq) validate() (err error) {
+func (req authorizePATReq) validate() (err error) {
 	if req.token == "" {
 		return apiutil.ErrBearerToken
 	}

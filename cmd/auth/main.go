@@ -20,6 +20,7 @@ import (
 	httpapi "github.com/absmach/magistrala/auth/api/http"
 	"github.com/absmach/magistrala/auth/bolt"
 	"github.com/absmach/magistrala/auth/events"
+	"github.com/absmach/magistrala/auth/hasher"
 	"github.com/absmach/magistrala/auth/jwt"
 	apostgres "github.com/absmach/magistrala/auth/postgres"
 	"github.com/absmach/magistrala/auth/spicedb"
@@ -39,6 +40,7 @@ import (
 	"github.com/authzed/grpcutil"
 	"github.com/caarlos0/env/v10"
 	"github.com/jmoiron/sqlx"
+	"go.etcd.io/bbolt"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
@@ -139,17 +141,15 @@ func main() {
 		return
 	}
 
-	client, err := boltclient.Connect(boltDBConfig, bolt.Init)
+	bClient, err := boltclient.Connect(boltDBConfig, bolt.Init)
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to connect to bolt db : %s\n", err.Error()))
 		exitCode = 1
 		return
 	}
-	defer client.Close()
+	defer bClient.Close()
 
-	patsRepo := bolt.NewPATSRepository(client, boltDBConfig.Bucket)
-
-	svc := newService(ctx, db, tracer, cfg, dbConfig, logger, spicedbclient, patsRepo)
+	svc := newService(ctx, db, tracer, cfg, dbConfig, logger, spicedbclient, bClient, boltDBConfig)
 
 	httpServerConfig := server.Config{Port: defSvcHTTPPort}
 	if err := env.ParseWithOptions(&httpServerConfig, env.Options{Prefix: envPrefixHTTP}); err != nil {
@@ -223,16 +223,18 @@ func initSchema(ctx context.Context, client *authzed.ClientWithExperimental, sch
 	return nil
 }
 
-func newService(ctx context.Context, db *sqlx.DB, tracer trace.Tracer, cfg config, dbConfig pgclient.Config, logger *slog.Logger, spicedbClient *authzed.ClientWithExperimental, pats auth.PATSRepository) auth.Service {
+func newService(ctx context.Context, db *sqlx.DB, tracer trace.Tracer, cfg config, dbConfig pgclient.Config, logger *slog.Logger, spicedbClient *authzed.ClientWithExperimental, bClient *bbolt.DB, bConfig boltclient.Config) auth.Service {
 	database := postgres.NewDatabase(db, dbConfig, tracer)
 	keysRepo := apostgres.New(database)
 	domainsRepo := apostgres.NewDomainRepository(database)
+	patsRepo := bolt.NewPATSRepository(bClient, bConfig.Bucket)
+	hasher := hasher.New()
 	pa := spicedb.NewPolicyAgent(spicedbClient, logger)
 	idProvider := uuid.New()
 
 	t := jwt.New([]byte(cfg.SecretKey))
 
-	svc := auth.New(keysRepo, domainsRepo, pats, idProvider, t, pa, cfg.AccessDuration, cfg.RefreshDuration, cfg.InvitationDuration)
+	svc := auth.New(keysRepo, domainsRepo, patsRepo, hasher, idProvider, t, pa, cfg.AccessDuration, cfg.RefreshDuration, cfg.InvitationDuration)
 	svc, err := events.NewEventStoreMiddleware(ctx, svc, cfg.ESURL)
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to init event store middleware : %s", err))

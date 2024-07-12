@@ -79,6 +79,24 @@ func (_m *PATSRepository) CheckScopeEntry(ctx context.Context, userID string, pa
 	return r0
 }
 
+// Reactivate provides a mock function with given fields: ctx, userID, patID
+func (_m *PATSRepository) Reactivate(ctx context.Context, userID string, patID string) error {
+	ret := _m.Called(ctx, userID, patID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Reactivate")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) error); ok {
+		r0 = rf(ctx, userID, patID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // Remove provides a mock function with given fields: ctx, userID, patID
 func (_m *PATSRepository) Remove(ctx context.Context, userID string, patID string) error {
 	ret := _m.Called(ctx, userID, patID)
@@ -204,6 +222,41 @@ func (_m *PATSRepository) RetrieveAll(ctx context.Context, userID string, pm aut
 	}
 
 	return r0, r1
+}
+
+// RetrieveSecretAndRevokeStatus provides a mock function with given fields: ctx, userID, patID
+func (_m *PATSRepository) RetrieveSecretAndRevokeStatus(ctx context.Context, userID string, patID string) (string, bool, error) {
+	ret := _m.Called(ctx, userID, patID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for RetrieveSecretAndRevokeStatus")
+	}
+
+	var r0 string
+	var r1 bool
+	var r2 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) (string, bool, error)); ok {
+		return rf(ctx, userID, patID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) string); ok {
+		r0 = rf(ctx, userID, patID)
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string) bool); ok {
+		r1 = rf(ctx, userID, patID)
+	} else {
+		r1 = ret.Get(1).(bool)
+	}
+
+	if rf, ok := ret.Get(2).(func(context.Context, string, string) error); ok {
+		r2 = rf(ctx, userID, patID)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
 }
 
 // Revoke provides a mock function with given fields: ctx, userID, patID

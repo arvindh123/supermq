@@ -54,32 +54,54 @@ func (_m *PATS) AddPATScopeEntry(ctx context.Context, token string, patID string
 	return r0, r1
 }
 
-// AuthorizePAT provides a mock function with given fields: ctx, paToken
-func (_m *PATS) AuthorizePAT(ctx context.Context, paToken string) (auth.PAT, error) {
-	ret := _m.Called(ctx, paToken)
+// AuthorizePAT provides a mock function with given fields: ctx, paToken, platformEntityType, optionalDomainID, optionalDomainEntityType, operation, entityIDs
+func (_m *PATS) AuthorizePAT(ctx context.Context, paToken string, platformEntityType auth.PlatformEntityType, optionalDomainID string, optionalDomainEntityType auth.DomainEntityType, operation auth.OperationType, entityIDs ...string) error {
+	_va := make([]interface{}, len(entityIDs))
+	for _i := range entityIDs {
+		_va[_i] = entityIDs[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, ctx, paToken, platformEntityType, optionalDomainID, optionalDomainEntityType, operation)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
 
 	if len(ret) == 0 {
 		panic("no return value specified for AuthorizePAT")
 	}
 
-	var r0 auth.PAT
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) (auth.PAT, error)); ok {
-		return rf(ctx, paToken)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) auth.PAT); ok {
-		r0 = rf(ctx, paToken)
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, auth.PlatformEntityType, string, auth.DomainEntityType, auth.OperationType, ...string) error); ok {
+		r0 = rf(ctx, paToken, platformEntityType, optionalDomainID, optionalDomainEntityType, operation, entityIDs...)
 	} else {
-		r0 = ret.Get(0).(auth.PAT)
+		r0 = ret.Error(0)
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = rf(ctx, paToken)
-	} else {
-		r1 = ret.Error(1)
+	return r0
+}
+
+// CheckPAT provides a mock function with given fields: ctx, userID, patID, platformEntityType, optionalDomainID, optionalDomainEntityType, operation, entityIDs
+func (_m *PATS) CheckPAT(ctx context.Context, userID string, patID string, platformEntityType auth.PlatformEntityType, optionalDomainID string, optionalDomainEntityType auth.DomainEntityType, operation auth.OperationType, entityIDs ...string) error {
+	_va := make([]interface{}, len(entityIDs))
+	for _i := range entityIDs {
+		_va[_i] = entityIDs[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, ctx, userID, patID, platformEntityType, optionalDomainID, optionalDomainEntityType, operation)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CheckPAT")
 	}
 
-	return r0, r1
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, auth.PlatformEntityType, string, auth.DomainEntityType, auth.OperationType, ...string) error); ok {
+		r0 = rf(ctx, userID, patID, platformEntityType, optionalDomainID, optionalDomainEntityType, operation, entityIDs...)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
 }
 
 // ClearPATAllScopeEntry provides a mock function with given fields: ctx, token, patID
@@ -304,31 +326,6 @@ func (_m *PATS) RevokePATSecret(ctx context.Context, token string, patID string)
 	var r0 error
 	if rf, ok := ret.Get(0).(func(context.Context, string, string) error); ok {
 		r0 = rf(ctx, token, patID)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
-// TestCheckPATScopeEntry provides a mock function with given fields: ctx, paToken, platformEntityType, optionalDomainID, optionalDomainEntityType, operation, entityIDs
-func (_m *PATS) TestCheckPATScopeEntry(ctx context.Context, paToken string, platformEntityType auth.PlatformEntityType, optionalDomainID string, optionalDomainEntityType auth.DomainEntityType, operation auth.OperationType, entityIDs ...string) error {
-	_va := make([]interface{}, len(entityIDs))
-	for _i := range entityIDs {
-		_va[_i] = entityIDs[_i]
-	}
-	var _ca []interface{}
-	_ca = append(_ca, ctx, paToken, platformEntityType, optionalDomainID, optionalDomainEntityType, operation)
-	_ca = append(_ca, _va...)
-	ret := _m.Called(_ca...)
-
-	if len(ret) == 0 {
-		panic("no return value specified for TestCheckPATScopeEntry")
-	}
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, auth.PlatformEntityType, string, auth.DomainEntityType, auth.OperationType, ...string) error); ok {
-		r0 = rf(ctx, paToken, platformEntityType, optionalDomainID, optionalDomainEntityType, operation, entityIDs...)
 	} else {
 		r0 = ret.Error(0)
 	}

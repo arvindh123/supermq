@@ -33,23 +33,6 @@ const (
 	deleteOpStr = "delete"
 )
 
-func (ot OperationType) ValidString() (string, error) {
-	switch ot {
-	case CreateOp:
-		return createOpStr, nil
-	case ReadOp:
-		return readOpStr, nil
-	case ListOp:
-		return listOpStr, nil
-	case UpdateOp:
-		return updateOpStr, nil
-	case DeleteOp:
-		return deleteOpStr, nil
-	default:
-		return "", fmt.Errorf("unknown operation type %d", ot)
-	}
-}
-
 func (ot OperationType) String() string {
 	switch ot {
 	case CreateOp:
@@ -65,6 +48,14 @@ func (ot OperationType) String() string {
 	default:
 		return fmt.Sprintf("unknown operation type %d", ot)
 	}
+}
+
+func (ot OperationType) ValidString() (string, error) {
+	str := ot.String()
+	if str == fmt.Sprintf("unknown operation type %d", ot) {
+		return "", errors.New(str)
+	}
+	return str, nil
 }
 
 func ParseOperationType(ot string) (OperationType, error) {
@@ -115,21 +106,6 @@ const (
 	domainThingsScopeStr     = "things"
 )
 
-func (det DomainEntityType) ValidString() (string, error) {
-	switch det {
-	case DomainManagementScope:
-		return domainManagementScopeStr, nil
-	case DomainGroupsScope:
-		return domainGroupsScopeStr, nil
-	case DomainChannelsScope:
-		return domainChannelsScopeStr, nil
-	case DomainThingsScope:
-		return domainThingsScopeStr, nil
-	default:
-		return "", fmt.Errorf("unknown domain entity type %d", det)
-	}
-}
-
 func (det DomainEntityType) String() string {
 	switch det {
 	case DomainManagementScope:
@@ -143,6 +119,14 @@ func (det DomainEntityType) String() string {
 	default:
 		return fmt.Sprintf("unknown domain entity type %d", det)
 	}
+}
+
+func (det DomainEntityType) ValidString() (string, error) {
+	str := det.String()
+	if str == fmt.Sprintf("unknown operation type %d", det) {
+		return "", errors.New(str)
+	}
+	return str, nil
 }
 
 func ParseDomainEntityType(det string) (DomainEntityType, error) {
@@ -186,17 +170,6 @@ const (
 	platformDomainsScopeStr = "domains"
 )
 
-func (pet PlatformEntityType) ValidString() (string, error) {
-	switch pet {
-	case PlatformUsersScope:
-		return platformUsersScopeStr, nil
-	case PlatformDomainsScope:
-		return platformDomainsScopeStr, nil
-	default:
-		return "", fmt.Errorf("unknown platform entity type %d", pet)
-	}
-}
-
 func (pet PlatformEntityType) String() string {
 	switch pet {
 	case PlatformUsersScope:
@@ -206,6 +179,14 @@ func (pet PlatformEntityType) String() string {
 	default:
 		return fmt.Sprintf("unknown platform entity type %d", pet)
 	}
+}
+
+func (pet PlatformEntityType) ValidString() (string, error) {
+	str := pet.String()
+	if str == fmt.Sprintf("unknown platform entity type %d", pet) {
+		return "", errors.New(str)
+	}
+	return str, nil
 }
 
 func ParsePlatformEntityType(pet string) (PlatformEntityType, error) {
@@ -281,44 +262,35 @@ func (s *SelectedIDs) RemoveValues(ids ...string) error {
 }
 
 // OperationScope contains map of OperationType with value of AnyIDs or SelectedIDs.
-type OperationScope struct {
-	Operations map[OperationType]ScopeValue `json:"operations,omitempty"`
-}
+type OperationScope map[OperationType]ScopeValue
 
 func (os *OperationScope) UnmarshalJSON(data []byte) error {
-	type tempOperationScope struct {
-		Operations map[OperationType]json.RawMessage `json:"operations"`
-	}
+	type tempOperationScope map[OperationType]json.RawMessage
 
 	var tempScope tempOperationScope
 	if err := json.Unmarshal(data, &tempScope); err != nil {
 		return err
 	}
 	// Initialize the Operations map
-	os.Operations = make(map[OperationType]ScopeValue)
+	*os = OperationScope{}
 
-	for opType, rawMessage := range tempScope.Operations {
+	for opType, rawMessage := range tempScope {
 		var stringValue string
 		var stringArrayValue []string
 
 		// Try to unmarshal as string
 		if err := json.Unmarshal(rawMessage, &stringValue); err == nil {
-			switch {
-			case stringValue == "*":
-				os.Operations[opType] = &AnyIDs{}
-			default:
-				os.Operations[opType] = &SelectedIDs{stringValue: {}}
+			if err := os.Add(opType, stringValue); err != nil {
+				return err
 			}
 			continue
 		}
 
 		// Try to unmarshal as []string
 		if err := json.Unmarshal(rawMessage, &stringArrayValue); err == nil {
-			sids := make(SelectedIDs)
-			for _, stringVal := range stringArrayValue {
-				sids[stringVal] = struct{}{}
+			if err := os.Add(opType, stringArrayValue...); err != nil {
+				return err
 			}
-			os.Operations[opType] = &sids
 			continue
 		}
 
@@ -329,11 +301,29 @@ func (os *OperationScope) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+func (os OperationScope) MarshalJSON() ([]byte, error) {
+	tempOperationScope := make(map[OperationType]interface{})
+	for oType, scope := range os {
+		value := scope.Values()
+		if len(value) == 1 && value[0] == "*" {
+			tempOperationScope[oType] = "*"
+			continue
+		}
+		tempOperationScope[oType] = value
+	}
+
+	b, err := json.Marshal(tempOperationScope)
+	if err != nil {
+		return nil, err
+	}
+	return b, nil
+}
+
 func (os *OperationScope) Add(operation OperationType, entityIDs ...string) error {
 	var value ScopeValue
 
-	if os == nil || os.Operations == nil {
-		os.Operations = make(map[OperationType]ScopeValue)
+	if os == nil {
+		os = &OperationScope{}
 	}
 
 	if len(entityIDs) == 0 {
@@ -355,16 +345,16 @@ func (os *OperationScope) Add(operation OperationType, entityIDs ...string) erro
 		}
 		value = &sids
 	}
-	os.Operations[operation] = value
+	(*os)[operation] = value
 	return nil
 }
 
 func (os *OperationScope) Delete(operation OperationType, entityIDs ...string) error {
-	if os == nil || os.Operations == nil {
+	if os == nil {
 		return nil
 	}
 
-	opEntityIDs, exists := os.Operations[operation]
+	opEntityIDs, exists := (*os)[operation]
 	if !exists {
 		return nil
 	}
@@ -378,7 +368,7 @@ func (os *OperationScope) Delete(operation OperationType, entityIDs ...string) e
 		if !(len(entityIDs) == 1 && entityIDs[0] == "*") {
 			return fmt.Errorf("failed to delete operation %s: invalid list", operation.String())
 		}
-		delete(os.Operations, operation)
+		delete((*os), operation)
 		return nil
 	case *SelectedIDs:
 		for _, entityID := range entityIDs {
@@ -389,7 +379,7 @@ func (os *OperationScope) Delete(operation OperationType, entityIDs ...string) e
 		for _, entityID := range entityIDs {
 			delete(*eIDs, entityID)
 			if len(*eIDs) == 0 {
-				delete(os.Operations, operation)
+				delete((*os), operation)
 			}
 		}
 		return nil
@@ -399,11 +389,11 @@ func (os *OperationScope) Delete(operation OperationType, entityIDs ...string) e
 }
 
 func (os *OperationScope) Check(operation OperationType, entityIDs ...string) bool {
-	if os == nil || os.Operations == nil {
+	if os == nil {
 		return false
 	}
 
-	if scopeValue, ok := os.Operations[operation]; ok {
+	if scopeValue, ok := (*os)[operation]; ok {
 		if len(entityIDs) == 0 {
 			_, ok := scopeValue.(*AnyIDs)
 			return ok
@@ -483,7 +473,7 @@ func (ds *DomainScope) Delete(domainEntityType DomainEntityType, operation Opera
 		return fmt.Errorf("failed to delete domain %s scope: %w", domainEntityType.String(), err)
 	}
 
-	if len(os.Operations) == 0 {
+	if len(os) == 0 {
 		delete(ds.Entities, domainEntityType)
 	}
 	return nil
@@ -708,14 +698,14 @@ type PATS interface {
 	// ClearAllScope function removes all scope entry.
 	ClearPATAllScopeEntry(ctx context.Context, token, patID string) error
 
-	// This will be removed during PR merge. TestCheckScope will check the given scope exists.
-	TestCheckPATScopeEntry(ctx context.Context, paToken string, platformEntityType PlatformEntityType, optionalDomainID string, optionalDomainEntityType DomainEntityType, operation OperationType, entityIDs ...string) error
-
 	// IdentifyPAT function will valid the secret.
 	IdentifyPAT(ctx context.Context, paToken string) (PAT, error)
 
 	// AuthorizePAT function will valid the secret and check the given scope exists.
-	AuthorizePAT(ctx context.Context, paToken string) (PAT, error)
+	AuthorizePAT(ctx context.Context, paToken string, platformEntityType PlatformEntityType, optionalDomainID string, optionalDomainEntityType DomainEntityType, operation OperationType, entityIDs ...string) error
+
+	// CheckPAT function will check the given scope exists.
+	CheckPAT(ctx context.Context, userID, patID string, platformEntityType PlatformEntityType, optionalDomainID string, optionalDomainEntityType DomainEntityType, operation OperationType, entityIDs ...string) error
 }
 
 // PATSRepository specifies PATS persistence API.
@@ -727,6 +717,9 @@ type PATSRepository interface {
 
 	// Retrieve retrieves users PAT by its unique identifier.
 	Retrieve(ctx context.Context, userID, patID string) (pat PAT, err error)
+
+	// RetrieveSecretAndRevokeStatus retrieves secret and revoke status of PAT by its unique identifier.
+	RetrieveSecretAndRevokeStatus(ctx context.Context, userID, patID string) (string, bool, error)
 
 	// UpdateName updates the name of a PAT.
 	UpdateName(ctx context.Context, userID, patID, name string) (PAT, error)
@@ -742,6 +735,9 @@ type PATSRepository interface {
 
 	// Revoke PAT with provided ID.
 	Revoke(ctx context.Context, userID, patID string) error
+
+	// Reactivate PAT with provided ID.
+	Reactivate(ctx context.Context, userID, patID string) error
 
 	// Remove removes Key with provided ID.
 	Remove(ctx context.Context, userID, patID string) error

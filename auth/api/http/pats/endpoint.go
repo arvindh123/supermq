@@ -186,17 +186,17 @@ func clearPATAllScopeEntryEndpoint(svc auth.Service) endpoint.Endpoint {
 	}
 }
 
-func testCheckPATScopeEntryEndpoint(svc auth.Service) endpoint.Endpoint {
+func authorizePATEndpoint(svc auth.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
-		req := request.(testCheckPatScopeReq)
+		req := request.(authorizePATReq)
 		if err := req.validate(); err != nil {
 			return nil, err
 		}
 
-		if err := svc.TestCheckPATScopeEntry(ctx, req.token, req.PlatformEntityType, req.OptionalDomainID, req.OptionalDomainEntityType, req.Operation, req.EntityIDs...); err != nil {
+		if err := svc.AuthorizePAT(ctx, req.token, req.PlatformEntityType, req.OptionalDomainID, req.OptionalDomainEntityType, req.Operation, req.EntityIDs...); err != nil {
 			return nil, err
 		}
 
-		return testCheckPatScopeRes{}, nil
+		return authorizePATRes{}, nil
 	}
 }

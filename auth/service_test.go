@@ -62,6 +62,7 @@ var (
 	prepo    *mocks.PolicyAgent
 	drepo    *mocks.DomainsRepository
 	patsrepo *mocks.PATSRepository
+	hasher   *mocks.Hasher
 )
 
 func newService() (auth.Service, string) {
@@ -69,6 +70,7 @@ func newService() (auth.Service, string) {
 	prepo = new(mocks.PolicyAgent)
 	drepo = new(mocks.DomainsRepository)
 	patsrepo = new(mocks.PATSRepository)
+	hasher = new(mocks.Hasher)
 	idProvider := uuid.NewMock()
 
 	t := jwt.New([]byte(secret))
@@ -82,7 +84,7 @@ func newService() (auth.Service, string) {
 	}
 	token, _ := t.Issue(key)
 
-	return auth.New(krepo, drepo, patsrepo, idProvider, t, prepo, loginDuration, refreshDuration, invalidDuration), token
+	return auth.New(krepo, drepo, patsrepo, hasher, idProvider, t, prepo, loginDuration, refreshDuration, invalidDuration), token
 }
 
 func TestIssue(t *testing.T) {
