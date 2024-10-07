@@ -27,7 +27,7 @@ type domainsGrpcClient struct {
 	timeout               time.Duration
 }
 
-// NewDomainsClient returns new policy gRPC client instance.
+// NewDomainsClient returns new domains gRPC client instance.
 func NewDomainsClient(conn *grpc.ClientConn, timeout time.Duration) magistrala.DomainsServiceClient {
 	return &domainsGrpcClient{
 		deleteUserFromDomains: kitgrpc.NewClient(
