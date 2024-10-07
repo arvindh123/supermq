@@ -848,7 +848,7 @@ func DecodeDomainUserID(domainUserID string) (string, string) {
 	}
 }
 
-func (svc service) DeleteUserPolicies(ctx context.Context, id string) (err error) {
+func (svc service) DeleteUserFromDomains(ctx context.Context, id string) (err error) {
 	domainsPage, err := svc.domains.ListDomains(ctx, Page{SubjectID: id, Limit: defLimit})
 	if err != nil {
 		return err
@@ -873,14 +873,6 @@ func (svc service) DeleteUserPolicies(ctx context.Context, id string) (err error
 		if err := svc.policies.DeletePolicyFilter(ctx, req); err != nil {
 			return err
 		}
-	}
-
-	req := policies.PolicyReq{
-		Subject:     id,
-		SubjectType: UserType,
-	}
-	if err := svc.policies.DeletePolicyFilter(ctx, req); err != nil {
-		return err
 	}
 
 	if err := svc.domains.DeleteUserPolicies(ctx, id); err != nil {

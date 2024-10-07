@@ -20,6 +20,6 @@ type authorizeRes struct {
 	authorized bool
 }
 
-type deletePolicyRes struct {
+type deleteUserRes struct {
 	deleted bool
 }

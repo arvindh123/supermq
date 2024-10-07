@@ -133,9 +133,6 @@ type Authz interface {
 	// no relation on the object (which simply means the operation is
 	// denied).
 	Authorize(ctx context.Context, pr PolicyReq) error
-
-	// DeleteUserPolicies deletes all policies for the given user.
-	DeleteUserPolicies(ctx context.Context, id string) error
 }
 
 // PolicyAgent facilitates the communication to authorization

@@ -19,8 +19,8 @@ import (
 	"github.com/absmach/magistrala/invitations/middleware"
 	invitationspg "github.com/absmach/magistrala/invitations/postgres"
 	mglog "github.com/absmach/magistrala/logger"
-	authclient "github.com/absmach/magistrala/pkg/auth"
-	"github.com/absmach/magistrala/pkg/grpcclient"
+	"github.com/absmach/magistrala/pkg/auth"
+	"github.com/absmach/magistrala/pkg/authclient"
 	"github.com/absmach/magistrala/pkg/jaeger"
 	"github.com/absmach/magistrala/pkg/postgres"
 	clientspg "github.com/absmach/magistrala/pkg/postgres"
@@ -93,13 +93,13 @@ func main() {
 	}
 	defer db.Close()
 
-	authClientCfg := grpcclient.Config{}
+	authClientCfg := authclient.Config{}
 	if err := env.ParseWithOptions(&authClientCfg, env.Options{Prefix: envPrefixAuth}); err != nil {
 		logger.Error(fmt.Sprintf("failed to load auth configuration : %s", err.Error()))
 		exitCode = 1
 		return
 	}
-	authClient, authHandler, err := grpcclient.SetupAuthClient(ctx, authClientCfg)
+	authClient, authHandler, err := authclient.SetupAuthClient(ctx, authClientCfg)
 	if err != nil {
 		logger.Error(err.Error())
 		exitCode = 1
@@ -155,7 +155,7 @@ func main() {
 	}
 }
 
-func newService(db *sqlx.DB, dbConfig clientspg.Config, authClient authclient.AuthClient, tracer trace.Tracer, conf config, logger *slog.Logger) (invitations.Service, error) {
+func newService(db *sqlx.DB, dbConfig clientspg.Config, authClient auth.AuthClient, tracer trace.Tracer, conf config, logger *slog.Logger) (invitations.Service, error) {
 	database := postgres.NewDatabase(db, dbConfig, tracer)
 	repo := invitationspg.NewRepository(database)
 

@@ -24,9 +24,8 @@ import (
 	mgpolicies "github.com/absmach/magistrala/internal/policies"
 	mglog "github.com/absmach/magistrala/logger"
 	"github.com/absmach/magistrala/pkg/auth"
-	authclient "github.com/absmach/magistrala/pkg/auth"
+	"github.com/absmach/magistrala/pkg/authclient"
 	"github.com/absmach/magistrala/pkg/groups"
-	"github.com/absmach/magistrala/pkg/grpcclient"
 	jaegerclient "github.com/absmach/magistrala/pkg/jaeger"
 	"github.com/absmach/magistrala/pkg/policies"
 	"github.com/absmach/magistrala/pkg/postgres"
@@ -156,7 +155,7 @@ func main() {
 	defer cacheclient.Close()
 
 	var (
-		authClient   authclient.AuthClient
+		authClient   auth.AuthClient
 		policyClient policies.PolicyClient
 	)
 	switch cfg.StandaloneID != "" && cfg.StandaloneToken != "" {
@@ -165,14 +164,14 @@ func main() {
 		policyClient = localusers.NewPolicyClient(cfg.StandaloneID, cfg.StandaloneToken)
 		logger.Info("Using standalone auth service")
 	default:
-		clientConfig := grpcclient.Config{}
+		clientConfig := authclient.Config{}
 		if err := env.ParseWithOptions(&clientConfig, env.Options{Prefix: envPrefixAuth}); err != nil {
 			logger.Error(fmt.Sprintf("failed to load %s auth configuration : %s", svcName, err))
 			exitCode = 1
 			return
 		}
 
-		authServiceClient, authHandler, err := grpcclient.SetupAuthClient(ctx, clientConfig)
+		authServiceClient, authHandler, err := authclient.SetupAuthClient(ctx, clientConfig)
 		if err != nil {
 			logger.Error(err.Error())
 			exitCode = 1

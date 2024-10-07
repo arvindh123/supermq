@@ -1,7 +1,7 @@
 // Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
-package grpcclient
+package authclient
 
 import (
 	"context"
@@ -39,12 +39,12 @@ func SetupAuthClient(ctx context.Context, cfg Config) (auth.AuthClient, Handler,
 	return authclient.NewAuthClient(client.Connection(), cfg.Timeout), client, nil
 }
 
-// SetupPolicyClient loads Policy gRPC configuration and creates a new Policy gRPC client.
+// SetupDomiansClient loads domains gRPC configuration and creates a new domains gRPC client.
 //
 // For example:
 //
-// policyClient, policyHandler, err := auth.SetupPolicyClient(ctx, auth.Config{}).
-func SetupPolicyClient(ctx context.Context, cfg Config) (magistrala.PolicyServiceClient, Handler, error) {
+// domainsClient, domainsHandler, err := auth.SetupDomainsClient(ctx, auth.Config{}).
+func SetupDomainsClient(ctx context.Context, cfg Config) (magistrala.DomainsServiceClient, Handler, error) {
 	client, err := newHandler(cfg)
 	if err != nil {
 		return nil, nil, err
@@ -58,7 +58,7 @@ func SetupPolicyClient(ctx context.Context, cfg Config) (magistrala.PolicyServic
 		return nil, nil, errSvcNotServing
 	}
 
-	return authgrpc.NewPolicyClient(client.Connection(), cfg.Timeout), client, nil
+	return authgrpc.NewDomainsClient(client.Connection(), cfg.Timeout), client, nil
 }
 
 // SetupThingsClient loads things gRPC configuration and creates new things gRPC client.

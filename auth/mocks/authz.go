@@ -35,24 +35,6 @@ func (_m *Authz) Authorize(ctx context.Context, pr auth.PolicyReq) error {
 	return r0
 }
 
-// DeleteUserPolicies provides a mock function with given fields: ctx, id
-func (_m *Authz) DeleteUserPolicies(ctx context.Context, id string) error {
-	ret := _m.Called(ctx, id)
-
-	if len(ret) == 0 {
-		panic("no return value specified for DeleteUserPolicies")
-	}
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) error); ok {
-		r0 = rf(ctx, id)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
 // NewAuthz creates a new instance of Authz. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewAuthz(t interface {

@@ -22,10 +22,10 @@ service AuthnService {
   rpc Identify(IdentityReq) returns (IdentityRes) {}
 }
 
-// PolicyService is a service that provides policy CRUD
+// DomainsService is a service that provides access to domains
 // functionalities for magistrala services.
-service PolicyService {
-  rpc DeleteUserPolicies(DeleteUserPoliciesReq) returns (DeletePolicyRes) {}
+service DomainsService {
+  rpc DeleteUserFromDomains(DeleteUserReq) returns (DeleteUserRes) {}
 }
 
 // If a token is not carrying any information itself, the type
@@ -75,8 +75,8 @@ message AuthorizeRes {
   string id = 2;
 }
 
-message DeletePolicyRes { bool deleted = 1; }
+message DeleteUserRes { bool deleted = 1; }
 
-message DeleteUserPoliciesReq{
+message DeleteUserReq{
   string id          = 1;
 }

@@ -111,12 +111,12 @@ func (_m *Service) CreateDomain(ctx context.Context, token string, d auth.Domain
 	return r0, r1
 }
 
-// DeleteUserPolicies provides a mock function with given fields: ctx, id
-func (_m *Service) DeleteUserPolicies(ctx context.Context, id string) error {
+// DeleteUserFromDomains provides a mock function with given fields: ctx, id
+func (_m *Service) DeleteUserFromDomains(ctx context.Context, id string) error {
 	ret := _m.Called(ctx, id)
 
 	if len(ret) == 0 {
-		panic("no return value specified for DeleteUserPolicies")
+		panic("no return value specified for DeleteUserFromDomains")
 	}
 
 	var r0 error

@@ -296,96 +296,96 @@ var AuthnService_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
-	PolicyService_DeleteUserPolicies_FullMethodName = "/magistrala.PolicyService/DeleteUserPolicies"
+	DomainsService_DeleteUserFromDomains_FullMethodName = "/magistrala.DomainsService/DeleteUserFromDomains"
 )
 
-// PolicyServiceClient is the client API for PolicyService service.
+// DomainsServiceClient is the client API for DomainsService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// PolicyService is a service that provides policy CRUD
+// DomainsService is a service that provides access to domains
 // functionalities for magistrala services.
-type PolicyServiceClient interface {
-	DeleteUserPolicies(ctx context.Context, in *DeleteUserPoliciesReq, opts ...grpc.CallOption) (*DeletePolicyRes, error)
+type DomainsServiceClient interface {
+	DeleteUserFromDomains(ctx context.Context, in *DeleteUserReq, opts ...grpc.CallOption) (*DeleteUserRes, error)
 }
 
-type policyServiceClient struct {
+type domainsServiceClient struct {
 	cc grpc.ClientConnInterface
 }
 
-func NewPolicyServiceClient(cc grpc.ClientConnInterface) PolicyServiceClient {
-	return &policyServiceClient{cc}
+func NewDomainsServiceClient(cc grpc.ClientConnInterface) DomainsServiceClient {
+	return &domainsServiceClient{cc}
 }
 
-func (c *policyServiceClient) DeleteUserPolicies(ctx context.Context, in *DeleteUserPoliciesReq, opts ...grpc.CallOption) (*DeletePolicyRes, error) {
+func (c *domainsServiceClient) DeleteUserFromDomains(ctx context.Context, in *DeleteUserReq, opts ...grpc.CallOption) (*DeleteUserRes, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(DeletePolicyRes)
-	err := c.cc.Invoke(ctx, PolicyService_DeleteUserPolicies_FullMethodName, in, out, cOpts...)
+	out := new(DeleteUserRes)
+	err := c.cc.Invoke(ctx, DomainsService_DeleteUserFromDomains_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// PolicyServiceServer is the server API for PolicyService service.
-// All implementations must embed UnimplementedPolicyServiceServer
+// DomainsServiceServer is the server API for DomainsService service.
+// All implementations must embed UnimplementedDomainsServiceServer
 // for forward compatibility
 //
-// PolicyService is a service that provides policy CRUD
+// DomainsService is a service that provides access to domains
 // functionalities for magistrala services.
-type PolicyServiceServer interface {
-	DeleteUserPolicies(context.Context, *DeleteUserPoliciesReq) (*DeletePolicyRes, error)
-	mustEmbedUnimplementedPolicyServiceServer()
+type DomainsServiceServer interface {
+	DeleteUserFromDomains(context.Context, *DeleteUserReq) (*DeleteUserRes, error)
+	mustEmbedUnimplementedDomainsServiceServer()
 }
 
-// UnimplementedPolicyServiceServer must be embedded to have forward compatible implementations.
-type UnimplementedPolicyServiceServer struct {
+// UnimplementedDomainsServiceServer must be embedded to have forward compatible implementations.
+type UnimplementedDomainsServiceServer struct {
 }
 
-func (UnimplementedPolicyServiceServer) DeleteUserPolicies(context.Context, *DeleteUserPoliciesReq) (*DeletePolicyRes, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method DeleteUserPolicies not implemented")
+func (UnimplementedDomainsServiceServer) DeleteUserFromDomains(context.Context, *DeleteUserReq) (*DeleteUserRes, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteUserFromDomains not implemented")
 }
-func (UnimplementedPolicyServiceServer) mustEmbedUnimplementedPolicyServiceServer() {}
+func (UnimplementedDomainsServiceServer) mustEmbedUnimplementedDomainsServiceServer() {}
 
-// UnsafePolicyServiceServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to PolicyServiceServer will
+// UnsafeDomainsServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to DomainsServiceServer will
 // result in compilation errors.
-type UnsafePolicyServiceServer interface {
-	mustEmbedUnimplementedPolicyServiceServer()
+type UnsafeDomainsServiceServer interface {
+	mustEmbedUnimplementedDomainsServiceServer()
 }
 
-func RegisterPolicyServiceServer(s grpc.ServiceRegistrar, srv PolicyServiceServer) {
-	s.RegisterService(&PolicyService_ServiceDesc, srv)
+func RegisterDomainsServiceServer(s grpc.ServiceRegistrar, srv DomainsServiceServer) {
+	s.RegisterService(&DomainsService_ServiceDesc, srv)
 }
 
-func _PolicyService_DeleteUserPolicies_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DeleteUserPoliciesReq)
+func _DomainsService_DeleteUserFromDomains_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteUserReq)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(PolicyServiceServer).DeleteUserPolicies(ctx, in)
+		return srv.(DomainsServiceServer).DeleteUserFromDomains(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: PolicyService_DeleteUserPolicies_FullMethodName,
+		FullMethod: DomainsService_DeleteUserFromDomains_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(PolicyServiceServer).DeleteUserPolicies(ctx, req.(*DeleteUserPoliciesReq))
+		return srv.(DomainsServiceServer).DeleteUserFromDomains(ctx, req.(*DeleteUserReq))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-// PolicyService_ServiceDesc is the grpc.ServiceDesc for PolicyService service.
+// DomainsService_ServiceDesc is the grpc.ServiceDesc for DomainsService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
-var PolicyService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "magistrala.PolicyService",
-	HandlerType: (*PolicyServiceServer)(nil),
+var DomainsService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "magistrala.DomainsService",
+	HandlerType: (*DomainsServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "DeleteUserPolicies",
-			Handler:    _PolicyService_DeleteUserPolicies_Handler,
+			MethodName: "DeleteUserFromDomains",
+			Handler:    _DomainsService_DeleteUserFromDomains_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

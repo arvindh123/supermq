@@ -13,8 +13,8 @@ packages:
           dir: "./things/mocks"
           mockname: "AuthzServiceClient"
           filename: "authz_client.go"
-      PolicyServiceClient:
+      DomainsServiceClient:
         config:
           dir: "./auth/mocks"
-          mockname: "PolicyServiceClient"
-          filename: "policy_client.go"
+          mockname: "DomainsServiceClient"
+          filename: "domains_client.go"

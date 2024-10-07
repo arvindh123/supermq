@@ -147,10 +147,10 @@ func (ms *metricsMiddleware) ListUserDomains(ctx context.Context, token, userID 
 	return ms.svc.ListUserDomains(ctx, token, userID, page)
 }
 
-func (ms *metricsMiddleware) DeleteUserPolicies(ctx context.Context, id string) error {
+func (ms *metricsMiddleware) DeleteUserFromDomains(ctx context.Context, id string) error {
 	defer func(begin time.Time) {
-		ms.counter.With("method", "delete_entity_policies").Add(1)
-		ms.latency.With("method", "delete_entity_policies").Observe(time.Since(begin).Seconds())
+		ms.counter.With("method", "delete_user_from_domains").Add(1)
+		ms.latency.With("method", "delete_user_from_domains").Observe(time.Since(begin).Seconds())
 	}(time.Now())
-	return ms.svc.DeleteUserPolicies(ctx, id)
+	return ms.svc.DeleteUserFromDomains(ctx, id)
 }

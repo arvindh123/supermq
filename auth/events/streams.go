@@ -216,6 +216,6 @@ func (es *eventStore) Authorize(ctx context.Context, pr auth.PolicyReq) error {
 	return es.svc.Authorize(ctx, pr)
 }
 
-func (es *eventStore) DeleteUserPolicies(ctx context.Context, id string) error {
-	return es.svc.DeleteUserPolicies(ctx, id)
+func (es *eventStore) DeleteUserFromDomains(ctx context.Context, id string) error {
+	return es.svc.DeleteUserFromDomains(ctx, id)
 }

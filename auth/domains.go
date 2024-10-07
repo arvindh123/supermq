@@ -165,6 +165,7 @@ type Domains interface {
 	AssignUsers(ctx context.Context, token string, id string, userIds []string, relation string) error
 	UnassignUser(ctx context.Context, token string, id string, userID string) error
 	ListUserDomains(ctx context.Context, token string, userID string, page Page) (DomainsPage, error)
+	DeleteUserFromDomains(ctx context.Context, id string) error
 }
 
 // DomainsRepository specifies Domain persistence API.

@@ -17,9 +17,9 @@ import (
 )
 
 var (
-	_ magistrala.AuthzServiceServer  = (*authzGrpcServer)(nil)
-	_ magistrala.AuthnServiceServer  = (*authnGrpcServer)(nil)
-	_ magistrala.PolicyServiceServer = (*policyGrpcServer)(nil)
+	_ magistrala.AuthzServiceServer   = (*authzGrpcServer)(nil)
+	_ magistrala.AuthnServiceServer   = (*authnGrpcServer)(nil)
+	_ magistrala.DomainsServiceServer = (*domainsGrpcServer)(nil)
 )
 
 type authzGrpcServer struct {
@@ -98,27 +98,27 @@ func (s *authnGrpcServer) Identify(ctx context.Context, token *magistrala.Identi
 	return res.(*magistrala.IdentityRes), nil
 }
 
-type policyGrpcServer struct {
-	magistrala.UnimplementedPolicyServiceServer
-	deleteUserPolicies kitgrpc.Handler
+type domainsGrpcServer struct {
+	magistrala.UnimplementedDomainsServiceServer
+	deleteUserFromDomains kitgrpc.Handler
 }
 
-func NewPolicyServer(svc auth.Service) magistrala.PolicyServiceServer {
-	return &policyGrpcServer{
-		deleteUserPolicies: kitgrpc.NewServer(
-			(deleteUserPoliciesEndpoint(svc)),
-			decodeDeleteUserPoliciesRequest,
-			encodeDeleteUserPoliciesResponse,
+func NewDomainsServer(svc auth.Service) magistrala.DomainsServiceServer {
+	return &domainsGrpcServer{
+		deleteUserFromDomains: kitgrpc.NewServer(
+			(deleteUserFromDomainsEndpoint(svc)),
+			decodeDeleteUserRequest,
+			encodeDeleteUserResponse,
 		),
 	}
 }
 
-func (s *policyGrpcServer) DeleteUserPolicies(ctx context.Context, req *magistrala.DeleteUserPoliciesReq) (*magistrala.DeletePolicyRes, error) {
-	_, res, err := s.deleteUserPolicies.ServeGRPC(ctx, req)
+func (s *domainsGrpcServer) DeleteUserFromDomains(ctx context.Context, req *magistrala.DeleteUserReq) (*magistrala.DeleteUserRes, error) {
+	_, res, err := s.deleteUserFromDomains.ServeGRPC(ctx, req)
 	if err != nil {
 		return nil, encodeError(err)
 	}
-	return res.(*magistrala.DeletePolicyRes), nil
+	return res.(*magistrala.DeleteUserRes), nil
 }
 
 func decodeIssueRequest(_ context.Context, grpcReq interface{}) (interface{}, error) {
@@ -174,16 +174,16 @@ func encodeAuthorizeResponse(_ context.Context, grpcRes interface{}) (interface{
 	return &magistrala.AuthorizeRes{Authorized: res.authorized, Id: res.id}, nil
 }
 
-func decodeDeleteUserPoliciesRequest(_ context.Context, grpcReq interface{}) (interface{}, error) {
-	req := grpcReq.(*magistrala.DeleteUserPoliciesReq)
+func decodeDeleteUserRequest(_ context.Context, grpcReq interface{}) (interface{}, error) {
+	req := grpcReq.(*magistrala.DeleteUserReq)
 	return deleteUserPoliciesReq{
 		ID: req.GetId(),
 	}, nil
 }
 
-func encodeDeleteUserPoliciesResponse(_ context.Context, grpcRes interface{}) (interface{}, error) {
-	res := grpcRes.(deletePolicyRes)
-	return &magistrala.DeletePolicyRes{Deleted: res.deleted}, nil
+func encodeDeleteUserResponse(_ context.Context, grpcRes interface{}) (interface{}, error) {
+	res := grpcRes.(deleteUserRes)
+	return &magistrala.DeleteUserRes{Deleted: res.deleted}, nil
 }
 
 func encodeError(err error) error {

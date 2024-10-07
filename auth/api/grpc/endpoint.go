@@ -96,17 +96,17 @@ func authorizeEndpoint(svc auth.Service) endpoint.Endpoint {
 	}
 }
 
-func deleteUserPoliciesEndpoint(svc auth.Service) endpoint.Endpoint {
+func deleteUserFromDomainsEndpoint(svc auth.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(deleteUserPoliciesReq)
 		if err := req.validate(); err != nil {
-			return deletePolicyRes{}, err
+			return deleteUserRes{}, err
 		}
 
-		if err := svc.DeleteUserPolicies(ctx, req.ID); err != nil {
-			return deletePolicyRes{}, err
+		if err := svc.DeleteUserFromDomains(ctx, req.ID); err != nil {
+			return deleteUserRes{}, err
 		}
 
-		return deletePolicyRes{deleted: true}, nil
+		return deleteUserRes{deleted: true}, nil
 	}
 }

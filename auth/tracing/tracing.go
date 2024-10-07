@@ -148,10 +148,10 @@ func (tm *tracingMiddleware) ListUserDomains(ctx context.Context, token, userID 
 	return tm.svc.ListUserDomains(ctx, token, userID, p)
 }
 
-func (tm *tracingMiddleware) DeleteUserPolicies(ctx context.Context, id string) error {
-	ctx, span := tm.tracer.Start(ctx, "delete_entity_policies", trace.WithAttributes(
+func (tm *tracingMiddleware) DeleteUserFromDomains(ctx context.Context, id string) error {
+	ctx, span := tm.tracer.Start(ctx, "delete_user_from_domains", trace.WithAttributes(
 		attribute.String("id", id),
 	))
 	defer span.End()
-	return tm.svc.DeleteUserPolicies(ctx, id)
+	return tm.svc.DeleteUserFromDomains(ctx, id)
 }

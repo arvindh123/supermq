@@ -1,7 +1,7 @@
 // Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
-package grpcclient_test
+package authclient_test
 
 import (
 	"context"
@@ -14,8 +14,8 @@ import (
 	"github.com/absmach/magistrala/auth/mocks"
 	mglog "github.com/absmach/magistrala/logger"
 	authmocks "github.com/absmach/magistrala/pkg/auth/mocks"
+	"github.com/absmach/magistrala/pkg/authclient"
 	"github.com/absmach/magistrala/pkg/errors"
-	"github.com/absmach/magistrala/pkg/grpcclient"
 	"github.com/absmach/magistrala/pkg/server"
 	grpcserver "github.com/absmach/magistrala/pkg/server/grpc"
 	thingsgrpcapi "github.com/absmach/magistrala/things/api/grpc"
@@ -43,12 +43,12 @@ func TestSetupAuth(t *testing.T) {
 
 	cases := []struct {
 		desc   string
-		config grpcclient.Config
+		config authclient.Config
 		err    error
 	}{
 		{
 			desc: "successful",
-			config: grpcclient.Config{
+			config: authclient.Config{
 				URL:     "localhost:12345",
 				Timeout: time.Second,
 			},
@@ -56,7 +56,7 @@ func TestSetupAuth(t *testing.T) {
 		},
 		{
 			desc: "failed with empty URL",
-			config: grpcclient.Config{
+			config: authclient.Config{
 				URL:     "",
 				Timeout: time.Second,
 			},
@@ -66,7 +66,7 @@ func TestSetupAuth(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.desc, func(t *testing.T) {
-			client, handler, err := grpcclient.SetupAuthClient(context.Background(), c.config)
+			client, handler, err := authclient.SetupAuthClient(context.Background(), c.config)
 			assert.True(t, errors.Contains(err, c.err), fmt.Sprintf("expected %s to contain %s", err, c.err))
 			if err == nil {
 				assert.NotNil(t, client)
@@ -95,12 +95,12 @@ func TestSetupThingsClient(t *testing.T) {
 
 	cases := []struct {
 		desc   string
-		config grpcclient.Config
+		config authclient.Config
 		err    error
 	}{
 		{
 			desc: "successful",
-			config: grpcclient.Config{
+			config: authclient.Config{
 				URL:     "localhost:12345",
 				Timeout: time.Second,
 			},
@@ -108,7 +108,7 @@ func TestSetupThingsClient(t *testing.T) {
 		},
 		{
 			desc: "failed with empty URL",
-			config: grpcclient.Config{
+			config: authclient.Config{
 				URL:     "",
 				Timeout: time.Second,
 			},
@@ -118,7 +118,7 @@ func TestSetupThingsClient(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.desc, func(t *testing.T) {
-			client, handler, err := grpcclient.SetupThingsClient(context.Background(), c.config)
+			client, handler, err := authclient.SetupThingsClient(context.Background(), c.config)
 			assert.True(t, errors.Contains(err, c.err), fmt.Sprintf("expected %s to contain %s", err, c.err))
 			if err == nil {
 				assert.NotNil(t, client)
@@ -128,13 +128,13 @@ func TestSetupThingsClient(t *testing.T) {
 	}
 }
 
-func TestSetupPolicyClient(t *testing.T) {
+func TestSetupDomainsClient(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	registerPolicyServiceServer := func(srv *grpc.Server) {
-		magistrala.RegisterPolicyServiceServer(srv, authgrpcapi.NewPolicyServer(new(mocks.Service)))
+	registerDomainsServiceServer := func(srv *grpc.Server) {
+		magistrala.RegisterDomainsServiceServer(srv, authgrpcapi.NewDomainsServer(new(mocks.Service)))
 	}
-	gs := grpcserver.NewServer(ctx, cancel, "auth", server.Config{Port: "12345"}, registerPolicyServiceServer, mglog.NewMock())
+	gs := grpcserver.NewServer(ctx, cancel, "auth", server.Config{Port: "12345"}, registerDomainsServiceServer, mglog.NewMock())
 	go func() {
 		err := gs.Start()
 		assert.Nil(t, err, fmt.Sprintf("Unexpected error creating server %s", err))
@@ -146,12 +146,12 @@ func TestSetupPolicyClient(t *testing.T) {
 
 	cases := []struct {
 		desc   string
-		config grpcclient.Config
+		config authclient.Config
 		err    error
 	}{
 		{
 			desc: "successfully",
-			config: grpcclient.Config{
+			config: authclient.Config{
 				URL:     "localhost:12345",
 				Timeout: time.Second,
 			},
@@ -159,7 +159,7 @@ func TestSetupPolicyClient(t *testing.T) {
 		},
 		{
 			desc: "failed with empty URL",
-			config: grpcclient.Config{
+			config: authclient.Config{
 				URL:     "",
 				Timeout: time.Second,
 			},
@@ -169,7 +169,7 @@ func TestSetupPolicyClient(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.desc, func(t *testing.T) {
-			client, handler, err := grpcclient.SetupPolicyClient(context.Background(), c.config)
+			client, handler, err := authclient.SetupDomainsClient(context.Background(), c.config)
 			assert.True(t, errors.Contains(err, c.err), fmt.Sprintf("expected %s to contain %s", err, c.err))
 			if err == nil {
 				assert.NotNil(t, client)

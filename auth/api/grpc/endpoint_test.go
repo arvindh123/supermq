@@ -56,7 +56,7 @@ func startGRPCServer(svc auth.Service, port int) {
 	server := grpc.NewServer()
 	magistrala.RegisterAuthzServiceServer(server, grpcapi.NewAuthzServer(svc))
 	magistrala.RegisterAuthnServiceServer(server, grpcapi.NewAuthnServer(svc))
-	magistrala.RegisterPolicyServiceServer(server, grpcapi.NewPolicyServer(svc))
+	magistrala.RegisterDomainsServiceServer(server, grpcapi.NewDomainsServer(svc))
 	go func() {
 		err := server.Serve(listener)
 		assert.Nil(&testing.T{}, err, fmt.Sprintf(`"Unexpected error creating auth server %s"`, err))
@@ -344,48 +344,48 @@ func TestAuthorize(t *testing.T) {
 	}
 }
 
-func TestDeleteUserPolicies(t *testing.T) {
+func TestDeleteUserFromDomains(t *testing.T) {
 	conn, err := grpc.NewClient(authAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	assert.Nil(t, err, fmt.Sprintf("Unexpected error creating client connection %s", err))
-	grpcClient := grpcapi.NewPolicyClient(conn, time.Second)
+	grpcClient := grpcapi.NewDomainsClient(conn, time.Second)
 
 	cases := []struct {
-		desc                  string
-		token                 string
-		deleteUserPoliciesReq *magistrala.DeleteUserPoliciesReq
-		deletePolicyRes       *magistrala.DeletePolicyRes
-		err                   error
+		desc          string
+		token         string
+		deleteUserReq *magistrala.DeleteUserReq
+		deleteUserRes *magistrala.DeleteUserRes
+		err           error
 	}{
 		{
 			desc:  "delete valid req",
 			token: validToken,
-			deleteUserPoliciesReq: &magistrala.DeleteUserPoliciesReq{
+			deleteUserReq: &magistrala.DeleteUserReq{
 				Id: id,
 			},
-			deletePolicyRes: &magistrala.DeletePolicyRes{Deleted: true},
-			err:             nil,
+			deleteUserRes: &magistrala.DeleteUserRes{Deleted: true},
+			err:           nil,
 		},
 		{
-			desc:                  "delete invalid req with invalid token",
-			token:                 inValidToken,
-			deleteUserPoliciesReq: &magistrala.DeleteUserPoliciesReq{},
-			deletePolicyRes:       &magistrala.DeletePolicyRes{Deleted: false},
-			err:                   apiutil.ErrMissingID,
+			desc:          "delete invalid req with invalid token",
+			token:         inValidToken,
+			deleteUserReq: &magistrala.DeleteUserReq{},
+			deleteUserRes: &magistrala.DeleteUserRes{Deleted: false},
+			err:           apiutil.ErrMissingID,
 		},
 		{
 			desc:  "delete invalid req with invalid token",
 			token: inValidToken,
-			deleteUserPoliciesReq: &magistrala.DeleteUserPoliciesReq{
+			deleteUserReq: &magistrala.DeleteUserReq{
 				Id: id,
 			},
-			deletePolicyRes: &magistrala.DeletePolicyRes{Deleted: false},
-			err:             apiutil.ErrMissingPolicyEntityType,
+			deleteUserRes: &magistrala.DeleteUserRes{Deleted: false},
+			err:           apiutil.ErrMissingPolicyEntityType,
 		},
 	}
 	for _, tc := range cases {
-		repoCall := svc.On("DeleteUserPolicies", mock.Anything, tc.deleteUserPoliciesReq.Id).Return(tc.err)
-		dpr, err := grpcClient.DeleteUserPolicies(context.Background(), tc.deleteUserPoliciesReq)
-		assert.Equal(t, tc.deletePolicyRes.GetDeleted(), dpr.GetDeleted(), fmt.Sprintf("%s: expected %v got %v", tc.desc, tc.deletePolicyRes.GetDeleted(), dpr.GetDeleted()))
+		repoCall := svc.On("DeleteUserFromDomains", mock.Anything, tc.deleteUserReq.Id).Return(tc.err)
+		dpr, err := grpcClient.DeleteUserFromDomains(context.Background(), tc.deleteUserReq)
+		assert.Equal(t, tc.deleteUserRes.GetDeleted(), dpr.GetDeleted(), fmt.Sprintf("%s: expected %v got %v", tc.desc, tc.deleteUserRes.GetDeleted(), dpr.GetDeleted()))
 		assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s: expected %s got %s\n", tc.desc, tc.err, err))
 		repoCall.Unset()
 	}
