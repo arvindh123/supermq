@@ -177,7 +177,7 @@ func main() {
 	}
 }
 
-func newService(authClient magistrala.AuthnServiceClient, db *sqlx.DB, tracer trace.Tracer, logger *slog.Logger, cfg config, dbConfig pgclient.Config, pkiAgent vault.Agent) certs.Service {
+func newService(authClient magistrala.AuthServiceClient, db *sqlx.DB, tracer trace.Tracer, logger *slog.Logger, cfg config, dbConfig pgclient.Config, pkiAgent vault.Agent) certs.Service {
 	database := postgres.NewDatabase(db, dbConfig, tracer)
 	certsRepo := certspg.NewRepository(database, logger)
 	config := mgsdk.Config{

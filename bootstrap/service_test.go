@@ -78,7 +78,7 @@ func enc(in []byte) ([]byte, error) {
 func TestAdd(t *testing.T) {
 	boot := new(mocks.ConfigRepository)
 	auth := new(authmocks.AuthClient)
-	policies := new(policymocks.PolicyClient)
+	policies := new(policymocks.Manager)
 	sdk := new(sdkmocks.SDK)
 	idp := uuid.NewMock()
 	svc := bootstrap.New(auth, policies, boot, sdk, encKey, idp)
@@ -214,7 +214,7 @@ func TestAdd(t *testing.T) {
 func TestView(t *testing.T) {
 	boot := new(mocks.ConfigRepository)
 	auth := new(authmocks.AuthClient)
-	policies := new(policymocks.PolicyClient)
+	policies := new(policymocks.Manager)
 	sdk := new(sdkmocks.SDK)
 	idp := uuid.NewMock()
 	svc := bootstrap.New(auth, policies, boot, sdk, encKey, idp)
@@ -313,7 +313,7 @@ func TestView(t *testing.T) {
 func TestUpdate(t *testing.T) {
 	boot := new(mocks.ConfigRepository)
 	auth := new(authmocks.AuthClient)
-	policies := new(policymocks.PolicyClient)
+	policies := new(policymocks.Manager)
 	sdk := new(sdkmocks.SDK)
 	idp := uuid.NewMock()
 	svc := bootstrap.New(auth, policies, boot, sdk, encKey, idp)
@@ -405,7 +405,7 @@ func TestUpdate(t *testing.T) {
 func TestUpdateCert(t *testing.T) {
 	boot := new(mocks.ConfigRepository)
 	auth := new(authmocks.AuthClient)
-	policies := new(policymocks.PolicyClient)
+	policies := new(policymocks.Manager)
 	sdk := new(sdkmocks.SDK)
 	idp := uuid.NewMock()
 	svc := bootstrap.New(auth, policies, boot, sdk, encKey, idp)
@@ -521,7 +521,7 @@ func TestUpdateCert(t *testing.T) {
 func TestUpdateConnections(t *testing.T) {
 	boot := new(mocks.ConfigRepository)
 	auth := new(authmocks.AuthClient)
-	policies := new(policymocks.PolicyClient)
+	policies := new(policymocks.Manager)
 	sdk := new(sdkmocks.SDK)
 	idp := uuid.NewMock()
 	svc := bootstrap.New(auth, policies, boot, sdk, encKey, idp)
@@ -641,7 +641,7 @@ func TestUpdateConnections(t *testing.T) {
 func TestList(t *testing.T) {
 	boot := new(mocks.ConfigRepository)
 	auth := new(authmocks.AuthClient)
-	policies := new(policymocks.PolicyClient)
+	policies := new(policymocks.Manager)
 	sdk := new(sdkmocks.SDK)
 	idp := uuid.NewMock()
 	svc := bootstrap.New(auth, policies, boot, sdk, encKey, idp)
@@ -1008,7 +1008,7 @@ func TestList(t *testing.T) {
 func TestRemove(t *testing.T) {
 	boot := new(mocks.ConfigRepository)
 	auth := new(authmocks.AuthClient)
-	policies := new(policymocks.PolicyClient)
+	policies := new(policymocks.Manager)
 	sdk := new(sdkmocks.SDK)
 	idp := uuid.NewMock()
 	svc := bootstrap.New(auth, policies, boot, sdk, encKey, idp)
@@ -1097,7 +1097,7 @@ func TestRemove(t *testing.T) {
 func TestBootstrap(t *testing.T) {
 	boot := new(mocks.ConfigRepository)
 	auth := new(authmocks.AuthClient)
-	policies := new(policymocks.PolicyClient)
+	policies := new(policymocks.Manager)
 	sdk := new(sdkmocks.SDK)
 	idp := uuid.NewMock()
 	svc := bootstrap.New(auth, policies, boot, sdk, encKey, idp)
@@ -1170,7 +1170,7 @@ func TestBootstrap(t *testing.T) {
 func TestChangeState(t *testing.T) {
 	boot := new(mocks.ConfigRepository)
 	auth := new(authmocks.AuthClient)
-	policies := new(policymocks.PolicyClient)
+	policies := new(policymocks.Manager)
 	sdk := new(sdkmocks.SDK)
 	idp := uuid.NewMock()
 	svc := bootstrap.New(auth, policies, boot, sdk, encKey, idp)
@@ -1276,7 +1276,7 @@ func TestChangeState(t *testing.T) {
 func TestUpdateChannelHandler(t *testing.T) {
 	boot := new(mocks.ConfigRepository)
 	auth := new(authmocks.AuthClient)
-	policies := new(policymocks.PolicyClient)
+	policies := new(policymocks.Manager)
 	sdk := new(sdkmocks.SDK)
 	idp := uuid.NewMock()
 	svc := bootstrap.New(auth, policies, boot, sdk, encKey, idp)
@@ -1315,7 +1315,7 @@ func TestUpdateChannelHandler(t *testing.T) {
 func TestRemoveChannelHandler(t *testing.T) {
 	boot := new(mocks.ConfigRepository)
 	auth := new(authmocks.AuthClient)
-	policies := new(policymocks.PolicyClient)
+	policies := new(policymocks.Manager)
 	sdk := new(sdkmocks.SDK)
 	idp := uuid.NewMock()
 	svc := bootstrap.New(auth, policies, boot, sdk, encKey, idp)
@@ -1348,7 +1348,7 @@ func TestRemoveChannelHandler(t *testing.T) {
 func TestRemoveConfigHandler(t *testing.T) {
 	boot := new(mocks.ConfigRepository)
 	auth := new(authmocks.AuthClient)
-	policies := new(policymocks.PolicyClient)
+	policies := new(policymocks.Manager)
 	sdk := new(sdkmocks.SDK)
 	idp := uuid.NewMock()
 	svc := bootstrap.New(auth, policies, boot, sdk, encKey, idp)
@@ -1381,7 +1381,7 @@ func TestRemoveConfigHandler(t *testing.T) {
 func TestConnectThingsHandler(t *testing.T) {
 	boot := new(mocks.ConfigRepository)
 	auth := new(authmocks.AuthClient)
-	policies := new(policymocks.PolicyClient)
+	policies := new(policymocks.Manager)
 	sdk := new(sdkmocks.SDK)
 	idp := uuid.NewMock()
 	svc := bootstrap.New(auth, policies, boot, sdk, encKey, idp)
@@ -1417,7 +1417,7 @@ func TestConnectThingsHandler(t *testing.T) {
 func TestDisconnectThingsHandler(t *testing.T) {
 	boot := new(mocks.ConfigRepository)
 	auth := new(authmocks.AuthClient)
-	policies := new(policymocks.PolicyClient)
+	policies := new(policymocks.Manager)
 	sdk := new(sdkmocks.SDK)
 	idp := uuid.NewMock()
 	svc := bootstrap.New(auth, policies, boot, sdk, encKey, idp)

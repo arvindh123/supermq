@@ -50,14 +50,14 @@ type Service interface {
 }
 
 type certsService struct {
-	auth      magistrala.AuthnServiceClient
+	auth      magistrala.AuthServiceClient
 	certsRepo Repository
 	sdk       mgsdk.SDK
 	pki       pki.Agent
 }
 
 // New returns new Certs service.
-func New(auth magistrala.AuthnServiceClient, certs Repository, sdk mgsdk.SDK, pkiAgent pki.Agent) Service {
+func New(auth magistrala.AuthServiceClient, certs Repository, sdk mgsdk.SDK, pkiAgent pki.Agent) Service {
 	return &certsService{
 		certsRepo: certs,
 		sdk:       sdk,

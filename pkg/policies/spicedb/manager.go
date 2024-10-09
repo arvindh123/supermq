@@ -1,7 +1,8 @@
+
 // Copyright (c) Abstract Machines
 // SPDX-License-Identifier: Apache-2.0
 
-package policies
+package spicedb
 
 import (
 	"context"
@@ -66,21 +67,21 @@ var (
 	}
 )
 
-type policyClient struct {
+type policyManager struct {
 	client           *authzed.ClientWithExperimental
 	permissionClient v1.PermissionsServiceClient
 	logger           *slog.Logger
 }
 
-func NewPolicyClient(client *authzed.ClientWithExperimental, logger *slog.Logger) policies.PolicyClient {
-	return &policyClient{
+func NewPolicyManager(client *authzed.ClientWithExperimental, logger *slog.Logger) policies.Manager {
+	return &policyManager{
 		client:           client,
 		permissionClient: client.PermissionsServiceClient,
 		logger:           logger,
 	}
 }
 
-func (pc policyClient) AddPolicy(ctx context.Context, pr policies.PolicyReq) error {
+func (pc *policyManager) AddPolicy(ctx context.Context, pr policies.PolicyReq) error {
 	if err := pc.policyValidation(pr); err != nil {
 		return errors.Wrap(svcerr.ErrInvalidPolicy, err)
 	}
@@ -107,7 +108,7 @@ func (pc policyClient) AddPolicy(ctx context.Context, pr policies.PolicyReq) err
 	return nil
 }
 
-func (pc policyClient) AddPolicies(ctx context.Context, prs []policies.PolicyReq) error {
+func (pc *policyManager) AddPolicies(ctx context.Context, prs []policies.PolicyReq) error {
 	updates := []*v1.RelationshipUpdate{}
 	var preconds []*v1.Precondition
 	for _, pr := range prs {
@@ -139,7 +140,7 @@ func (pc policyClient) AddPolicies(ctx context.Context, prs []policies.PolicyReq
 	return nil
 }
 
-func (pc policyClient) DeletePolicyFilter(ctx context.Context, pr policies.PolicyReq) error {
+func (pc *policyManager) DeletePolicyFilter(ctx context.Context, pr policies.PolicyReq) error {
 	req := &v1.DeleteRelationshipsRequest{
 		RelationshipFilter: &v1.RelationshipFilter{
 			ResourceType:       pr.ObjectType,
@@ -172,7 +173,7 @@ func (pc policyClient) DeletePolicyFilter(ctx context.Context, pr policies.Polic
 	return nil
 }
 
-func (pc policyClient) DeletePolicies(ctx context.Context, prs []policies.PolicyReq) error {
+func (pc *policyManager) DeletePolicies(ctx context.Context, prs []policies.PolicyReq) error {
 	updates := []*v1.RelationshipUpdate{}
 	for _, pr := range prs {
 		if err := pc.policyValidation(pr); err != nil {
@@ -198,7 +199,7 @@ func (pc policyClient) DeletePolicies(ctx context.Context, prs []policies.Policy
 	return nil
 }
 
-func (pc policyClient) ListObjects(ctx context.Context, pr policies.PolicyReq, nextPageToken string, limit uint64) (policies.PolicyPage, error) {
+func (pc *policyManager) ListObjects(ctx context.Context, pr policies.PolicyReq, nextPageToken string, limit uint64) (policies.PolicyPage, error) {
 	if limit <= 0 {
 		limit = 100
 	}
@@ -215,7 +216,7 @@ func (pc policyClient) ListObjects(ctx context.Context, pr policies.PolicyReq, n
 	return page, nil
 }
 
-func (pc policyClient) ListAllObjects(ctx context.Context, pr policies.PolicyReq) (policies.PolicyPage, error) {
+func (pc *policyManager) ListAllObjects(ctx context.Context, pr policies.PolicyReq) (policies.PolicyPage, error) {
 	res, err := pc.retrieveAllObjects(ctx, pr)
 	if err != nil {
 		return policies.PolicyPage{}, errors.Wrap(svcerr.ErrViewEntity, err)
@@ -228,7 +229,7 @@ func (pc policyClient) ListAllObjects(ctx context.Context, pr policies.PolicyReq
 	return page, nil
 }
 
-func (pc policyClient) CountObjects(ctx context.Context, pr policies.PolicyReq) (uint64, error) {
+func (pc *policyManager) CountObjects(ctx context.Context, pr policies.PolicyReq) (uint64, error) {
 	var count uint64
 	nextPageToken := ""
 	for {
@@ -246,7 +247,7 @@ func (pc policyClient) CountObjects(ctx context.Context, pr policies.PolicyReq) 
 	return count, nil
 }
 
-func (pc policyClient) ListSubjects(ctx context.Context, pr policies.PolicyReq, nextPageToken string, limit uint64) (policies.PolicyPage, error) {
+func (pc *policyManager) ListSubjects(ctx context.Context, pr policies.PolicyReq, nextPageToken string, limit uint64) (policies.PolicyPage, error) {
 	if limit <= 0 {
 		limit = 100
 	}
@@ -263,7 +264,7 @@ func (pc policyClient) ListSubjects(ctx context.Context, pr policies.PolicyReq, 
 	return page, nil
 }
 
-func (pc policyClient) ListAllSubjects(ctx context.Context, pr policies.PolicyReq) (policies.PolicyPage, error) {
+func (pc *policyManager) ListAllSubjects(ctx context.Context, pr policies.PolicyReq) (policies.PolicyPage, error) {
 	res, err := pc.retrieveAllSubjects(ctx, pr)
 	if err != nil {
 		return policies.PolicyPage{}, errors.Wrap(svcerr.ErrViewEntity, err)
@@ -276,7 +277,7 @@ func (pc policyClient) ListAllSubjects(ctx context.Context, pr policies.PolicyRe
 	return page, nil
 }
 
-func (pc policyClient) CountSubjects(ctx context.Context, pr policies.PolicyReq) (uint64, error) {
+func (pc *policyManager) CountSubjects(ctx context.Context, pr policies.PolicyReq) (uint64, error) {
 	var count uint64
 	nextPageToken := ""
 	for {
@@ -294,7 +295,7 @@ func (pc policyClient) CountSubjects(ctx context.Context, pr policies.PolicyReq)
 	return count, nil
 }
 
-func (pc policyClient) ListPermissions(ctx context.Context, pr policies.PolicyReq, permissionsFilter []string) (policies.Permissions, error) {
+func (pc *policyManager) ListPermissions(ctx context.Context, pr policies.PolicyReq, permissionsFilter []string) (policies.Permissions, error) {
 	if len(permissionsFilter) == 0 {
 		switch pr.ObjectType {
 		case policies.ThingType:
@@ -317,7 +318,7 @@ func (pc policyClient) ListPermissions(ctx context.Context, pr policies.PolicyRe
 	return pers, nil
 }
 
-func (pc policyClient) policyValidation(pr policies.PolicyReq) error {
+func (pc *policyManager) policyValidation(pr policies.PolicyReq) error {
 	if pr.ObjectType == policies.PlatformType && pr.Object != policies.MagistralaObject {
 		return errPlatform
 	}
@@ -325,7 +326,7 @@ func (pc policyClient) policyValidation(pr policies.PolicyReq) error {
 	return nil
 }
 
-func (pc policyClient) addPolicyPreCondition(ctx context.Context, pr policies.PolicyReq) ([]*v1.Precondition, error) {
+func (pc *policyManager) addPolicyPreCondition(ctx context.Context, pr policies.PolicyReq) ([]*v1.Precondition, error) {
 	// Checks are required for following  ( -> means adding)
 	// 1.) user -> group (both user groups and channels)
 	// 2.) user -> thing
@@ -389,7 +390,7 @@ func (pc policyClient) addPolicyPreCondition(ctx context.Context, pr policies.Po
 	return nil, nil
 }
 
-func (pc policyClient) userGroupPreConditions(ctx context.Context, pr policies.PolicyReq) ([]*v1.Precondition, error) {
+func (pc *policyManager) userGroupPreConditions(ctx context.Context, pr policies.PolicyReq) ([]*v1.Precondition, error) {
 	var preconds []*v1.Precondition
 
 	// user should not have any relation with group
@@ -463,7 +464,7 @@ func (pc policyClient) userGroupPreConditions(ctx context.Context, pr policies.P
 	return preconds, nil
 }
 
-func (pc policyClient) userThingPreConditions(ctx context.Context, pr policies.PolicyReq) ([]*v1.Precondition, error) {
+func (pc *policyManager) userThingPreConditions(ctx context.Context, pr policies.PolicyReq) ([]*v1.Precondition, error) {
 	var preconds []*v1.Precondition
 
 	// user should not have any relation with thing
@@ -542,7 +543,7 @@ func (pc policyClient) userThingPreConditions(ctx context.Context, pr policies.P
 	return preconds, nil
 }
 
-func (pc policyClient) userDomainPreConditions(ctx context.Context, pr policies.PolicyReq) ([]*v1.Precondition, error) {
+func (pc *policyManager) userDomainPreConditions(ctx context.Context, pr policies.PolicyReq) ([]*v1.Precondition, error) {
 	var preconds []*v1.Precondition
 
 	if err := pc.checkPolicy(ctx, policies.PolicyReq{
@@ -571,7 +572,7 @@ func (pc policyClient) userDomainPreConditions(ctx context.Context, pr policies.
 	return preconds, nil
 }
 
-func (pc policyClient) checkPolicy(ctx context.Context, pr policies.PolicyReq) error {
+func (pc *policyManager) checkPolicy(ctx context.Context, pr policies.PolicyReq) error {
 	checkReq := v1.CheckPermissionRequest{
 		// FullyConsistent means little caching will be available, which means performance will suffer.
 		// Only use if a ZedToken is not available or absolutely latest information is required.
@@ -606,7 +607,7 @@ func (pc policyClient) checkPolicy(ctx context.Context, pr policies.PolicyReq) e
 	return svcerr.ErrAuthorization
 }
 
-func (pc policyClient) retrieveObjects(ctx context.Context, pr policies.PolicyReq, nextPageToken string, limit uint64) ([]policies.PolicyRes, string, error) {
+func (pc *policyManager) retrieveObjects(ctx context.Context, pr policies.PolicyReq, nextPageToken string, limit uint64) ([]policies.PolicyRes, string, error) {
 	resourceReq := &v1.LookupResourcesRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_FullyConsistent{
@@ -646,7 +647,7 @@ func (pc policyClient) retrieveObjects(ctx context.Context, pr policies.PolicyRe
 	}
 }
 
-func (pc policyClient) retrieveAllObjects(ctx context.Context, pr policies.PolicyReq) ([]policies.PolicyRes, error) {
+func (pc *policyManager) retrieveAllObjects(ctx context.Context, pr policies.PolicyReq) ([]policies.PolicyRes, error) {
 	resourceReq := &v1.LookupResourcesRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_FullyConsistent{
@@ -675,7 +676,7 @@ func (pc policyClient) retrieveAllObjects(ctx context.Context, pr policies.Polic
 	}
 }
 
-func (pc policyClient) retrieveSubjects(ctx context.Context, pr policies.PolicyReq, nextPageToken string, limit uint64) ([]policies.PolicyRes, string, error) {
+func (pc *policyManager) retrieveSubjects(ctx context.Context, pr policies.PolicyReq, nextPageToken string, limit uint64) ([]policies.PolicyRes, string, error) {
 	subjectsReq := v1.LookupSubjectsRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_FullyConsistent{
@@ -718,7 +719,7 @@ func (pc policyClient) retrieveSubjects(ctx context.Context, pr policies.PolicyR
 	}
 }
 
-func (pc policyClient) retrieveAllSubjects(ctx context.Context, pr policies.PolicyReq) ([]policies.PolicyRes, error) {
+func (pc *policyManager) retrieveAllSubjects(ctx context.Context, pr policies.PolicyReq) ([]policies.PolicyRes, error) {
 	var tuples []policies.PolicyRes
 	nextPageToken := ""
 	for i := 0; ; i++ {
@@ -735,7 +736,7 @@ func (pc policyClient) retrieveAllSubjects(ctx context.Context, pr policies.Poli
 	return tuples, nil
 }
 
-func (pc policyClient) retrievePermissions(ctx context.Context, pr policies.PolicyReq, filterPermission []string) (policies.Permissions, error) {
+func (pc *policyManager) retrievePermissions(ctx context.Context, pr policies.PolicyReq, filterPermission []string) (policies.Permissions, error) {
 	var permissionChecks []*v1.CheckBulkPermissionsRequestItem
 	for _, fp := range filterPermission {
 		permissionChecks = append(permissionChecks, &v1.CheckBulkPermissionsRequestItem{

@@ -7,19 +7,19 @@ import (
 	"context"
 
 	"github.com/absmach/magistrala"
-	"github.com/absmach/magistrala/auth"
-	authclient "github.com/absmach/magistrala/pkg/auth"
+	"github.com/absmach/magistrala/pkg/auth"
 	"github.com/absmach/magistrala/pkg/errors"
 	svcerr "github.com/absmach/magistrala/pkg/errors/service"
+	"github.com/absmach/magistrala/pkg/policies"
 )
 
 type service struct {
 	idProvider magistrala.IDProvider
-	auth       authclient.AuthClient
+	auth       auth.AuthClient
 	repository Repository
 }
 
-func NewService(idp magistrala.IDProvider, repository Repository, authClient authclient.AuthClient) Service {
+func NewService(idp magistrala.IDProvider, repository Repository, authClient auth.AuthClient) Service {
 	return &service{
 		idProvider: idp,
 		auth:       authClient,
@@ -51,23 +51,23 @@ func (svc *service) authorize(ctx context.Context, token, entityID, entityType s
 		return errors.Wrap(svcerr.ErrAuthentication, err)
 	}
 
-	permission := auth.ViewPermission
+	permission := policies.ViewPermission
 	objectType := entityType
 	object := entityID
 	subject := user.GetId()
 
 	// If the entity is a user, we need to check if the user is an admin
-	if entityType == auth.UserType {
-		permission = auth.AdminPermission
-		objectType = auth.PlatformType
-		object = auth.MagistralaObject
+	if entityType == policies.UserType {
+		permission = policies.AdminPermission
+		objectType = policies.PlatformType
+		object = policies.MagistralaObject
 		subject = user.GetUserId()
 	}
 
 	req := &magistrala.AuthorizeReq{
 		Domain:      user.GetDomainId(),
-		SubjectType: auth.UserType,
-		SubjectKind: auth.UsersKind,
+		SubjectType: policies.UserType,
+		SubjectKind: policies.UsersKind,
 		Subject:     subject,
 		Permission:  permission,
 		ObjectType:  objectType,

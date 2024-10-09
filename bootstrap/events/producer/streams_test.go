@@ -89,14 +89,14 @@ type testVariable struct {
 	svc      bootstrap.Service
 	boot     *mocks.ConfigRepository
 	auth     *authmocks.AuthClient
-	policies *policymocks.PolicyClient
+	policies *policymocks.Manager
 	sdk      *sdkmocks.SDK
 }
 
 func newTestVariable(t *testing.T, redisURL string) testVariable {
 	boot := new(mocks.ConfigRepository)
 	auth := new(authmocks.AuthClient)
-	policies := new(policymocks.PolicyClient)
+	policies := new(policymocks.Manager)
 	sdk := new(sdkmocks.SDK)
 	idp := uuid.NewMock()
 	svc := bootstrap.New(auth, policies, boot, sdk, encKey, idp)

@@ -7,8 +7,7 @@ package mocks
 import (
 	context "context"
 
-	auth "github.com/absmach/magistrala/auth"
-
+	policies "github.com/absmach/magistrala/pkg/policies"
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -18,7 +17,7 @@ type Authz struct {
 }
 
 // Authorize provides a mock function with given fields: ctx, pr
-func (_m *Authz) Authorize(ctx context.Context, pr auth.PolicyReq) error {
+func (_m *Authz) Authorize(ctx context.Context, pr policies.PolicyReq) error {
 	ret := _m.Called(ctx, pr)
 
 	if len(ret) == 0 {
@@ -26,7 +25,7 @@ func (_m *Authz) Authorize(ctx context.Context, pr auth.PolicyReq) error {
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, auth.PolicyReq) error); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, policies.PolicyReq) error); ok {
 		r0 = rf(ctx, pr)
 	} else {
 		r0 = ret.Error(0)

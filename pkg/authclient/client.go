@@ -66,7 +66,7 @@ func SetupDomainsClient(ctx context.Context, cfg Config) (magistrala.DomainsServ
 // For example:
 //
 // thingClient, thingHandler, err := auth.SetupThings(ctx, auth.Config{}).
-func SetupThingsClient(ctx context.Context, cfg Config) (magistrala.AuthzServiceClient, Handler, error) {
+func SetupThingsClient(ctx context.Context, cfg Config) (magistrala.ThingsServiceClient, Handler, error) {
 	client, err := newHandler(cfg)
 	if err != nil {
 		return nil, nil, err

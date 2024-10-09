@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"github.com/absmach/magistrala/auth"
+	"github.com/absmach/magistrala/pkg/policies"
 	"github.com/go-kit/kit/endpoint"
 )
 
@@ -79,7 +80,7 @@ func authorizeEndpoint(svc auth.Service) endpoint.Endpoint {
 		if err := req.validate(); err != nil {
 			return authorizeRes{}, err
 		}
-		err := svc.Authorize(ctx, auth.PolicyReq{
+		err := svc.Authorize(ctx, policies.PolicyReq{
 			Domain:      req.Domain,
 			SubjectType: req.SubjectType,
 			SubjectKind: req.SubjectKind,

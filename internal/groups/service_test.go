@@ -50,7 +50,7 @@ var (
 
 func TestCreateGroup(t *testing.T) {
 	repo := new(mocks.Repository)
-	policies := new(policymocks.PolicyClient)
+	policies := new(policymocks.Manager)
 	svc := groups.NewService(repo, idProvider, policies)
 
 	cases := []struct {
@@ -164,7 +164,7 @@ func TestCreateGroup(t *testing.T) {
 
 func TestViewGroup(t *testing.T) {
 	repo := new(mocks.Repository)
-	policies := new(policymocks.PolicyClient)
+	policies := new(policymocks.Manager)
 	svc := groups.NewService(repo, idProvider, policies)
 
 	cases := []struct {
@@ -204,7 +204,7 @@ func TestViewGroup(t *testing.T) {
 
 func TestViewGroupPerms(t *testing.T) {
 	repo := new(mocks.Repository)
-	policies := new(policymocks.PolicyClient)
+	policies := new(policymocks.Manager)
 	svc := groups.NewService(repo, idProvider, policies)
 
 	cases := []struct {
@@ -260,7 +260,7 @@ func TestViewGroupPerms(t *testing.T) {
 
 func TestUpdateGroup(t *testing.T) {
 	repo := new(mocks.Repository)
-	policies := new(policymocks.PolicyClient)
+	policies := new(policymocks.Manager)
 	svc := groups.NewService(repo, idProvider, policies)
 
 	cases := []struct {
@@ -309,7 +309,7 @@ func TestUpdateGroup(t *testing.T) {
 
 func TestEnableGroup(t *testing.T) {
 	repo := new(mocks.Repository)
-	policies := new(policymocks.PolicyClient)
+	policies := new(policymocks.Manager)
 	svc := groups.NewService(repo, idProvider, policies)
 
 	cases := []struct {
@@ -369,7 +369,7 @@ func TestEnableGroup(t *testing.T) {
 
 func TestDisableGroup(t *testing.T) {
 	repo := new(mocks.Repository)
-	policies := new(policymocks.PolicyClient)
+	policies := new(policymocks.Manager)
 	svc := groups.NewService(repo, idProvider, policies)
 
 	cases := []struct {
@@ -429,7 +429,7 @@ func TestDisableGroup(t *testing.T) {
 
 func TestListMembers(t *testing.T) {
 	repo := new(mocks.Repository)
-	policies := new(policymocks.PolicyClient)
+	policies := new(policymocks.Manager)
 	svc := groups.NewService(repo, idProvider, policies)
 
 	cases := []struct {
@@ -521,7 +521,7 @@ func TestListMembers(t *testing.T) {
 
 func TestListGroups(t *testing.T) {
 	repo := new(mocks.Repository)
-	policies := new(policymocks.PolicyClient)
+	policies := new(policymocks.Manager)
 	svc := groups.NewService(repo, idProvider, policies)
 
 	cases := []struct {
@@ -914,7 +914,7 @@ func TestListGroups(t *testing.T) {
 
 func TestAssign(t *testing.T) {
 	repo := new(mocks.Repository)
-	policies := new(policymocks.PolicyClient)
+	policies := new(policymocks.Manager)
 	svc := groups.NewService(repo, idProvider, policies)
 
 	cases := []struct {
@@ -1159,7 +1159,7 @@ func TestAssign(t *testing.T) {
 
 func TestUnassign(t *testing.T) {
 	repo := new(mocks.Repository)
-	policies := new(policymocks.PolicyClient)
+	policies := new(policymocks.Manager)
 	svc := groups.NewService(repo, idProvider, policies)
 
 	cases := []struct {
@@ -1404,7 +1404,7 @@ func TestUnassign(t *testing.T) {
 
 func TestDeleteGroup(t *testing.T) {
 	repo := new(mocks.Repository)
-	policies := new(policymocks.PolicyClient)
+	policies := new(policymocks.Manager)
 	svc := groups.NewService(repo, idProvider, policies)
 
 	cases := []struct {

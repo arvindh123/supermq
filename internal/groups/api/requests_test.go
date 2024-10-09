@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/absmach/magistrala/auth"
 	"github.com/absmach/magistrala/internal/api"
 	"github.com/absmach/magistrala/pkg/apiutil"
 	"github.com/absmach/magistrala/pkg/groups"
+	"github.com/absmach/magistrala/pkg/policies"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -102,7 +102,7 @@ func TestListGroupReqValidation(t *testing.T) {
 		{
 			desc: "valid request",
 			req: listGroupsReq{
-				memberKind: auth.ThingsKind,
+				memberKind: policies.ThingsKind,
 				memberID:   valid,
 				Page: groups.Page{
 					PageMeta: groups.PageMeta{
@@ -127,7 +127,7 @@ func TestListGroupReqValidation(t *testing.T) {
 		{
 			desc: "empty member id",
 			req: listGroupsReq{
-				memberKind: auth.ThingsKind,
+				memberKind: policies.ThingsKind,
 				Page: groups.Page{
 					PageMeta: groups.PageMeta{
 						Limit: 10,
@@ -139,7 +139,7 @@ func TestListGroupReqValidation(t *testing.T) {
 		{
 			desc: "invalid upper level",
 			req: listGroupsReq{
-				memberKind: auth.ThingsKind,
+				memberKind: policies.ThingsKind,
 				memberID:   valid,
 				Page: groups.Page{
 					PageMeta: groups.PageMeta{
@@ -153,7 +153,7 @@ func TestListGroupReqValidation(t *testing.T) {
 		{
 			desc: "invalid lower limit",
 			req: listGroupsReq{
-				memberKind: auth.ThingsKind,
+				memberKind: policies.ThingsKind,
 				memberID:   valid,
 				Page: groups.Page{
 					PageMeta: groups.PageMeta{
@@ -166,7 +166,7 @@ func TestListGroupReqValidation(t *testing.T) {
 		{
 			desc: "invalid upper limit",
 			req: listGroupsReq{
-				memberKind: auth.ThingsKind,
+				memberKind: policies.ThingsKind,
 				memberID:   valid,
 				Page: groups.Page{
 					PageMeta: groups.PageMeta{
@@ -272,8 +272,8 @@ func TestAssignReqValidation(t *testing.T) {
 			desc: "valid request",
 			req: assignReq{
 				groupID:    valid,
-				Relation:   auth.ContributorRelation,
-				MemberKind: auth.ThingsKind,
+				Relation:   policies.ContributorRelation,
+				MemberKind: policies.ThingsKind,
 				Members:    []string{valid},
 			},
 			err: nil,
@@ -282,7 +282,7 @@ func TestAssignReqValidation(t *testing.T) {
 			desc: "empty member kind",
 			req: assignReq{
 				groupID:  valid,
-				Relation: auth.ContributorRelation,
+				Relation: policies.ContributorRelation,
 				Members:  []string{valid},
 			},
 			err: apiutil.ErrMissingMemberKind,
@@ -290,8 +290,8 @@ func TestAssignReqValidation(t *testing.T) {
 		{
 			desc: "empty groupID",
 			req: assignReq{
-				Relation:   auth.ContributorRelation,
-				MemberKind: auth.ThingsKind,
+				Relation:   policies.ContributorRelation,
+				MemberKind: policies.ThingsKind,
 				Members:    []string{valid},
 			},
 			err: apiutil.ErrMissingID,
@@ -300,8 +300,8 @@ func TestAssignReqValidation(t *testing.T) {
 			desc: "empty Members",
 			req: assignReq{
 				groupID:    valid,
-				Relation:   auth.ContributorRelation,
-				MemberKind: auth.ThingsKind,
+				Relation:   policies.ContributorRelation,
+				MemberKind: policies.ThingsKind,
 			},
 			err: apiutil.ErrEmptyList,
 		},
@@ -323,8 +323,8 @@ func TestUnAssignReqValidation(t *testing.T) {
 			desc: "valid request",
 			req: unassignReq{
 				groupID:    valid,
-				Relation:   auth.ContributorRelation,
-				MemberKind: auth.ThingsKind,
+				Relation:   policies.ContributorRelation,
+				MemberKind: policies.ThingsKind,
 				Members:    []string{valid},
 			},
 			err: nil,
@@ -333,7 +333,7 @@ func TestUnAssignReqValidation(t *testing.T) {
 			desc: "empty member kind",
 			req: unassignReq{
 				groupID:  valid,
-				Relation: auth.ContributorRelation,
+				Relation: policies.ContributorRelation,
 				Members:  []string{valid},
 			},
 			err: apiutil.ErrMissingMemberKind,
@@ -341,8 +341,8 @@ func TestUnAssignReqValidation(t *testing.T) {
 		{
 			desc: "empty groupID",
 			req: unassignReq{
-				Relation:   auth.ContributorRelation,
-				MemberKind: auth.ThingsKind,
+				Relation:   policies.ContributorRelation,
+				MemberKind: policies.ThingsKind,
 				Members:    []string{valid},
 			},
 			err: apiutil.ErrMissingID,
@@ -351,8 +351,8 @@ func TestUnAssignReqValidation(t *testing.T) {
 			desc: "empty Members",
 			req: unassignReq{
 				groupID:    valid,
-				Relation:   auth.ContributorRelation,
-				MemberKind: auth.ThingsKind,
+				Relation:   policies.ContributorRelation,
+				MemberKind: policies.ThingsKind,
 			},
 			err: apiutil.ErrEmptyList,
 		},
@@ -374,8 +374,8 @@ func TestListMembersReqValidation(t *testing.T) {
 			desc: "valid request",
 			req: listMembersReq{
 				groupID:    valid,
-				permission: auth.ViewPermission,
-				memberKind: auth.ThingsKind,
+				permission: policies.ViewPermission,
+				memberKind: policies.ThingsKind,
 			},
 			err: nil,
 		},
@@ -383,15 +383,15 @@ func TestListMembersReqValidation(t *testing.T) {
 			desc: "empty member kind",
 			req: listMembersReq{
 				groupID:    valid,
-				permission: auth.ViewPermission,
+				permission: policies.ViewPermission,
 			},
 			err: apiutil.ErrMissingMemberKind,
 		},
 		{
 			desc: "empty groupID",
 			req: listMembersReq{
-				permission: auth.ViewPermission,
-				memberKind: auth.ThingsKind,
+				permission: policies.ViewPermission,
+				memberKind: policies.ThingsKind,
 			},
 			err: apiutil.ErrMissingID,
 		},

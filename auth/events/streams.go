@@ -212,7 +212,7 @@ func (es *eventStore) Identify(ctx context.Context, token string) (auth.Key, err
 	return es.svc.Identify(ctx, token)
 }
 
-func (es *eventStore) Authorize(ctx context.Context, pr auth.PolicyReq) error {
+func (es *eventStore) Authorize(ctx context.Context, pr policies.PolicyReq) error {
 	return es.svc.Authorize(ctx, pr)
 }
 

@@ -30,7 +30,7 @@ const (
 	invalidValue = "invalid"
 )
 
-func newService(things magistrala.AuthzServiceClient) (session.Handler, *pubsub.PubSub) {
+func newService(things magistrala.ThingsServiceClient) (session.Handler, *pubsub.PubSub) {
 	pub := new(pubsub.PubSub)
 	return server.NewHandler(pub, mglog.NewMock(), things), pub
 }
@@ -81,7 +81,7 @@ func (tr testRequest) make() (*http.Response, error) {
 }
 
 func TestPublish(t *testing.T) {
-	things := new(thmocks.AuthzServiceClient)
+	things := new(thmocks.ThingsServiceClient)
 	chanID := "1"
 	ctSenmlJSON := "application/senml+json"
 	ctSenmlCBOR := "application/senml+cbor"

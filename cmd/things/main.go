@@ -21,7 +21,6 @@ import (
 	gmiddleware "github.com/absmach/magistrala/internal/groups/middleware"
 	gpostgres "github.com/absmach/magistrala/internal/groups/postgres"
 	gtracing "github.com/absmach/magistrala/internal/groups/tracing"
-	mgpolicies "github.com/absmach/magistrala/internal/policies"
 	mglog "github.com/absmach/magistrala/logger"
 	"github.com/absmach/magistrala/pkg/auth"
 	"github.com/absmach/magistrala/pkg/authclient"
@@ -156,7 +155,7 @@ func main() {
 
 	var (
 		authClient   auth.AuthClient
-		policyClient policies.PolicyClient
+		policyClient policies.Manager
 	)
 	switch cfg.StandaloneID != "" && cfg.StandaloneToken != "" {
 	case true:
@@ -214,7 +213,7 @@ func main() {
 	}
 	registerThingsServer := func(srv *grpc.Server) {
 		reflection.Register(srv)
-		magistrala.RegisterAuthzServiceServer(srv, grpcapi.NewServer(csvc, authClient))
+		magistrala.RegisterThingsServiceServer(srv, grpcapi.NewServer(csvc, authClient))
 	}
 	gs := grpcserver.NewServer(ctx, cancel, svcName, grpcServerConfig, registerThingsServer, logger)
 
@@ -241,7 +240,7 @@ func main() {
 	}
 }
 
-func newService(ctx context.Context, db *sqlx.DB, dbConfig pgclient.Config, authClient auth.AuthClient, policyClient policies.PolicyClient, cacheClient *redis.Client, keyDuration time.Duration, esURL string, tracer trace.Tracer, logger *slog.Logger) (things.Service, groups.Service, error) {
+func newService(ctx context.Context, db *sqlx.DB, dbConfig pgclient.Config, authClient auth.AuthClient, policyC policies.PolicyClient, cacheClient *redis.Client, keyDuration time.Duration, esURL string, tracer trace.Tracer, logger *slog.Logger) (things.Service, groups.Service, error) {
 	database := postgres.NewDatabase(db, dbConfig, tracer)
 	cRepo := thingspg.NewRepository(database)
 	gRepo := gpostgres.New(database)

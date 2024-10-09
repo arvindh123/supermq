@@ -21,11 +21,10 @@ import (
 	"github.com/absmach/magistrala/auth/events"
 	"github.com/absmach/magistrala/auth/jwt"
 	apostgres "github.com/absmach/magistrala/auth/postgres"
-	"github.com/absmach/magistrala/auth/spicedb"
 	"github.com/absmach/magistrala/auth/tracing"
-	mgpolicies "github.com/absmach/magistrala/internal/policies"
 	mglog "github.com/absmach/magistrala/logger"
 	"github.com/absmach/magistrala/pkg/jaeger"
+	"github.com/absmach/magistrala/pkg/policies/spicedb"
 	"github.com/absmach/magistrala/pkg/postgres"
 	pgclient "github.com/absmach/magistrala/pkg/postgres"
 	"github.com/absmach/magistrala/pkg/prometheus"
@@ -148,8 +147,7 @@ func main() {
 	}
 	registerAuthServiceServer := func(srv *grpc.Server) {
 		reflection.Register(srv)
-		magistrala.RegisterAuthzServiceServer(srv, grpcapi.NewAuthzServer(svc))
-		magistrala.RegisterAuthnServiceServer(srv, grpcapi.NewAuthnServer(svc))
+		magistrala.RegisterAuthServiceServer(srv, grpcapi.NewAuthServer(svc))
 		magistrala.RegisterDomainsServiceServer(srv, grpcapi.NewDomainsServer(svc))
 	}
 
@@ -210,14 +208,14 @@ func newService(ctx context.Context, db *sqlx.DB, tracer trace.Tracer, cfg confi
 	database := postgres.NewDatabase(db, dbConfig, tracer)
 	keysRepo := apostgres.New(database)
 	domainsRepo := apostgres.NewDomainRepository(database)
-	pa := spicedb.NewPolicyAgent(spicedbClient, logger)
 	idProvider := uuid.New()
 
-	policyClient := mgpolicies.NewPolicyClient(spicedbClient, logger)
+	pEvaluator := spicedb.NewPolicyEvaluator(spicedbClient, logger)
+	pManager := spicedb.NewPolicyManager(spicedbClient, logger)
 
 	t := jwt.New([]byte(cfg.SecretKey))
 
-	svc := auth.New(keysRepo, domainsRepo, idProvider, t, pa, policyClient, cfg.AccessDuration, cfg.RefreshDuration, cfg.InvitationDuration)
+	svc := auth.New(keysRepo, domainsRepo, idProvider, t, pEvaluator, pManager, cfg.AccessDuration, cfg.RefreshDuration, cfg.InvitationDuration)
 	svc, err := events.NewEventStoreMiddleware(ctx, svc, cfg.ESURL)
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to init event store middleware : %s", err))

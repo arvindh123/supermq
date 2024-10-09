@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/absmach/magistrala"
-	"github.com/absmach/magistrala/auth"
 	"github.com/absmach/magistrala/internal/testsutil"
 	"github.com/absmach/magistrala/journal"
 	"github.com/absmach/magistrala/journal/mocks"
@@ -19,6 +18,7 @@ import (
 	"github.com/absmach/magistrala/pkg/errors"
 	repoerr "github.com/absmach/magistrala/pkg/errors/repository"
 	svcerr "github.com/absmach/magistrala/pkg/errors/service"
+	"github.com/absmach/magistrala/pkg/policies"
 	"github.com/absmach/magistrala/pkg/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -181,17 +181,17 @@ func TestReadAll(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.desc, func(t *testing.T) {
 			authReq := &magistrala.AuthorizeReq{
-				SubjectType: auth.UserType,
-				SubjectKind: auth.UsersKind,
+				SubjectType: policies.UserType,
+				SubjectKind: policies.UsersKind,
 				Subject:     tc.identifyRes.GetId(),
 				ObjectType:  tc.page.EntityType.AuthString(),
 				Object:      tc.page.EntityID,
-				Permission:  auth.ViewPermission,
+				Permission:  policies.ViewPermission,
 			}
 			if tc.page.EntityType == journal.UserEntity {
-				authReq.Permission = auth.AdminPermission
-				authReq.ObjectType = auth.PlatformType
-				authReq.Object = auth.MagistralaObject
+				authReq.Permission = policies.AdminPermission
+				authReq.ObjectType = policies.PlatformType
+				authReq.Object = policies.MagistralaObject
 				authReq.Subject = tc.identifyRes.GetUserId()
 			}
 			authCall := authsvc.On("Identify", context.Background(), &magistrala.IdentityReq{Token: tc.token}).Return(tc.identifyRes, tc.identifyErr)

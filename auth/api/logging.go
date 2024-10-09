@@ -100,7 +100,7 @@ func (lm *loggingMiddleware) Identify(ctx context.Context, token string) (id aut
 	return lm.svc.Identify(ctx, token)
 }
 
-func (lm *loggingMiddleware) Authorize(ctx context.Context, pr auth.PolicyReq) (err error) {
+func (lm *loggingMiddleware) Authorize(ctx context.Context, pr policies.PolicyReq) (err error) {
 	defer func(begin time.Time) {
 		args := []any{
 			slog.String("duration", time.Since(begin).String()),

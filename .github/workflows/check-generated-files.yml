@@ -156,7 +156,7 @@ jobs:
           mv ./journal/mocks/repository.go ./journal/mocks/repository.go.tmp
           mv ./journal/mocks/service.go ./journal/mocks/service.go.tmp
           mv ./auth/mocks/domains_client.go ./auth/mocks/domains_client.go.tmp
-          mv ./things/mocks/authz_client.go ./things/mocks/authz_client.go.tmp
+          mv ./things/mocks/things_client.go ./things/mocks/things_client.go.tmp
 
           make mocks
 
@@ -207,4 +207,4 @@ jobs:
           check_mock_changes ./journal/mocks/repository.go "Journal Repository ./journal/mocks/repository.go"
           check_mock_changes ./journal/mocks/service.go "Journal Service ./journal/mocks/service.go"
           check_mock_changes ./auth/mocks/domains_client.go "Domains Service Client ./auth/mocks/domains_client.go"
-          check_mock_changes ./things/mocks/authz_client.go "Authz Service Client things/mocks/authz_client.go"
+          check_mock_changes ./things/mocks/things_client.go "Things Service Client things/mocks/things_client.go"

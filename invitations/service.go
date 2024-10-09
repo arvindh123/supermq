@@ -12,6 +12,7 @@ import (
 	authclient "github.com/absmach/magistrala/pkg/auth"
 	"github.com/absmach/magistrala/pkg/errors"
 	svcerr "github.com/absmach/magistrala/pkg/errors/service"
+	"github.com/absmach/magistrala/pkg/policies"
 	mgsdk "github.com/absmach/magistrala/pkg/sdk/go"
 )
 
@@ -44,7 +45,7 @@ func (svc *service) SendInvitation(ctx context.Context, token string, invitation
 	invitation.InvitedBy = user.GetUserId()
 
 	domainUserId := auth.EncodeDomainUserID(invitation.DomainID, invitation.UserID)
-	if err := svc.authorize(ctx, domainUserId, auth.MembershipPermission, auth.DomainType, invitation.DomainID); err == nil {
+	if err := svc.authorize(ctx, domainUserId, policies.MembershipPermission, policies.DomainType, invitation.DomainID); err == nil {
 		// return error if the user is already a member of the domain
 		return errors.Wrap(svcerr.ErrConflict, ErrMemberExist)
 	}
@@ -102,7 +103,7 @@ func (svc *service) ListInvitations(ctx context.Context, token string, page Page
 		return InvitationPage{}, err
 	}
 
-	if err := svc.authorize(ctx, user.GetId(), auth.AdminPermission, auth.PlatformType, auth.MagistralaObject); err == nil {
+	if err := svc.authorize(ctx, user.GetId(), policies.AdminPermission, policies.PlatformType, policies.MagistralaObject); err == nil {
 		return svc.repo.RetrieveAll(ctx, page)
 	}
 
@@ -219,8 +220,8 @@ func (svc *service) identify(ctx context.Context, token string) (*magistrala.Ide
 
 func (svc *service) authorize(ctx context.Context, subj, perm, objType, obj string) error {
 	req := &magistrala.AuthorizeReq{
-		SubjectType: auth.UserType,
-		SubjectKind: auth.UsersKind,
+		SubjectType: policies.UserType,
+		SubjectKind: policies.UsersKind,
 		Subject:     subj,
 		Permission:  perm,
 		ObjectType:  objType,
@@ -240,11 +241,11 @@ func (svc *service) authorize(ctx context.Context, subj, perm, objType, obj stri
 
 // checkAdmin checks if the given user is a domain or platform administrator.
 func (svc *service) checkAdmin(ctx context.Context, userID, domainID string) error {
-	if err := svc.authorize(ctx, userID, auth.AdminPermission, auth.DomainType, domainID); err == nil {
+	if err := svc.authorize(ctx, userID, policies.AdminPermission, policies.DomainType, domainID); err == nil {
 		return nil
 	}
 
-	if err := svc.authorize(ctx, userID, auth.AdminPermission, auth.PlatformType, auth.MagistralaObject); err == nil {
+	if err := svc.authorize(ctx, userID, policies.AdminPermission, policies.PlatformType, policies.MagistralaObject); err == nil {
 		return nil
 	}
 

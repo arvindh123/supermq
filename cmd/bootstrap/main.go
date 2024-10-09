@@ -20,7 +20,6 @@ import (
 	"github.com/absmach/magistrala/bootstrap/events/producer"
 	bootstrappg "github.com/absmach/magistrala/bootstrap/postgres"
 	"github.com/absmach/magistrala/bootstrap/tracing"
-	mgpolicies "github.com/absmach/magistrala/internal/policies"
 	mglog "github.com/absmach/magistrala/logger"
 	"github.com/absmach/magistrala/pkg/auth"
 	"github.com/absmach/magistrala/pkg/authclient"
@@ -28,6 +27,7 @@ import (
 	"github.com/absmach/magistrala/pkg/events/store"
 	"github.com/absmach/magistrala/pkg/jaeger"
 	"github.com/absmach/magistrala/pkg/policies"
+	"github.com/absmach/magistrala/pkg/policies/spicedb"
 	pgclient "github.com/absmach/magistrala/pkg/postgres"
 	"github.com/absmach/magistrala/pkg/prometheus"
 	mgsdk "github.com/absmach/magistrala/pkg/sdk/go"
@@ -126,7 +126,7 @@ func main() {
 	defer authHandler.Close()
 	logger.Info("AuthService gRPC client successfully connected to auth gRPC server " + authHandler.Secure())
 
-	policyClient, err := newPolicyClient(cfg, logger)
+	policyClient, err := newPolicyManager(cfg, logger)
 	if err != nil {
 		logger.Error(err.Error())
 		exitCode = 1
@@ -189,7 +189,7 @@ func main() {
 	}
 }
 
-func newService(ctx context.Context, authClient auth.AuthClient, policyClient policies.PolicyClient, db *sqlx.DB, tracer trace.Tracer, logger *slog.Logger, cfg config, dbConfig pgclient.Config) (bootstrap.Service, error) {
+func newService(ctx context.Context, authClient auth.AuthClient, policyManager policies.Manager, db *sqlx.DB, tracer trace.Tracer, logger *slog.Logger, cfg config, dbConfig pgclient.Config) (bootstrap.Service, error) {
 	database := pgclient.NewDatabase(db, dbConfig, tracer)
 
 	repoConfig := bootstrappg.NewConfigRepository(database, logger)
@@ -201,7 +201,7 @@ func newService(ctx context.Context, authClient auth.AuthClient, policyClient po
 	sdk := mgsdk.NewSDK(config)
 	idp := uuid.New()
 
-	svc := bootstrap.New(authClient, policyClient, repoConfig, sdk, []byte(cfg.EncKey), idp)
+	svc := bootstrap.New(authClient, policyManager, repoConfig, sdk, []byte(cfg.EncKey), idp)
 
 	publisher, err := store.NewPublisher(ctx, cfg.ESURL, streamID)
 	if err != nil {
@@ -231,7 +231,7 @@ func subscribeToThingsES(ctx context.Context, svc bootstrap.Service, cfg config,
 	return subscriber.Subscribe(ctx, subConfig)
 }
 
-func newPolicyClient(cfg config, logger *slog.Logger) (policies.PolicyClient, error) {
+func newPolicyManager(cfg config, logger *slog.Logger) (policies.Manager, error) {
 	client, err := authzed.NewClientWithExperimentalAPIs(
 		fmt.Sprintf("%s:%s", cfg.SpicedbHost, cfg.SpicedbPort),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
@@ -240,7 +240,7 @@ func newPolicyClient(cfg config, logger *slog.Logger) (policies.PolicyClient, er
 	if err != nil {
 		return nil, err
 	}
-	policyClient := mgpolicies.NewPolicyClient(client, logger)
+	policyManager := spicedb.NewPolicyManager(client, logger)
 
-	return policyClient, nil
+	return policyManager, nil
 }

@@ -8,54 +8,6 @@ import (
 	"encoding/json"
 )
 
-const (
-	TokenKind      = "token"
-	GroupsKind     = "groups"
-	NewGroupKind   = "new_group"
-	ChannelsKind   = "channels"
-	NewChannelKind = "new_channel"
-	ThingsKind     = "things"
-	NewThingKind   = "new_thing"
-	UsersKind      = "users"
-	DomainsKind    = "domains"
-	PlatformKind   = "platform"
-)
-
-const (
-	GroupType    = "group"
-	ThingType    = "thing"
-	UserType     = "user"
-	DomainType   = "domain"
-	PlatformType = "platform"
-)
-
-const (
-	AdministratorRelation = "administrator"
-	EditorRelation        = "editor"
-	ContributorRelation   = "contributor"
-	MemberRelation        = "member"
-	DomainRelation        = "domain"
-	ParentGroupRelation   = "parent_group"
-	RoleGroupRelation     = "role_group"
-	GroupRelation         = "group"
-	PlatformRelation      = "platform"
-	GuestRelation         = "guest"
-)
-
-const (
-	AdminPermission      = "admin"
-	DeletePermission     = "delete"
-	EditPermission       = "edit"
-	ViewPermission       = "view"
-	MembershipPermission = "membership"
-	SharePermission      = "share"
-	PublishPermission    = "publish"
-	SubscribePermission  = "subscribe"
-	CreatePermission     = "create"
-)
-
-const MagistralaObject = "magistrala"
-
 type PolicyReq struct {
 	// Domain contains the domain ID.
 	Domain string `json:"domain,omitempty"`
@@ -122,8 +74,8 @@ type Permissions []string
 // PolicyClient facilitates the communication to authorization
 // services and implements Authz functionalities for spicedb
 //
-//go:generate mockery --name PolicyClient --filename client.go --quiet --note "Copyright (c) Abstract Machines"
-type PolicyClient interface {
+//go:generate mockery --name Manager --filename manager.go --quiet --note "Copyright (c) Abstract Machines"
+type Manager interface {
 	// AddPolicy creates a policy for the given subject, so that, after
 	// AddPolicy, `subject` has a `relation` on `object`. Returns a non-nil
 	// error in case of failures.

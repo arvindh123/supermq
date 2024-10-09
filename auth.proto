@@ -6,17 +6,18 @@ syntax = "proto3";
 package magistrala;
 option go_package = "./magistrala";
 
-// AuthzService is a service that provides authorization functionalities
+// ThingsService is a service that provides things authorization functionalities
 // for magistrala services.
-service AuthzService {
-  // Authorize checks if the subject is authorized to perform
-  // the action on the object.
-  rpc Authorize(AuthorizeReq) returns (AuthorizeRes) {}
+service ThingsService {
+  // Authorize checks if the thing is authorized to perform
+  // the action on the channel.
+  rpc Authorize(ThingsAuthReq) returns (AuthorizeRes) {}
 }
 
-// AuthnService is a service that provides authentication functionalities
-// for magistrala services.
-service AuthnService {
+// AuthService is a service that provides authentication and authorization
+// functionalities for magistrala services.
+service AuthService {
+  rpc Authorize(AuthorizeReq) returns (AuthorizeRes) {}
   rpc Issue(IssueReq) returns (Token) {}
   rpc Refresh(RefreshReq) returns (Token) {}
   rpc Identify(IdentityReq) returns (IdentityRes) {}
@@ -79,4 +80,11 @@ message DeleteUserRes { bool deleted = 1; }
 
 message DeleteUserReq{
   string id          = 1;
+}
+
+message ThingsAuthReq {
+  string channelID = 1;
+  string thingID = 2;
+  string thingKey = 3;
+  string permission = 4;
 }

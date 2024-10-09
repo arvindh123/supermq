@@ -69,14 +69,14 @@ func (tr testRequest) make() (*http.Response, error) {
 
 func newService() (auth.Service, *mocks.KeyRepository) {
 	krepo := new(mocks.KeyRepository)
-	prepo := new(mocks.PolicyAgent)
 	drepo := new(mocks.DomainsRepository)
 	idProvider := uuid.NewMock()
-	policies := new(policymocks.PolicyClient)
+	pManager := new(policymocks.Manager)
+	pEvaluator := new(policymocks.Evaluator)
 
 	t := jwt.New([]byte(secret))
 
-	return auth.New(krepo, drepo, idProvider, t, prepo, policies, loginDuration, refreshDuration, invalidDuration), krepo
+	return auth.New(krepo, drepo, idProvider, t, pEvaluator, pManager, loginDuration, refreshDuration, invalidDuration), krepo
 }
 
 func newServer(svc auth.Service) *httptest.Server {

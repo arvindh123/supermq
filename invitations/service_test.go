@@ -17,6 +17,7 @@ import (
 	authmocks "github.com/absmach/magistrala/pkg/auth/mocks"
 	"github.com/absmach/magistrala/pkg/errors"
 	svcerr "github.com/absmach/magistrala/pkg/errors/service"
+	"github.com/absmach/magistrala/pkg/policies"
 	sdkmocks "github.com/absmach/magistrala/pkg/sdk/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -26,7 +27,7 @@ var (
 	validInvitation = invitations.Invitation{
 		UserID:   testsutil.GenerateUUID(&testing.T{}),
 		DomainID: testsutil.GenerateUUID(&testing.T{}),
-		Relation: auth.ContributorRelation,
+		Relation: policies.ContributorRelation,
 	}
 	validToken   = "token"
 	invalidToken = "invalid"
@@ -156,7 +157,7 @@ func TestSendInvitation(t *testing.T) {
 			req: invitations.Invitation{
 				UserID:   testsutil.GenerateUUID(t),
 				DomainID: testsutil.GenerateUUID(t),
-				Relation: auth.ContributorRelation,
+				Relation: policies.ContributorRelation,
 				Resend:   true,
 			},
 			err:             nil,
@@ -176,31 +177,31 @@ func TestSendInvitation(t *testing.T) {
 			Id:     testsutil.GenerateUUID(t) + "_" + tc.tokenUserID,
 		}
 		domainMemberReq := magistrala.AuthorizeReq{
-			SubjectType: auth.UserType,
-			SubjectKind: auth.UsersKind,
+			SubjectType: policies.UserType,
+			SubjectKind: policies.UsersKind,
 			Subject:     auth.EncodeDomainUserID(tc.req.DomainID, tc.req.UserID),
-			Permission:  auth.MembershipPermission,
-			ObjectType:  auth.DomainType,
+			Permission:  policies.MembershipPermission,
+			ObjectType:  policies.DomainType,
 			Object:      tc.req.DomainID,
 		}
 		domaincall := authsvc.On("Authorize", context.Background(), &domainMemberReq).Return(&magistrala.AuthorizeRes{Authorized: tc.authorised}, tc.domainMemberErr)
 		repocall := authsvc.On("Identify", context.Background(), &magistrala.IdentityReq{Token: tc.token}).Return(idRes, tc.authNErr)
 		domainAdminReq := magistrala.AuthorizeReq{
-			SubjectType: auth.UserType,
-			SubjectKind: auth.UsersKind,
+			SubjectType: policies.UserType,
+			SubjectKind: policies.UsersKind,
 			Subject:     idRes.GetId(),
-			Permission:  auth.AdminPermission,
-			ObjectType:  auth.DomainType,
+			Permission:  policies.AdminPermission,
+			ObjectType:  policies.DomainType,
 			Object:      tc.req.DomainID,
 		}
 		domaincall1 := authsvc.On("Authorize", context.Background(), &domainAdminReq).Return(&magistrala.AuthorizeRes{Authorized: tc.authorised}, tc.domainAdminErr)
 		platformReq := magistrala.AuthorizeReq{
-			SubjectType: auth.UserType,
-			SubjectKind: auth.UsersKind,
+			SubjectType: policies.UserType,
+			SubjectKind: policies.UsersKind,
 			Subject:     idRes.GetId(),
-			Permission:  auth.AdminPermission,
-			ObjectType:  auth.PlatformType,
-			Object:      auth.MagistralaObject,
+			Permission:  policies.AdminPermission,
+			ObjectType:  policies.PlatformType,
+			Object:      policies.MagistralaObject,
 		}
 		platformcall := authsvc.On("Authorize", context.Background(), &platformReq).Return(&magistrala.AuthorizeRes{Authorized: tc.authorised}, tc.adminErr)
 		repocall1 := authsvc.On("Issue", context.Background(), mock.Anything).Return(&magistrala.Token{AccessToken: tc.req.Token}, tc.issueErr)
@@ -228,7 +229,7 @@ func TestViewInvitation(t *testing.T) {
 		InvitedBy:   testsutil.GenerateUUID(t),
 		UserID:      testsutil.GenerateUUID(t),
 		DomainID:    testsutil.GenerateUUID(t),
-		Relation:    auth.ContributorRelation,
+		Relation:    policies.ContributorRelation,
 		CreatedAt:   time.Now().Add(-time.Hour),
 		UpdatedAt:   time.Now().Add(-time.Hour),
 		ConfirmedAt: time.Now().Add(-time.Hour),
@@ -368,21 +369,21 @@ func TestViewInvitation(t *testing.T) {
 		}
 		repocall := authsvc.On("Identify", context.Background(), &magistrala.IdentityReq{Token: tc.token}).Return(idRes, tc.authNErr)
 		domainReq := magistrala.AuthorizeReq{
-			SubjectType: auth.UserType,
-			SubjectKind: auth.UsersKind,
+			SubjectType: policies.UserType,
+			SubjectKind: policies.UsersKind,
 			Subject:     idRes.GetId(),
-			Permission:  auth.AdminPermission,
-			ObjectType:  auth.DomainType,
+			Permission:  policies.AdminPermission,
+			ObjectType:  policies.DomainType,
 			Object:      tc.domainID,
 		}
 		domaincall := authsvc.On("Authorize", context.Background(), &domainReq).Return(&magistrala.AuthorizeRes{Authorized: tc.authorised}, tc.domainErr)
 		platformReq := magistrala.AuthorizeReq{
-			SubjectType: auth.UserType,
-			SubjectKind: auth.UsersKind,
+			SubjectType: policies.UserType,
+			SubjectKind: policies.UsersKind,
 			Subject:     idRes.GetId(),
-			Permission:  auth.AdminPermission,
-			ObjectType:  auth.PlatformType,
-			Object:      auth.MagistralaObject,
+			Permission:  policies.AdminPermission,
+			ObjectType:  policies.PlatformType,
+			Object:      policies.MagistralaObject,
 		}
 		platformcall := authsvc.On("Authorize", context.Background(), &platformReq).Return(&magistrala.AuthorizeRes{Authorized: tc.authorised}, tc.adminErr)
 		repocall1 := repo.On("Retrieve", context.Background(), mock.Anything, mock.Anything).Return(tc.resp, tc.repoErr)
@@ -414,7 +415,7 @@ func TestListInvitations(t *testing.T) {
 				InvitedBy:   testsutil.GenerateUUID(t),
 				UserID:      testsutil.GenerateUUID(t),
 				DomainID:    testsutil.GenerateUUID(t),
-				Relation:    auth.ContributorRelation,
+				Relation:    policies.ContributorRelation,
 				CreatedAt:   time.Now().Add(-time.Hour),
 				UpdatedAt:   time.Now().Add(-time.Hour),
 				ConfirmedAt: time.Now().Add(-time.Hour),
@@ -546,21 +547,21 @@ func TestListInvitations(t *testing.T) {
 		}
 		repocall := authsvc.On("Identify", context.Background(), &magistrala.IdentityReq{Token: tc.token}).Return(idRes, tc.authNErr)
 		domainReq := magistrala.AuthorizeReq{
-			SubjectType: auth.UserType,
-			SubjectKind: auth.UsersKind,
+			SubjectType: policies.UserType,
+			SubjectKind: policies.UsersKind,
 			Subject:     idRes.GetId(),
-			Permission:  auth.AdminPermission,
-			ObjectType:  auth.DomainType,
+			Permission:  policies.AdminPermission,
+			ObjectType:  policies.DomainType,
 			Object:      tc.page.DomainID,
 		}
 		domaincall := authsvc.On("Authorize", context.Background(), &domainReq).Return(&magistrala.AuthorizeRes{Authorized: tc.authorised}, tc.domainErr)
 		platformReq := magistrala.AuthorizeReq{
-			SubjectType: auth.UserType,
-			SubjectKind: auth.UsersKind,
+			SubjectType: policies.UserType,
+			SubjectKind: policies.UsersKind,
 			Subject:     idRes.GetId(),
-			Permission:  auth.AdminPermission,
-			ObjectType:  auth.PlatformType,
-			Object:      auth.MagistralaObject,
+			Permission:  policies.AdminPermission,
+			ObjectType:  policies.PlatformType,
+			Object:      policies.MagistralaObject,
 		}
 		platformcall := authsvc.On("Authorize", context.Background(), &platformReq).Return(&magistrala.AuthorizeRes{Authorized: tc.authorised}, tc.adminErr)
 		repocall1 := repo.On("RetrieveAll", context.Background(), mock.Anything).Return(tc.resp, tc.repoErr)
@@ -616,7 +617,7 @@ func TestAcceptInvitation(t *testing.T) {
 				UserID:   userID,
 				DomainID: testsutil.GenerateUUID(t),
 				Token:    validToken,
-				Relation: auth.ContributorRelation,
+				Relation: policies.ContributorRelation,
 			},
 			err:        nil,
 			authNErr:   nil,
@@ -645,7 +646,7 @@ func TestAcceptInvitation(t *testing.T) {
 				UserID:   userID,
 				DomainID: testsutil.GenerateUUID(t),
 				Token:    validToken,
-				Relation: auth.ContributorRelation,
+				Relation: policies.ContributorRelation,
 			},
 			err:        errors.NewSDKError(svcerr.ErrConflict),
 			authNErr:   nil,
@@ -664,7 +665,7 @@ func TestAcceptInvitation(t *testing.T) {
 				UserID:   userID,
 				DomainID: testsutil.GenerateUUID(t),
 				Token:    validToken,
-				Relation: auth.ContributorRelation,
+				Relation: policies.ContributorRelation,
 			},
 			err:        svcerr.ErrUpdateEntity,
 			authNErr:   nil,
@@ -815,21 +816,21 @@ func TestDeleteInvitation(t *testing.T) {
 		}
 		repocall := authsvc.On("Identify", context.Background(), &magistrala.IdentityReq{Token: tc.token}).Return(idRes, tc.authNErr)
 		domainReq := magistrala.AuthorizeReq{
-			SubjectType: auth.UserType,
-			SubjectKind: auth.UsersKind,
+			SubjectType: policies.UserType,
+			SubjectKind: policies.UsersKind,
 			Subject:     idRes.GetId(),
-			Permission:  auth.AdminPermission,
-			ObjectType:  auth.DomainType,
+			Permission:  policies.AdminPermission,
+			ObjectType:  policies.DomainType,
 			Object:      tc.domainID,
 		}
 		domaincall := authsvc.On("Authorize", context.Background(), &domainReq).Return(&magistrala.AuthorizeRes{Authorized: tc.authorised}, tc.domainErr)
 		platformReq := magistrala.AuthorizeReq{
-			SubjectType: auth.UserType,
-			SubjectKind: auth.UsersKind,
+			SubjectType: policies.UserType,
+			SubjectKind: policies.UsersKind,
 			Subject:     idRes.GetId(),
-			Permission:  auth.AdminPermission,
-			ObjectType:  auth.PlatformType,
-			Object:      auth.MagistralaObject,
+			Permission:  policies.AdminPermission,
+			ObjectType:  policies.PlatformType,
+			Object:      policies.MagistralaObject,
 		}
 		platformcall := authsvc.On("Authorize", context.Background(), &platformReq).Return(&magistrala.AuthorizeRes{Authorized: tc.authorised}, tc.adminErr)
 		repocall1 := repo.On("Retrieve", context.Background(), mock.Anything, mock.Anything).Return(tc.resp, tc.repoErr)

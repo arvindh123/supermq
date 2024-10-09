@@ -30,17 +30,17 @@ type service struct {
 	auth       auth.AuthClient
 	clients    postgres.Repository
 	idProvider magistrala.IDProvider
-	policies   policies.PolicyClient
+	policies   policies.Manager
 	hasher     Hasher
 	email      Emailer
 }
 
 // NewService returns a new Users service implementation.
-func NewService(authClient auth.AuthClient, crepo postgres.Repository, policyClient policies.PolicyClient, emailer Emailer, hasher Hasher, idp magistrala.IDProvider) Service {
+func NewService(authClient auth.AuthClient, crepo postgres.Repository, policyManager policies.Manager, emailer Emailer, hasher Hasher, idp magistrala.IDProvider) Service {
 	return service{
 		auth:       authClient,
 		clients:    crepo,
-		policies:   policyClient,
+		policies:   policyManager,
 		hasher:     hasher,
 		email:      emailer,
 		idProvider: idp,
