@@ -6,6 +6,7 @@ package tracing
 import (
 	"context"
 
+	"github.com/absmach/magistrala"
 	"github.com/absmach/magistrala/pkg/auth"
 	mgclients "github.com/absmach/magistrala/pkg/clients"
 	"github.com/absmach/magistrala/things"
@@ -111,6 +112,14 @@ func (tm *tracingMiddleware) Identify(ctx context.Context, key string) (string, 
 	defer span.End()
 
 	return tm.svc.Identify(ctx, key)
+}
+
+// Authorize traces the "Authorize" operation of the wrapped things.Service
+func (tm *tracingMiddleware) Authorize(ctx context.Context, req *magistrala.ThingsAuthReq) (string, error) {
+	ctx, span := tm.tracer.Start(ctx, "connect", trace.WithAttributes(attribute.String("thingKey", req.ThingKey), attribute.String("channelID", req.ChannelID)))
+	defer span.End()
+
+	return tm.svc.Authorize(ctx, req)
 }
 
 // Share traces the "Share" operation of the wrapped things.Service.

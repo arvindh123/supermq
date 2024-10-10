@@ -18,15 +18,15 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-var _ magistrala.AuthzServiceServer = (*grpcServer)(nil)
+var _ magistrala.ThingsServiceServer = (*grpcServer)(nil)
 
 type grpcServer struct {
-	magistrala.UnimplementedAuthzServiceServer
+	magistrala.UnimplementedThingsServiceServer
 	authorize kitgrpc.Handler
 }
 
 // NewServer returns new AuthServiceServer instance.
-func NewServer(svc things.Service, authClient auth.AuthClient) magistrala.AuthzServiceServer {
+func NewServer(svc things.Service, authClient auth.AuthClient) magistrala.ThingsServiceServer {
 	return &grpcServer{
 		authorize: kitgrpc.NewServer(
 			(authorizeEndpoint(svc, authClient)),
@@ -36,7 +36,7 @@ func NewServer(svc things.Service, authClient auth.AuthClient) magistrala.AuthzS
 	}
 }
 
-func (s *grpcServer) Authorize(ctx context.Context, req *magistrala.AuthorizeReq) (*magistrala.AuthorizeRes, error) {
+func (s *grpcServer) Authorize(ctx context.Context, req *magistrala.ThingsAuthReq) (*magistrala.AuthorizeRes, error) {
 	_, res, err := s.authorize.ServeGRPC(ctx, req)
 	if err != nil {
 		return nil, encodeError(err)

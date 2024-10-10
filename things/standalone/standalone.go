@@ -15,7 +15,7 @@ import (
 
 var (
 	_ authclient.AuthClient = (*singleUserAuth)(nil)
-	_ policies.PolicyClient = (*singleUserPolicyClient)(nil)
+	_ policies.Manager      = (*singleUserPolicyClient)(nil)
 )
 
 type singleUserAuth struct {
@@ -64,8 +64,8 @@ type singleUserPolicyClient struct {
 	token string
 }
 
-// NewPolicyClient creates single user policies client for constrained environments.
-func NewPolicyClient(id, token string) policies.PolicyClient {
+// NewPolicyManager creates single user policies manager for constrained environments.
+func NewPolicyManager(id, token string) policies.Manager {
 	return singleUserPolicyClient{
 		id:    id,
 		token: token,

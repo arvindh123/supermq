@@ -7,6 +7,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/absmach/magistrala"
 	"github.com/absmach/magistrala/pkg/auth"
 	mgclients "github.com/absmach/magistrala/pkg/clients"
 	"github.com/absmach/magistrala/things"
@@ -116,6 +117,14 @@ func (ms *metricsMiddleware) Identify(ctx context.Context, key string) (string, 
 		ms.latency.With("method", "identify_thing").Observe(time.Since(begin).Seconds())
 	}(time.Now())
 	return ms.svc.Identify(ctx, key)
+}
+
+func (ms *metricsMiddleware) Authorize(ctx context.Context, req *magistrala.ThingsAuthReq) (id string, err error) {
+	defer func(begin time.Time) {
+		ms.counter.With("method", "authorize").Add(1)
+		ms.latency.With("method", "authorize").Observe(time.Since(begin).Seconds())
+	}(time.Now())
+	return ms.svc.Authorize(ctx, req)
 }
 
 func (ms *metricsMiddleware) Share(ctx context.Context, session auth.Session, id, relation string, userids ...string) error {

@@ -160,6 +160,10 @@ func (am *authorizationMiddleware) Identify(ctx context.Context, key string) (st
 	return am.svc.Identify(ctx, key)
 }
 
+func (am *authorizationMiddleware) Authorize(ctx context.Context, req *magistrala.ThingsAuthReq) (string, error) {
+	return am.svc.Authorize(ctx, req)
+}
+
 func (am *authorizationMiddleware) DeleteClient(ctx context.Context, session auth.Session, id string) error {
 	if err := am.authorize(ctx, session.DomainID, policies.UserType, policies.UsersKind, session.DomainUserID, policies.DeletePermission, policies.ThingType, id); err != nil {
 		return err

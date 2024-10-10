@@ -6,6 +6,7 @@ package things
 import (
 	"context"
 
+	"github.com/absmach/magistrala"
 	"github.com/absmach/magistrala/pkg/auth"
 	"github.com/absmach/magistrala/pkg/clients"
 )
@@ -56,6 +57,9 @@ type Service interface {
 
 	// Identify returns thing ID for given thing key.
 	Identify(ctx context.Context, key string) (string, error)
+
+	// Authorize used for Things authorization.
+	Authorize(ctx context.Context, req *magistrala.ThingsAuthReq) (string, error)
 
 	// DeleteClient deletes client with given ID.
 	DeleteClient(ctx context.Context, session auth.Session, id string) error

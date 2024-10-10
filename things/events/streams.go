@@ -6,6 +6,7 @@ package events
 import (
 	"context"
 
+	"github.com/absmach/magistrala"
 	"github.com/absmach/magistrala/pkg/auth"
 	mgclients "github.com/absmach/magistrala/pkg/clients"
 	"github.com/absmach/magistrala/pkg/events"
@@ -200,6 +201,25 @@ func (es *eventStore) Identify(ctx context.Context, key string) (string, error) 
 	if err := es.Publish(ctx, event); err != nil {
 		return thingID, err
 	}
+	return thingID, nil
+}
+
+func (es *eventStore) Authorize(ctx context.Context, req *magistrala.ThingsAuthReq) (string, error) {
+	thingID, err := es.svc.Authorize(ctx, req)
+	if err != nil {
+		return thingID, err
+	}
+
+	event := authorizeClientEvent{
+		thingID:    thingID,
+		channelID:     req.GetChannelID(),
+		permission: req.GetPermission(),
+	}
+
+	if err := es.Publish(ctx, event); err != nil {
+		return thingID, err
+	}
+
 	return thingID, nil
 }
 

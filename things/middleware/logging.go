@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/absmach/magistrala"
 	"github.com/absmach/magistrala/pkg/auth"
 	mgclients "github.com/absmach/magistrala/pkg/clients"
 	"github.com/absmach/magistrala/things"
@@ -228,6 +229,24 @@ func (lm *loggingMiddleware) Identify(ctx context.Context, key string) (id strin
 		lm.logger.Info("Identify thing completed successfully", args...)
 	}(time.Now())
 	return lm.svc.Identify(ctx, key)
+}
+
+func (lm *loggingMiddleware) Authorize(ctx context.Context, req *magistrala.ThingsAuthReq) (id string, err error) {
+	defer func(begin time.Time) {
+		args := []any{
+			slog.String("duration", time.Since(begin).String()),
+			slog.String("thingID", req.GetThingID()),
+			slog.String("channelID", req.GetChannelID()),
+			slog.String("permission", req.GetPermission()),
+		}
+		if err != nil {
+			args = append(args, slog.Any("error", err))
+			lm.logger.Warn("Authorize failed", args...)
+			return
+		}
+		lm.logger.Info("Authorize completed successfully", args...)
+	}(time.Now())
+	return lm.svc.Authorize(ctx, req)
 }
 
 func (lm *loggingMiddleware) Share(ctx context.Context, session auth.Session, id, relation string, userids ...string) (err error) {

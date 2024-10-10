@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/absmach/magistrala"
 	"github.com/absmach/magistrala/internal/testsutil"
 	pauth "github.com/absmach/magistrala/pkg/auth"
 	mgclients "github.com/absmach/magistrala/pkg/clients"
@@ -15,6 +16,7 @@ import (
 	repoerr "github.com/absmach/magistrala/pkg/errors/repository"
 	svcerr "github.com/absmach/magistrala/pkg/errors/service"
 	gmocks "github.com/absmach/magistrala/pkg/groups/mocks"
+	"github.com/absmach/magistrala/pkg/policies"
 	policysvc "github.com/absmach/magistrala/pkg/policies"
 	policymocks "github.com/absmach/magistrala/pkg/policies/mocks"
 	"github.com/absmach/magistrala/pkg/uuid"
@@ -44,18 +46,26 @@ var (
 	errRemovePolicies = errors.New("failed to delete policies")
 )
 
-func newService() (things.Service, *mocks.Repository, *policymocks.PolicyClient, *mocks.Cache) {
-	policyClient := new(policymocks.PolicyClient)
-	thingCache := new(mocks.Cache)
+var (
+	pManager   *policymocks.Manager
+	pEvaluator *policymocks.Evaluator
+	cache      *mocks.Cache
+	cRepo      *mocks.Repository
+)
+
+func newService() things.Service {
+	pManager = new(policymocks.Manager)
+	pEvaluator = new(policymocks.Evaluator)
+	cache = new(mocks.Cache)
 	idProvider := uuid.NewMock()
-	cRepo := new(mocks.Repository)
+	cRepo = new(mocks.Repository)
 	gRepo := new(gmocks.Repository)
 
-	return things.NewService(policyClient, cRepo, gRepo, thingCache, idProvider), cRepo, policyClient, thingCache
+	return things.NewService(pEvaluator, pManager, cRepo, gRepo, cache, idProvider)
 }
 
 func TestCreateThings(t *testing.T) {
-	svc, cRepo, policies, _ := newService()
+	svc := newService()
 
 	cases := []struct {
 		desc            string
@@ -263,8 +273,8 @@ func TestCreateThings(t *testing.T) {
 
 	for _, tc := range cases {
 		repoCall := cRepo.On("Save", context.Background(), mock.Anything).Return([]mgclients.Client{tc.thing}, tc.saveErr)
-		policyCall := policies.On("AddPolicies", mock.Anything, mock.Anything).Return(tc.addPolicyErr)
-		policyCall1 := policies.On("DeletePolicies", mock.Anything, mock.Anything).Return(tc.deletePolicyErr)
+		policyCall := pManager.On("AddPolicies", mock.Anything, mock.Anything).Return(tc.addPolicyErr)
+		policyCall1 := pManager.On("DeletePolicies", mock.Anything, mock.Anything).Return(tc.deletePolicyErr)
 		expected, err := svc.CreateThings(context.Background(), pauth.Session{}, tc.thing)
 		assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s: expected %s got %s\n", tc.desc, tc.err, err))
 		if err == nil {
@@ -283,7 +293,7 @@ func TestCreateThings(t *testing.T) {
 }
 
 func TestViewClient(t *testing.T) {
-	svc, cRepo, _, _ := newService()
+	svc := newService()
 
 	cases := []struct {
 		desc        string
@@ -329,7 +339,7 @@ func TestViewClient(t *testing.T) {
 }
 
 func TestListClients(t *testing.T) {
-	svc, cRepo, policies, _ := newService()
+	svc := newService()
 
 	adminID := testsutil.GenerateUUID(t)
 	domainID := testsutil.GenerateUUID(t)
@@ -453,9 +463,9 @@ func TestListClients(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		listAllObjectsCall := policies.On("ListAllObjects", mock.Anything, mock.Anything).Return(tc.listObjectsResponse, tc.listObjectsErr)
+		listAllObjectsCall := pManager.On("ListAllObjects", mock.Anything, mock.Anything).Return(tc.listObjectsResponse, tc.listObjectsErr)
 		retrieveAllCall := cRepo.On("SearchClients", mock.Anything, mock.Anything).Return(tc.retrieveAllResponse, tc.retrieveAllErr)
-		listPermissionsCall := policies.On("ListPermissions", mock.Anything, mock.Anything, mock.Anything).Return(tc.listPermissionsResponse, tc.listPermissionsErr)
+		listPermissionsCall := pManager.On("ListPermissions", mock.Anything, mock.Anything, mock.Anything).Return(tc.listPermissionsResponse, tc.listPermissionsErr)
 		page, err := svc.ListClients(context.Background(), tc.session, tc.id, tc.page)
 		assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s: expected %s got %s\n", tc.desc, tc.err, err))
 		assert.Equal(t, tc.response, page, fmt.Sprintf("%s: expected %v got %v\n", tc.desc, tc.response, page))
@@ -569,20 +579,20 @@ func TestListClients(t *testing.T) {
 	}
 
 	for _, tc := range cases2 {
-		listAllObjectsCall := policies.On("ListAllObjects", context.Background(), policysvc.PolicyReq{
+		listAllObjectsCall := pManager.On("ListAllObjects", context.Background(), policysvc.PolicyReq{
 			SubjectType: policysvc.UserType,
 			Subject:     tc.session.DomainID + "_" + adminID,
 			Permission:  "",
 			ObjectType:  policysvc.ThingType,
 		}).Return(tc.listObjectsResponse, tc.listObjectsErr)
-		listAllObjectsCall2 := policies.On("ListAllObjects", context.Background(), policysvc.PolicyReq{
+		listAllObjectsCall2 := pManager.On("ListAllObjects", context.Background(), policysvc.PolicyReq{
 			SubjectType: policysvc.UserType,
 			Subject:     tc.session.UserID,
 			Permission:  "",
 			ObjectType:  policysvc.ThingType,
 		}).Return(tc.listObjectsResponse, tc.listObjectsErr)
 		retrieveAllCall := cRepo.On("SearchClients", mock.Anything, mock.Anything).Return(tc.retrieveAllResponse, tc.retrieveAllErr)
-		listPermissionsCall := policies.On("ListPermissions", mock.Anything, mock.Anything, mock.Anything).Return(tc.listPermissionsResponse, tc.listPermissionsErr)
+		listPermissionsCall := pManager.On("ListPermissions", mock.Anything, mock.Anything, mock.Anything).Return(tc.listPermissionsResponse, tc.listPermissionsErr)
 		page, err := svc.ListClients(context.Background(), tc.session, tc.id, tc.page)
 		assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s: expected %s got %s\n", tc.desc, tc.err, err))
 		assert.Equal(t, tc.response, page, fmt.Sprintf("%s: expected %v got %v\n", tc.desc, tc.response, page))
@@ -594,7 +604,7 @@ func TestListClients(t *testing.T) {
 }
 
 func TestUpdateClient(t *testing.T) {
-	svc, cRepo, _, _ := newService()
+	svc := newService()
 
 	client1 := client
 	client2 := client
@@ -643,7 +653,7 @@ func TestUpdateClient(t *testing.T) {
 }
 
 func TestUpdateClientTags(t *testing.T) {
-	svc, cRepo, _, _ := newService()
+	svc := newService()
 
 	client.Tags = []string{"updated"}
 
@@ -682,7 +692,7 @@ func TestUpdateClientTags(t *testing.T) {
 }
 
 func TestUpdateClientSecret(t *testing.T) {
-	svc, cRepo, _, _ := newService()
+	svc := newService()
 
 	cases := []struct {
 		desc                 string
@@ -728,7 +738,7 @@ func TestUpdateClientSecret(t *testing.T) {
 }
 
 func TestEnableClient(t *testing.T) {
-	svc, cRepo, _, _ := newService()
+	svc := newService()
 
 	enabledClient1 := mgclients.Client{ID: ID, Credentials: mgclients.Credentials{Identity: "client1@example.com", Secret: "password"}, Status: mgclients.EnabledStatus}
 	disabledClient1 := mgclients.Client{ID: ID, Credentials: mgclients.Credentials{Identity: "client3@example.com", Secret: "password"}, Status: mgclients.DisabledStatus}
@@ -798,7 +808,7 @@ func TestEnableClient(t *testing.T) {
 }
 
 func TestDisableClient(t *testing.T) {
-	svc, cRepo, _, cache := newService()
+	svc := newService()
 
 	enabledClient1 := mgclients.Client{ID: ID, Credentials: mgclients.Credentials{Identity: "client1@example.com", Secret: "password"}, Status: mgclients.EnabledStatus}
 	disabledClient1 := mgclients.Client{ID: ID, Credentials: mgclients.Credentials{Identity: "client3@example.com", Secret: "password"}, Status: mgclients.DisabledStatus}
@@ -881,7 +891,7 @@ func TestDisableClient(t *testing.T) {
 }
 
 func TestListMembers(t *testing.T) {
-	svc, cRepo, policies, _ := newService()
+	svc := newService()
 
 	nClients := uint64(10)
 	aClients := []mgclients.Client{}
@@ -1041,9 +1051,9 @@ func TestListMembers(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		policyCall := policies.On("ListAllObjects", mock.Anything, mock.Anything).Return(tc.listObjectsResponse, tc.listObjectsErr)
+		policyCall := pManager.On("ListAllObjects", mock.Anything, mock.Anything).Return(tc.listObjectsResponse, tc.listObjectsErr)
 		repoCall := cRepo.On("RetrieveAllByIDs", context.Background(), mock.Anything).Return(tc.retreiveAllByIDsResponse, tc.retreiveAllByIDsErr)
-		repoCall1 := policies.On("ListPermissions", mock.Anything, mock.Anything, mock.Anything).Return(tc.listPermissionsResponse, tc.listPermissionsErr)
+		repoCall1 := pManager.On("ListPermissions", mock.Anything, mock.Anything, mock.Anything).Return(tc.listPermissionsResponse, tc.listPermissionsErr)
 		page, err := svc.ListClientsByGroup(context.Background(), tc.session, tc.groupID, tc.page)
 		assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s: expected %s got %s\n", tc.desc, tc.err, err))
 		assert.Equal(t, tc.response, page, fmt.Sprintf("%s: expected %v got %v\n", tc.desc, tc.response, page))
@@ -1054,7 +1064,7 @@ func TestListMembers(t *testing.T) {
 }
 
 func TestDeleteClient(t *testing.T) {
-	svc, cRepo, policies, cache := newService()
+	svc := newService()
 
 	client := mgclients.Client{
 		ID: testsutil.GenerateUUID(t),
@@ -1101,7 +1111,7 @@ func TestDeleteClient(t *testing.T) {
 
 	for _, tc := range cases {
 		repoCall := cache.On("Remove", mock.Anything, tc.clientID).Return(tc.removeErr)
-		policyCall := policies.On("DeletePolicyFilter", context.Background(), mock.Anything).Return(tc.deletePolicyErr)
+		policyCall := pManager.On("DeletePolicyFilter", context.Background(), mock.Anything).Return(tc.deletePolicyErr)
 		repoCall1 := cRepo.On("Delete", context.Background(), tc.clientID).Return(tc.deleteErr)
 		err := svc.DeleteClient(context.Background(), pauth.Session{}, tc.clientID)
 		assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s: expected %s got %s\n", tc.desc, tc.err, err))
@@ -1112,7 +1122,7 @@ func TestDeleteClient(t *testing.T) {
 }
 
 func TestShare(t *testing.T) {
-	svc, _, policies, _ := newService()
+	svc := newService()
 
 	clientID := "clientID"
 
@@ -1141,7 +1151,7 @@ func TestShare(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		policyCall := policies.On("AddPolicies", mock.Anything, mock.Anything).Return(tc.addPoliciesErr)
+		policyCall := pManager.On("AddPolicies", mock.Anything, mock.Anything).Return(tc.addPoliciesErr)
 		err := svc.Share(context.Background(), tc.session, tc.clientID, tc.relation, tc.userID)
 		assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s: expected %s got %s\n", tc.desc, tc.err, err))
 		policyCall.Unset()
@@ -1149,7 +1159,7 @@ func TestShare(t *testing.T) {
 }
 
 func TestUnShare(t *testing.T) {
-	svc, _, policies, _ := newService()
+	svc := newService()
 
 	clientID := "clientID"
 
@@ -1178,7 +1188,7 @@ func TestUnShare(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		policyCall := policies.On("DeletePolicies", mock.Anything, mock.Anything).Return(tc.deletePoliciesErr)
+		policyCall := pManager.On("DeletePolicies", mock.Anything, mock.Anything).Return(tc.deletePoliciesErr)
 		err := svc.Unshare(context.Background(), tc.session, tc.clientID, tc.relation, tc.userID)
 		assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s: expected %s got %s\n", tc.desc, tc.err, err))
 		policyCall.Unset()
@@ -1186,7 +1196,7 @@ func TestUnShare(t *testing.T) {
 }
 
 func TestViewClientPerms(t *testing.T) {
-	svc, _, policies, _ := newService()
+	svc := newService()
 
 	validID := valid
 
@@ -1216,7 +1226,7 @@ func TestViewClientPerms(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		policyCall := policies.On("ListPermissions", mock.Anything, mock.Anything, []string{}).Return(tc.listPermResponse, tc.listPermErr)
+		policyCall := pManager.On("ListPermissions", mock.Anything, mock.Anything, []string{}).Return(tc.listPermResponse, tc.listPermErr)
 		res, err := svc.ViewClientPerms(context.Background(), tc.session, tc.thingID)
 		assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s: expected %s got %s\n", tc.desc, tc.err, err))
 		if tc.err == nil {
@@ -1227,7 +1237,7 @@ func TestViewClientPerms(t *testing.T) {
 }
 
 func TestIdentify(t *testing.T) {
-	svc, cRepo, _, cache := newService()
+	svc := newService()
 
 	valid := valid
 
@@ -1284,5 +1294,104 @@ func TestIdentify(t *testing.T) {
 		repoCall.Unset()
 		repoCall1.Unset()
 		repoCall2.Unset()
+	}
+}
+
+func TestAuthorize(t *testing.T) {
+	svc := newService()
+
+	cases := []struct {
+		desc                string
+		request             *magistrala.ThingsAuthReq
+		cacheIDRes          string
+		cacheIDErr          error
+		retrieveBySecretRes mgclients.Client
+		retrieveBySecretErr error
+		cacheSaveErr        error
+		checkPolicyErr      error
+		id                  string
+		err                 error
+	}{
+		{
+			desc:                "authorize client with valid key not in cache",
+			request:             &magistrala.ThingsAuthReq{ThingKey: valid, ChannelID: valid, Permission: policies.PublishPermission},
+			cacheIDRes:          "",
+			cacheIDErr:          repoerr.ErrNotFound,
+			retrieveBySecretRes: mgclients.Client{ID: valid},
+			retrieveBySecretErr: nil,
+			cacheSaveErr:        nil,
+			checkPolicyErr:      nil,
+			id:                  valid,
+			err:                 nil,
+		},
+		{
+			desc:           "authorize client with valid key in cache",
+			request:        &magistrala.ThingsAuthReq{ThingKey: valid, ChannelID: valid, Permission: policies.PublishPermission},
+			cacheIDRes:     valid,
+			checkPolicyErr: nil,
+			id:             valid,
+		},
+		{
+			desc:                "authorize client with invalid key not in cache for non existing client",
+			request:             &magistrala.ThingsAuthReq{ThingKey: valid, ChannelID: valid, Permission: policies.PublishPermission},
+			cacheIDRes:          "",
+			cacheIDErr:          repoerr.ErrNotFound,
+			retrieveBySecretRes: mgclients.Client{},
+			retrieveBySecretErr: repoerr.ErrNotFound,
+			err:                 repoerr.ErrNotFound,
+		},
+		{
+			desc:                "authorize client with valid key not in cache with failed to save to cache",
+			request:             &magistrala.ThingsAuthReq{ThingKey: valid, ChannelID: valid, Permission: policies.PublishPermission},
+			cacheIDRes:          "",
+			cacheIDErr:          repoerr.ErrNotFound,
+			retrieveBySecretRes: mgclients.Client{ID: valid},
+			cacheSaveErr:        errors.ErrMalformedEntity,
+			err:                 svcerr.ErrAuthorization,
+		},
+		{
+			desc:                "authorize client with valid key not in cache and failed to authorize",
+			request:             &magistrala.ThingsAuthReq{ThingKey: valid, ChannelID: valid, Permission: policies.PublishPermission},
+			cacheIDRes:          "",
+			cacheIDErr:          repoerr.ErrNotFound,
+			retrieveBySecretRes: mgclients.Client{ID: valid},
+			retrieveBySecretErr: nil,
+			cacheSaveErr:        nil,
+			checkPolicyErr:      svcerr.ErrAuthorization,
+			err:                 svcerr.ErrAuthorization,
+		},
+		{
+			desc:                "authorize client with valid key not in cache and not authorize",
+			request:             &magistrala.ThingsAuthReq{ThingKey: valid, ChannelID: valid, Permission: policies.PublishPermission},
+			cacheIDRes:          "",
+			cacheIDErr:          repoerr.ErrNotFound,
+			retrieveBySecretRes: mgclients.Client{ID: valid},
+			retrieveBySecretErr: nil,
+			cacheSaveErr:        nil,
+			checkPolicyErr:      svcerr.ErrAuthorization,
+			err:                 svcerr.ErrAuthorization,
+		},
+	}
+
+	for _, tc := range cases {
+		cacheCall := cache.On("ID", context.Background(), tc.request.ThingKey).Return(tc.cacheIDRes, tc.cacheIDErr)
+		repoCall := cRepo.On("RetrieveBySecret", context.Background(), tc.request.ThingKey).Return(tc.retrieveBySecretRes, tc.retrieveBySecretErr)
+		cacheCall1 := cache.On("Save", context.Background(), tc.request.ThingKey, tc.retrieveBySecretRes.ID).Return(tc.cacheSaveErr)
+		policyCall := pEvaluator.On("CheckPolicy", context.Background(), policies.PolicyReq{
+			SubjectType: policies.GroupType,
+			Subject:     tc.request.GetChannelID(),
+			ObjectType:  policies.ThingType,
+			Object:      valid,
+			Permission:  tc.request.GetPermission(),
+		}).Return(tc.checkPolicyErr)
+		id, err := svc.Authorize(context.Background(), tc.request)
+		assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s: expected %s got %s\n", tc.desc, tc.err, err))
+		if tc.err == nil {
+			assert.Equal(t, tc.id, id, fmt.Sprintf("%s: expected %s got %s\n", tc.desc, tc.id, id))
+		}
+		cacheCall.Unset()
+		cacheCall1.Unset()
+		repoCall.Unset()
+		policyCall.Unset()
 	}
 }
