@@ -292,6 +292,7 @@ func TestViewClient(t *testing.T) {
 	cases := []struct {
 		desc                 string
 		token                string
+		reqClientID          string
 		clientID             string
 		retrieveByIDResponse mgclients.Client
 		response             mgclients.Client
@@ -306,6 +307,7 @@ func TestViewClient(t *testing.T) {
 			retrieveByIDResponse: client,
 			response:             client,
 			token:                validToken,
+			reqClientID:          client.ID,
 			clientID:             client.ID,
 			err:                  nil,
 			checkSuperAdminErr:   svcerr.ErrAuthorization,
@@ -314,6 +316,7 @@ func TestViewClient(t *testing.T) {
 			desc:                 "view client as normal user with failed to retrieve client",
 			retrieveByIDResponse: mgclients.Client{},
 			token:                validToken,
+			reqClientID:          client.ID,
 			clientID:             client.ID,
 			retrieveByIDErr:      repoerr.ErrNotFound,
 			err:                  svcerr.ErrNotFound,
@@ -324,6 +327,7 @@ func TestViewClient(t *testing.T) {
 			retrieveByIDResponse: client,
 			response:             client,
 			token:                validToken,
+			reqClientID:          client.ID,
 			clientID:             client.ID,
 			err:                  nil,
 		},
@@ -332,7 +336,8 @@ func TestViewClient(t *testing.T) {
 			token:                validToken,
 			retrieveByIDResponse: basicClient,
 			response:             basicClient,
-			clientID:             client.ID,
+			reqClientID:          client.ID,
+			clientID:             "",
 			checkSuperAdminErr:   svcerr.ErrAuthorization,
 			err:                  nil,
 		},
@@ -341,7 +346,7 @@ func TestViewClient(t *testing.T) {
 	for _, tc := range cases {
 		repoCall := cRepo.On("CheckSuperAdmin", context.Background(), mock.Anything).Return(tc.checkSuperAdminErr)
 		repoCall1 := cRepo.On("RetrieveByID", context.Background(), tc.clientID).Return(tc.retrieveByIDResponse, tc.retrieveByIDErr)
-		rClient, err := svc.ViewClient(context.Background(), authn.Session{UserID: tc.clientID}, tc.clientID)
+		rClient, err := svc.ViewClient(context.Background(), authn.Session{UserID: tc.reqClientID}, tc.clientID)
 		assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s: expected %s got %s\n", tc.desc, tc.err, err))
 		tc.response.Credentials.Secret = ""
 		assert.Equal(t, tc.response, rClient, fmt.Sprintf("%s: expected %v got %v\n", tc.desc, tc.response, rClient))
@@ -470,6 +475,16 @@ func TestSearchUsers(t *testing.T) {
 				Page:    mgclients.Page{Total: 0, Offset: 0, Limit: 100},
 				Clients: []mgclients.Client{},
 			},
+		},
+		{
+			desc:  "search clients with repo failed",
+			token: validToken,
+			page:  mgclients.Page{Offset: 0, Name: "randomname", Limit: 100},
+			response: mgclients.ClientsPage{
+				Page: mgclients.Page{Total: 0, Offset: 0, Limit: 0},
+			},
+			responseErr: repoerr.ErrViewEntity,
+			err:         svcerr.ErrViewEntity,
 		},
 	}
 
@@ -861,6 +876,7 @@ func TestUpdateClientIdentity(t *testing.T) {
 		desc                         string
 		identity                     string
 		token                        string
+		reqClientID                  string
 		id                           string
 		updateClientIdentityResponse mgclients.Client
 		updateClientIdentityErr      error
@@ -871,6 +887,7 @@ func TestUpdateClientIdentity(t *testing.T) {
 			desc:                         "update client as normal user successfully",
 			identity:                     "updated@example.com",
 			token:                        validToken,
+			reqClientID:                  client.ID,
 			id:                           client.ID,
 			updateClientIdentityResponse: client2,
 			err:                          nil,
@@ -879,6 +896,7 @@ func TestUpdateClientIdentity(t *testing.T) {
 			desc:                         "update client identity as normal user with repo error on update",
 			identity:                     "updated@example.com",
 			token:                        validToken,
+			reqClientID:                  client.ID,
 			id:                           client.ID,
 			updateClientIdentityResponse: mgclients.Client{},
 			updateClientIdentityErr:      errors.ErrMalformedEntity,
@@ -895,17 +913,29 @@ func TestUpdateClientIdentity(t *testing.T) {
 			desc:                         "update client identity as admin with repo error on update",
 			identity:                     "updated@exmaple.com",
 			token:                        validToken,
+			reqClientID:                  client.ID,
 			id:                           client.ID,
 			updateClientIdentityResponse: mgclients.Client{},
 			updateClientIdentityErr:      errors.ErrMalformedEntity,
 			err:                          svcerr.ErrUpdateEntity,
+		},
+		{
+			desc:                         "update client as admin user with failed check on super admin",
+			identity:                     "updated@exmaple.com",
+			token:                        validToken,
+			reqClientID:                  client.ID,
+			id:                           "",
+			updateClientIdentityResponse: mgclients.Client{},
+			updateClientIdentityErr:      errors.ErrMalformedEntity,
+			checkSuperAdminErr:           svcerr.ErrAuthorization,
+			err:                          svcerr.ErrAuthorization,
 		},
 	}
 
 	for _, tc := range cases {
 		repoCall := cRepo.On("CheckSuperAdmin", context.Background(), mock.Anything).Return(tc.checkSuperAdminErr)
 		repoCall1 := cRepo.On("UpdateIdentity", context.Background(), mock.Anything).Return(tc.updateClientIdentityResponse, tc.updateClientIdentityErr)
-		updatedClient, err := svc.UpdateClientIdentity(context.Background(), authn.Session{DomainUserID: validID, UserID: validID, DomainID: validID}, tc.id, tc.identity)
+		updatedClient, err := svc.UpdateClientIdentity(context.Background(), authn.Session{DomainUserID: tc.reqClientID, UserID: validID, DomainID: validID}, tc.id, tc.identity)
 		assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s: expected %s got %s\n", tc.desc, tc.err, err))
 		assert.Equal(t, tc.updateClientIdentityResponse, updatedClient, fmt.Sprintf("%s: expected %v got %v\n", tc.desc, tc.updateClientIdentityResponse, updatedClient))
 		if tc.err == nil {

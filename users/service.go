@@ -48,7 +48,7 @@ func NewService(token magistrala.TokenServiceClient, crepo postgres.Repository, 
 }
 
 func (svc service) RegisterClient(ctx context.Context, session authn.Session, cli mgclients.Client, selfRegister bool) (rc mgclients.Client, err error) {
-	if selfRegister {
+	if !selfRegister {
 		if err := svc.checkSuperAdmin(ctx, session); err != nil {
 			return mgclients.Client{}, err
 		}
