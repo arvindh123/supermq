@@ -6,8 +6,7 @@ package events
 import (
 	"context"
 
-	"github.com/absmach/magistrala"
-	"github.com/absmach/magistrala/pkg/auth"
+	"github.com/absmach/magistrala/pkg/authn"
 	mgclients "github.com/absmach/magistrala/pkg/clients"
 	"github.com/absmach/magistrala/pkg/events"
 	"github.com/absmach/magistrala/pkg/events/store"
@@ -37,7 +36,7 @@ func NewEventStoreMiddleware(ctx context.Context, svc things.Service, url string
 	}, nil
 }
 
-func (es *eventStore) CreateThings(ctx context.Context, session auth.Session, thing ...mgclients.Client) ([]mgclients.Client, error) {
+func (es *eventStore) CreateThings(ctx context.Context, session authn.Session, thing ...mgclients.Client) ([]mgclients.Client, error) {
 	sths, err := es.svc.CreateThings(ctx, session, thing...)
 	if err != nil {
 		return sths, err
@@ -55,7 +54,7 @@ func (es *eventStore) CreateThings(ctx context.Context, session auth.Session, th
 	return sths, nil
 }
 
-func (es *eventStore) UpdateClient(ctx context.Context, session auth.Session, thing mgclients.Client) (mgclients.Client, error) {
+func (es *eventStore) UpdateClient(ctx context.Context, session authn.Session, thing mgclients.Client) (mgclients.Client, error) {
 	cli, err := es.svc.UpdateClient(ctx, session, thing)
 	if err != nil {
 		return cli, err
@@ -64,7 +63,7 @@ func (es *eventStore) UpdateClient(ctx context.Context, session auth.Session, th
 	return es.update(ctx, "", cli)
 }
 
-func (es *eventStore) UpdateClientTags(ctx context.Context, session auth.Session, thing mgclients.Client) (mgclients.Client, error) {
+func (es *eventStore) UpdateClientTags(ctx context.Context, session authn.Session, thing mgclients.Client) (mgclients.Client, error) {
 	cli, err := es.svc.UpdateClientTags(ctx, session, thing)
 	if err != nil {
 		return cli, err
@@ -73,7 +72,7 @@ func (es *eventStore) UpdateClientTags(ctx context.Context, session auth.Session
 	return es.update(ctx, "tags", cli)
 }
 
-func (es *eventStore) UpdateClientSecret(ctx context.Context, session auth.Session, id, key string) (mgclients.Client, error) {
+func (es *eventStore) UpdateClientSecret(ctx context.Context, session authn.Session, id, key string) (mgclients.Client, error) {
 	cli, err := es.svc.UpdateClientSecret(ctx, session, id, key)
 	if err != nil {
 		return cli, err
@@ -94,7 +93,7 @@ func (es *eventStore) update(ctx context.Context, operation string, thing mgclie
 	return thing, nil
 }
 
-func (es *eventStore) ViewClient(ctx context.Context, session auth.Session, id string) (mgclients.Client, error) {
+func (es *eventStore) ViewClient(ctx context.Context, session authn.Session, id string) (mgclients.Client, error) {
 	cli, err := es.svc.ViewClient(ctx, session, id)
 	if err != nil {
 		return cli, err
@@ -110,7 +109,7 @@ func (es *eventStore) ViewClient(ctx context.Context, session auth.Session, id s
 	return cli, nil
 }
 
-func (es *eventStore) ViewClientPerms(ctx context.Context, session auth.Session, id string) ([]string, error) {
+func (es *eventStore) ViewClientPerms(ctx context.Context, session authn.Session, id string) ([]string, error) {
 	permissions, err := es.svc.ViewClientPerms(ctx, session, id)
 	if err != nil {
 		return permissions, err
@@ -126,7 +125,7 @@ func (es *eventStore) ViewClientPerms(ctx context.Context, session auth.Session,
 	return permissions, nil
 }
 
-func (es *eventStore) ListClients(ctx context.Context, session auth.Session, reqUserID string, pm mgclients.Page) (mgclients.ClientsPage, error) {
+func (es *eventStore) ListClients(ctx context.Context, session authn.Session, reqUserID string, pm mgclients.Page) (mgclients.ClientsPage, error) {
 	cp, err := es.svc.ListClients(ctx, session, reqUserID, pm)
 	if err != nil {
 		return cp, err
@@ -142,7 +141,7 @@ func (es *eventStore) ListClients(ctx context.Context, session auth.Session, req
 	return cp, nil
 }
 
-func (es *eventStore) ListClientsByGroup(ctx context.Context, session auth.Session, chID string, pm mgclients.Page) (mgclients.MembersPage, error) {
+func (es *eventStore) ListClientsByGroup(ctx context.Context, session authn.Session, chID string, pm mgclients.Page) (mgclients.MembersPage, error) {
 	mp, err := es.svc.ListClientsByGroup(ctx, session, chID, pm)
 	if err != nil {
 		return mp, err
@@ -157,7 +156,7 @@ func (es *eventStore) ListClientsByGroup(ctx context.Context, session auth.Sessi
 	return mp, nil
 }
 
-func (es *eventStore) EnableClient(ctx context.Context, session auth.Session, id string) (mgclients.Client, error) {
+func (es *eventStore) EnableClient(ctx context.Context, session authn.Session, id string) (mgclients.Client, error) {
 	cli, err := es.svc.EnableClient(ctx, session, id)
 	if err != nil {
 		return cli, err
@@ -166,7 +165,7 @@ func (es *eventStore) EnableClient(ctx context.Context, session auth.Session, id
 	return es.changeStatus(ctx, cli)
 }
 
-func (es *eventStore) DisableClient(ctx context.Context, session auth.Session, id string) (mgclients.Client, error) {
+func (es *eventStore) DisableClient(ctx context.Context, session authn.Session, id string) (mgclients.Client, error) {
 	cli, err := es.svc.DisableClient(ctx, session, id)
 	if err != nil {
 		return cli, err
@@ -204,7 +203,7 @@ func (es *eventStore) Identify(ctx context.Context, key string) (string, error) 
 	return thingID, nil
 }
 
-func (es *eventStore) Authorize(ctx context.Context, req *magistrala.ThingsAuthReq) (string, error) {
+func (es *eventStore) Authorize(ctx context.Context, req things.AuthzReq) (string, error) {
 	thingID, err := es.svc.Authorize(ctx, req)
 	if err != nil {
 		return thingID, err
@@ -212,8 +211,8 @@ func (es *eventStore) Authorize(ctx context.Context, req *magistrala.ThingsAuthR
 
 	event := authorizeClientEvent{
 		thingID:    thingID,
-		channelID:     req.GetChannelID(),
-		permission: req.GetPermission(),
+		channelID:  req.ChannelID,
+		permission: req.Permission,
 	}
 
 	if err := es.Publish(ctx, event); err != nil {
@@ -223,7 +222,7 @@ func (es *eventStore) Authorize(ctx context.Context, req *magistrala.ThingsAuthR
 	return thingID, nil
 }
 
-func (es *eventStore) Share(ctx context.Context, session auth.Session, id, relation string, userids ...string) error {
+func (es *eventStore) Share(ctx context.Context, session authn.Session, id, relation string, userids ...string) error {
 	if err := es.svc.Share(ctx, session, id, relation, userids...); err != nil {
 		return err
 	}
@@ -238,7 +237,7 @@ func (es *eventStore) Share(ctx context.Context, session auth.Session, id, relat
 	return es.Publish(ctx, event)
 }
 
-func (es *eventStore) Unshare(ctx context.Context, session auth.Session, id, relation string, userids ...string) error {
+func (es *eventStore) Unshare(ctx context.Context, session authn.Session, id, relation string, userids ...string) error {
 	if err := es.svc.Unshare(ctx, session, id, relation, userids...); err != nil {
 		return err
 	}
@@ -253,7 +252,7 @@ func (es *eventStore) Unshare(ctx context.Context, session auth.Session, id, rel
 	return es.Publish(ctx, event)
 }
 
-func (es *eventStore) DeleteClient(ctx context.Context, session auth.Session, id string) error {
+func (es *eventStore) DeleteClient(ctx context.Context, session authn.Session, id string) error {
 	if err := es.svc.DeleteClient(ctx, session, id); err != nil {
 		return err
 	}

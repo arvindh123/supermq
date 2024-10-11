@@ -21,10 +21,13 @@ import (
 	bootstrappg "github.com/absmach/magistrala/bootstrap/postgres"
 	"github.com/absmach/magistrala/bootstrap/tracing"
 	mglog "github.com/absmach/magistrala/logger"
-	"github.com/absmach/magistrala/pkg/auth"
-	"github.com/absmach/magistrala/pkg/authclient"
+	mgauthn "github.com/absmach/magistrala/pkg/authn"
+	authsvcAuthn "github.com/absmach/magistrala/pkg/authn/authsvc"
+	mgauthz "github.com/absmach/magistrala/pkg/authz"
+	authsvcAuthz "github.com/absmach/magistrala/pkg/authz/authsvc"
 	"github.com/absmach/magistrala/pkg/events"
 	"github.com/absmach/magistrala/pkg/events/store"
+	"github.com/absmach/magistrala/pkg/grpcclient"
 	"github.com/absmach/magistrala/pkg/jaeger"
 	"github.com/absmach/magistrala/pkg/policies"
 	"github.com/absmach/magistrala/pkg/policies/spicedb"
@@ -110,22 +113,6 @@ func main() {
 	}
 	defer db.Close()
 
-	clientConfig := authclient.Config{}
-	if err := env.ParseWithOptions(&clientConfig, env.Options{Prefix: envPrefixAuth}); err != nil {
-		logger.Error(fmt.Sprintf("failed to load %s auth configuration : %s", svcName, err))
-		exitCode = 1
-		return
-	}
-
-	authClient, authHandler, err := authclient.SetupAuthClient(ctx, clientConfig)
-	if err != nil {
-		logger.Error(err.Error())
-		exitCode = 1
-		return
-	}
-	defer authHandler.Close()
-	logger.Info("AuthService gRPC client successfully connected to auth gRPC server " + authHandler.Secure())
-
 	policyClient, err := newPolicyManager(cfg, logger)
 	if err != nil {
 		logger.Error(err.Error())
@@ -147,8 +134,30 @@ func main() {
 	}()
 	tracer := tp.Tracer(svcName)
 
+	grpcCfg := grpcclient.Config{}
+	if err := env.ParseWithOptions(cfg, env.Options{Prefix: envPrefixAuth}); err != nil {
+		logger.Error(err.Error())
+		exitCode = 1
+		return
+	}
+	authn, authnClient, err := authsvcAuthn.NewAuthentication(ctx, grpcCfg)
+	if err != nil {
+		logger.Error(err.Error())
+		exitCode = 1
+		return
+	}
+	defer authnClient.Close()
+
+	authz, authzClient, err := authsvcAuthz.NewAuthorization(ctx, grpcCfg)
+	if err != nil {
+		logger.Error(err.Error())
+		exitCode = 1
+		return
+	}
+	defer authzClient.Close()
+
 	// Create new service
-	svc, err := newService(ctx, authClient, policyClient, db, tracer, logger, cfg, dbConfig)
+	svc, err := newService(ctx, authn, authz, policyClient, db, tracer, logger, cfg, dbConfig)
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to create %s service: %s", svcName, err))
 		exitCode = 1
@@ -189,7 +198,7 @@ func main() {
 	}
 }
 
-func newService(ctx context.Context, authClient auth.AuthClient, policyManager policies.Manager, db *sqlx.DB, tracer trace.Tracer, logger *slog.Logger, cfg config, dbConfig pgclient.Config) (bootstrap.Service, error) {
+func newService(ctx context.Context, authn mgauthn.Authentication, authz mgauthz.Authorization, policyManager policies.Manager, db *sqlx.DB, tracer trace.Tracer, logger *slog.Logger, cfg config, dbConfig pgclient.Config) (bootstrap.Service, error) {
 	database := pgclient.NewDatabase(db, dbConfig, tracer)
 
 	repoConfig := bootstrappg.NewConfigRepository(database, logger)
@@ -201,7 +210,7 @@ func newService(ctx context.Context, authClient auth.AuthClient, policyManager p
 	sdk := mgsdk.NewSDK(config)
 	idp := uuid.New()
 
-	svc := bootstrap.New(authClient, policyManager, repoConfig, sdk, []byte(cfg.EncKey), idp)
+	svc := bootstrap.New(authn, authz, policyManager, repoConfig, sdk, []byte(cfg.EncKey), idp)
 
 	publisher, err := store.NewPublisher(ctx, cfg.ESURL, streamID)
 	if err != nil {

@@ -7,8 +7,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/absmach/magistrala"
 	"github.com/absmach/magistrala/certs/pki"
+	mgauthn "github.com/absmach/magistrala/pkg/authn"
+	mgauthz "github.com/absmach/magistrala/pkg/authz"
 	"github.com/absmach/magistrala/pkg/errors"
 	svcerr "github.com/absmach/magistrala/pkg/errors/service"
 	mgsdk "github.com/absmach/magistrala/pkg/sdk/go"
@@ -50,18 +51,20 @@ type Service interface {
 }
 
 type certsService struct {
-	auth      magistrala.AuthServiceClient
+	authn     mgauthn.Authentication
+	authz     mgauthz.Authorization
 	certsRepo Repository
 	sdk       mgsdk.SDK
 	pki       pki.Agent
 }
 
 // New returns new Certs service.
-func New(auth magistrala.AuthServiceClient, certs Repository, sdk mgsdk.SDK, pkiAgent pki.Agent) Service {
+func New(authn mgauthn.Authentication, authz mgauthz.Authorization, certs Repository, sdk mgsdk.SDK, pkiAgent pki.Agent) Service {
 	return &certsService{
 		certsRepo: certs,
 		sdk:       sdk,
-		auth:      auth,
+		authn:     authn,
+		authz:     authz,
 		pki:       pkiAgent,
 	}
 }
@@ -85,7 +88,7 @@ type Cert struct {
 }
 
 func (cs *certsService) IssueCert(ctx context.Context, token, thingID, ttl string) (Cert, error) {
-	owner, err := cs.auth.Identify(ctx, &magistrala.IdentityReq{Token: token})
+	session, err := cs.authn.Authenticate(ctx, token)
 	if err != nil {
 		return Cert{}, errors.Wrap(svcerr.ErrAuthentication, err)
 	}
@@ -102,7 +105,7 @@ func (cs *certsService) IssueCert(ctx context.Context, token, thingID, ttl strin
 
 	c := Cert{
 		ThingID:        thingID,
-		OwnerID:        owner.GetId(),
+		OwnerID:        session.DomainUserID,
 		ClientCert:     cert.ClientCert,
 		IssuingCA:      cert.IssuingCA,
 		CAChain:        cert.CAChain,
@@ -118,7 +121,7 @@ func (cs *certsService) IssueCert(ctx context.Context, token, thingID, ttl strin
 
 func (cs *certsService) RevokeCert(ctx context.Context, token, thingID string) (Revoke, error) {
 	var revoke Revoke
-	u, err := cs.auth.Identify(ctx, &magistrala.IdentityReq{Token: token})
+	session, err := cs.authn.Authenticate(ctx, token)
 	if err != nil {
 		return revoke, errors.Wrap(svcerr.ErrAuthentication, err)
 	}
@@ -128,7 +131,7 @@ func (cs *certsService) RevokeCert(ctx context.Context, token, thingID string) (
 	}
 
 	offset, limit := uint64(0), uint64(10000)
-	cp, err := cs.certsRepo.RetrieveByThing(ctx, u.GetId(), thing.ID, offset, limit)
+	cp, err := cs.certsRepo.RetrieveByThing(ctx, session.DomainUserID, thing.ID, offset, limit)
 	if err != nil {
 		return revoke, errors.Wrap(ErrFailedCertRevocation, err)
 	}
@@ -139,7 +142,7 @@ func (cs *certsService) RevokeCert(ctx context.Context, token, thingID string) (
 			return revoke, errors.Wrap(ErrFailedCertRevocation, err)
 		}
 		revoke.RevocationTime = revTime
-		if err = cs.certsRepo.Remove(ctx, u.GetId(), c.Serial); err != nil {
+		if err = cs.certsRepo.Remove(ctx, session.DomainUserID, c.Serial); err != nil {
 			return revoke, errors.Wrap(ErrFailedToRemoveCertFromDB, err)
 		}
 	}
@@ -148,12 +151,12 @@ func (cs *certsService) RevokeCert(ctx context.Context, token, thingID string) (
 }
 
 func (cs *certsService) ListCerts(ctx context.Context, token, thingID string, offset, limit uint64) (Page, error) {
-	u, err := cs.auth.Identify(ctx, &magistrala.IdentityReq{Token: token})
+	session, err := cs.authn.Authenticate(ctx, token)
 	if err != nil {
 		return Page{}, errors.Wrap(svcerr.ErrAuthentication, err)
 	}
 
-	cp, err := cs.certsRepo.RetrieveByThing(ctx, u.GetId(), thingID, offset, limit)
+	cp, err := cs.certsRepo.RetrieveByThing(ctx, session.DomainUserID, thingID, offset, limit)
 	if err != nil {
 		return Page{}, errors.Wrap(svcerr.ErrViewEntity, err)
 	}
@@ -171,21 +174,21 @@ func (cs *certsService) ListCerts(ctx context.Context, token, thingID string, of
 }
 
 func (cs *certsService) ListSerials(ctx context.Context, token, thingID string, offset, limit uint64) (Page, error) {
-	u, err := cs.auth.Identify(ctx, &magistrala.IdentityReq{Token: token})
+	session, err := cs.authn.Authenticate(ctx, token)
 	if err != nil {
 		return Page{}, errors.Wrap(svcerr.ErrAuthentication, err)
 	}
 
-	return cs.certsRepo.RetrieveByThing(ctx, u.GetId(), thingID, offset, limit)
+	return cs.certsRepo.RetrieveByThing(ctx, session.DomainUserID, thingID, offset, limit)
 }
 
 func (cs *certsService) ViewCert(ctx context.Context, token, serialID string) (Cert, error) {
-	u, err := cs.auth.Identify(ctx, &magistrala.IdentityReq{Token: token})
+	session, err := cs.authn.Authenticate(ctx, token)
 	if err != nil {
 		return Cert{}, errors.Wrap(svcerr.ErrAuthentication, err)
 	}
 
-	cert, err := cs.certsRepo.RetrieveBySerial(ctx, u.GetId(), serialID)
+	cert, err := cs.certsRepo.RetrieveBySerial(ctx, session.DomainUserID, serialID)
 	if err != nil {
 		return Cert{}, errors.Wrap(svcerr.ErrViewEntity, err)
 	}

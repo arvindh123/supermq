@@ -15,8 +15,8 @@ import (
 	"github.com/absmach/magistrala/internal/testsutil"
 	mglog "github.com/absmach/magistrala/logger"
 	"github.com/absmach/magistrala/pkg/apiutil"
-	pauth "github.com/absmach/magistrala/pkg/auth"
 	authmocks "github.com/absmach/magistrala/pkg/auth/mocks"
+	mgauthn "github.com/absmach/magistrala/pkg/authn"
 	mgclients "github.com/absmach/magistrala/pkg/clients"
 	"github.com/absmach/magistrala/pkg/errors"
 	svcerr "github.com/absmach/magistrala/pkg/errors/service"
@@ -94,7 +94,7 @@ func TestCreateChannel(t *testing.T) {
 		desc           string
 		channelReq     sdk.Channel
 		token          string
-		session        pauth.Session
+		session        mgauthn.Session
 		createGroupReq groups.Group
 		svcRes         groups.Group
 		svcErr         error
@@ -228,7 +228,7 @@ func TestCreateChannel(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.desc, func(t *testing.T) {
 			if tc.token == validToken {
-				tc.session = pauth.Session{DomainUserID: validID, UserID: validID, DomainID: validID}
+				tc.session = mgauthn.Session{DomainUserID: validID, UserID: validID, DomainID: validID}
 				tc.identifyRes = &magistrala.IdentityRes{Id: validID, UserId: validID, DomainId: validID}
 			}
 			authCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: tc.token}).Return(tc.identifyRes, tc.identifyErr)
@@ -269,7 +269,7 @@ func TestListChannels(t *testing.T) {
 	cases := []struct {
 		desc           string
 		token          string
-		session        pauth.Session
+		session        mgauthn.Session
 		status         mgclients.Status
 		total          uint64
 		offset         uint64
@@ -494,7 +494,7 @@ func TestListChannels(t *testing.T) {
 				Metadata: tc.metadata,
 			}
 			if tc.token == validToken {
-				tc.session = pauth.Session{DomainUserID: validID, UserID: validID, DomainID: validID}
+				tc.session = mgauthn.Session{DomainUserID: validID, UserID: validID, DomainID: validID}
 				tc.identifyRes = &magistrala.IdentityRes{Id: validID, UserId: validID, DomainId: validID}
 			}
 			authCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: tc.token}).Return(tc.identifyRes, tc.identifyErr)
@@ -525,7 +525,7 @@ func TestViewChannel(t *testing.T) {
 	cases := []struct {
 		desc        string
 		token       string
-		session     pauth.Session
+		session     mgauthn.Session
 		channelID   string
 		svcRes      groups.Group
 		svcErr      error
@@ -598,7 +598,7 @@ func TestViewChannel(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.desc, func(t *testing.T) {
 			if tc.token == validToken {
-				tc.session = pauth.Session{DomainUserID: validID, UserID: validID, DomainID: validID}
+				tc.session = mgauthn.Session{DomainUserID: validID, UserID: validID, DomainID: validID}
 				tc.identifyRes = &magistrala.IdentityRes{Id: validID, UserId: validID, DomainId: validID}
 			}
 			authCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: tc.token}).Return(tc.identifyRes, tc.identifyErr)
@@ -657,7 +657,7 @@ func TestUpdateChannel(t *testing.T) {
 	cases := []struct {
 		desc           string
 		token          string
-		session        pauth.Session
+		session        mgauthn.Session
 		channelReq     sdk.Channel
 		updateGroupReq groups.Group
 		svcRes         groups.Group
@@ -885,7 +885,7 @@ func TestUpdateChannel(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.desc, func(t *testing.T) {
 			if tc.token == validToken {
-				tc.session = pauth.Session{DomainUserID: validID, UserID: validID, DomainID: validID}
+				tc.session = mgauthn.Session{DomainUserID: validID, UserID: validID, DomainID: validID}
 				tc.identifyRes = &magistrala.IdentityRes{Id: validID, UserId: validID, DomainId: validID}
 			}
 			authCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: tc.token}).Return(tc.identifyRes, tc.identifyErr)
@@ -928,7 +928,7 @@ func TestListChannelsByThing(t *testing.T) {
 	cases := []struct {
 		desc          string
 		token         string
-		session       pauth.Session
+		session       mgauthn.Session
 		thingID       string
 		pageMeta      sdk.PageMetadata
 		listGroupsReq groups.Page
@@ -1123,7 +1123,7 @@ func TestListChannelsByThing(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.desc, func(t *testing.T) {
 			if tc.token == validToken {
-				tc.session = pauth.Session{DomainUserID: validID, UserID: validID, DomainID: validID}
+				tc.session = mgauthn.Session{DomainUserID: validID, UserID: validID, DomainID: validID}
 				tc.identifyRes = &magistrala.IdentityRes{Id: validID, UserId: validID, DomainId: validID}
 			}
 			authCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: tc.token}).Return(tc.identifyRes, tc.identifyErr)
@@ -1154,7 +1154,7 @@ func TestEnableChannel(t *testing.T) {
 	cases := []struct {
 		desc        string
 		token       string
-		session     pauth.Session
+		session     mgauthn.Session
 		channelID   string
 		svcRes      groups.Group
 		svcErr      error
@@ -1226,7 +1226,7 @@ func TestEnableChannel(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.desc, func(t *testing.T) {
 			if tc.token == validToken {
-				tc.session = pauth.Session{DomainUserID: validID, UserID: validID, DomainID: validID}
+				tc.session = mgauthn.Session{DomainUserID: validID, UserID: validID, DomainID: validID}
 				tc.identifyRes = &magistrala.IdentityRes{Id: validID, UserId: validID, DomainId: validID}
 			}
 			authCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: tc.token}).Return(tc.identifyRes, tc.identifyErr)
@@ -1262,7 +1262,7 @@ func TestDisableChannel(t *testing.T) {
 	cases := []struct {
 		desc        string
 		token       string
-		session     pauth.Session
+		session     mgauthn.Session
 		channelID   string
 		svcRes      groups.Group
 		svcErr      error
@@ -1334,7 +1334,7 @@ func TestDisableChannel(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.desc, func(t *testing.T) {
 			if tc.token == validToken {
-				tc.session = pauth.Session{DomainUserID: validID, UserID: validID, DomainID: validID}
+				tc.session = mgauthn.Session{DomainUserID: validID, UserID: validID, DomainID: validID}
 				tc.identifyRes = &magistrala.IdentityRes{Id: validID, UserId: validID, DomainId: validID}
 			}
 			authCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: tc.token}).Return(tc.identifyRes, tc.identifyErr)
@@ -1364,7 +1364,7 @@ func TestDeleteChannel(t *testing.T) {
 	cases := []struct {
 		desc        string
 		token       string
-		session     pauth.Session
+		session     mgauthn.Session
 		channelID   string
 		svcErr      error
 		identifyRes *magistrala.IdentityRes
@@ -1410,7 +1410,7 @@ func TestDeleteChannel(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.desc, func(t *testing.T) {
 			if tc.token == validToken {
-				tc.session = pauth.Session{DomainUserID: validID, UserID: validID, DomainID: validID}
+				tc.session = mgauthn.Session{DomainUserID: validID, UserID: validID, DomainID: validID}
 				tc.identifyRes = &magistrala.IdentityRes{Id: validID, UserId: validID, DomainId: validID}
 			}
 			authCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: tc.token}).Return(tc.identifyRes, tc.identifyErr)
@@ -1439,7 +1439,7 @@ func TestChannelPermissions(t *testing.T) {
 	cases := []struct {
 		desc        string
 		token       string
-		session     pauth.Session
+		session     mgauthn.Session
 		channelID   string
 		svcRes      []string
 		svcErr      error
@@ -1500,7 +1500,7 @@ func TestChannelPermissions(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.desc, func(t *testing.T) {
 			if tc.token == validToken {
-				tc.session = pauth.Session{DomainUserID: validID, UserID: validID, DomainID: validID}
+				tc.session = mgauthn.Session{DomainUserID: validID, UserID: validID, DomainID: validID}
 				tc.identifyRes = &magistrala.IdentityRes{Id: validID, UserId: validID, DomainId: validID}
 			}
 			authCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: tc.token}).Return(tc.identifyRes, tc.identifyErr)
@@ -1530,7 +1530,7 @@ func TestAddUserToChannel(t *testing.T) {
 	cases := []struct {
 		desc        string
 		token       string
-		session     pauth.Session
+		session     mgauthn.Session
 		channelID   string
 		addUserReq  sdk.UsersRelationRequest
 		identifyRes *magistrala.IdentityRes
@@ -1619,7 +1619,7 @@ func TestAddUserToChannel(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.desc, func(t *testing.T) {
 			if tc.token == validToken {
-				tc.session = pauth.Session{DomainUserID: validID, UserID: validID, DomainID: validID}
+				tc.session = mgauthn.Session{DomainUserID: validID, UserID: validID, DomainID: validID}
 				tc.identifyRes = &magistrala.IdentityRes{Id: validID, UserId: validID, DomainId: validID}
 			}
 			authCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: tc.token}).Return(tc.identifyRes, tc.identifyErr)
@@ -1648,7 +1648,7 @@ func TestRemoveUserFromChannel(t *testing.T) {
 	cases := []struct {
 		desc          string
 		token         string
-		session       pauth.Session
+		session       mgauthn.Session
 		channelID     string
 		removeUserReq sdk.UsersRelationRequest
 		svcErr        error
@@ -1726,7 +1726,7 @@ func TestRemoveUserFromChannel(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.desc, func(t *testing.T) {
 			if tc.token == validToken {
-				tc.session = pauth.Session{DomainUserID: validID, UserID: validID, DomainID: validID}
+				tc.session = mgauthn.Session{DomainUserID: validID, UserID: validID, DomainID: validID}
 				tc.identifyRes = &magistrala.IdentityRes{Id: validID, UserId: validID, DomainId: validID}
 			}
 			authCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: tc.token}).Return(tc.identifyRes, tc.identifyErr)
@@ -1759,7 +1759,7 @@ func TestAddUserGroupToChannel(t *testing.T) {
 	cases := []struct {
 		desc            string
 		token           string
-		session         pauth.Session
+		session         mgauthn.Session
 		channelID       string
 		addUserGroupReq sdk.UserGroupsRequest
 		svcErr          error
@@ -1831,7 +1831,7 @@ func TestAddUserGroupToChannel(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.desc, func(t *testing.T) {
 			if tc.token == validToken {
-				tc.session = pauth.Session{DomainUserID: validID, UserID: validID, DomainID: validID}
+				tc.session = mgauthn.Session{DomainUserID: validID, UserID: validID, DomainID: validID}
 				tc.identifyRes = &magistrala.IdentityRes{Id: validID, UserId: validID, DomainId: validID}
 			}
 			authCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: tc.token}).Return(tc.identifyRes, tc.identifyErr)
@@ -1864,7 +1864,7 @@ func TestRemoveUserGroupFromChannel(t *testing.T) {
 	cases := []struct {
 		desc               string
 		token              string
-		session            pauth.Session
+		session            mgauthn.Session
 		channelID          string
 		removeUserGroupReq sdk.UserGroupsRequest
 		svcErr             error
@@ -1936,7 +1936,7 @@ func TestRemoveUserGroupFromChannel(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.desc, func(t *testing.T) {
 			if tc.token == validToken {
-				tc.session = pauth.Session{DomainUserID: validID, UserID: validID, DomainID: validID}
+				tc.session = mgauthn.Session{DomainUserID: validID, UserID: validID, DomainID: validID}
 				tc.identifyRes = &magistrala.IdentityRes{Id: validID, UserId: validID, DomainId: validID}
 			}
 			authCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: tc.token}).Return(tc.identifyRes, tc.identifyErr)
@@ -1978,7 +1978,7 @@ func TestListChannelUserGroups(t *testing.T) {
 	cases := []struct {
 		desc          string
 		token         string
-		session       pauth.Session
+		session       mgauthn.Session
 		channelID     string
 		pageMeta      sdk.PageMetadata
 		listGroupsReq groups.Page
@@ -2177,7 +2177,7 @@ func TestListChannelUserGroups(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.desc, func(t *testing.T) {
 			if tc.token == validToken {
-				tc.session = pauth.Session{DomainUserID: validID, UserID: validID, DomainID: validID}
+				tc.session = mgauthn.Session{DomainUserID: validID, UserID: validID, DomainID: validID}
 				tc.identifyRes = &magistrala.IdentityRes{Id: validID, UserId: validID, DomainId: validID}
 			}
 			authCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: tc.token}).Return(tc.identifyRes, tc.identifyErr)
@@ -2209,7 +2209,7 @@ func TestConnect(t *testing.T) {
 	cases := []struct {
 		desc        string
 		token       string
-		session     pauth.Session
+		session     mgauthn.Session
 		connection  sdk.Connection
 		svcErr      error
 		identifyRes *magistrala.IdentityRes
@@ -2279,7 +2279,7 @@ func TestConnect(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.desc, func(t *testing.T) {
 			if tc.token == validToken {
-				tc.session = pauth.Session{DomainUserID: validID, UserID: validID, DomainID: validID}
+				tc.session = mgauthn.Session{DomainUserID: validID, UserID: validID, DomainID: validID}
 				tc.identifyRes = &magistrala.IdentityRes{Id: validID, UserId: validID, DomainId: validID}
 			}
 			authCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: tc.token}).Return(tc.identifyRes, tc.identifyErr)
@@ -2310,7 +2310,7 @@ func TestDisconnect(t *testing.T) {
 	cases := []struct {
 		desc        string
 		token       string
-		session     pauth.Session
+		session     mgauthn.Session
 		disconnect  sdk.Connection
 		svcErr      error
 		identifyRes *magistrala.IdentityRes
@@ -2380,7 +2380,7 @@ func TestDisconnect(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.desc, func(t *testing.T) {
 			if tc.token == validToken {
-				tc.session = pauth.Session{DomainUserID: validID, UserID: validID, DomainID: validID}
+				tc.session = mgauthn.Session{DomainUserID: validID, UserID: validID, DomainID: validID}
 				tc.identifyRes = &magistrala.IdentityRes{Id: validID, UserId: validID, DomainId: validID}
 			}
 			authCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: tc.token}).Return(tc.identifyRes, tc.identifyErr)
@@ -2411,7 +2411,7 @@ func TestConnectThing(t *testing.T) {
 	cases := []struct {
 		desc        string
 		token       string
-		session     pauth.Session
+		session     mgauthn.Session
 		channelID   string
 		thingID     string
 		svcErr      error
@@ -2470,7 +2470,7 @@ func TestConnectThing(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.desc, func(t *testing.T) {
 			if tc.token == validToken {
-				tc.session = pauth.Session{DomainUserID: validID, UserID: validID, DomainID: validID}
+				tc.session = mgauthn.Session{DomainUserID: validID, UserID: validID, DomainID: validID}
 				tc.identifyRes = &magistrala.IdentityRes{Id: validID, UserId: validID, DomainId: validID}
 			}
 			authCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: tc.token}).Return(tc.identifyRes, tc.identifyErr)
@@ -2501,7 +2501,7 @@ func TestDisconnectThing(t *testing.T) {
 	cases := []struct {
 		desc        string
 		token       string
-		session     pauth.Session
+		session     mgauthn.Session
 		channelID   string
 		thingID     string
 		svcErr      error
@@ -2560,7 +2560,7 @@ func TestDisconnectThing(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.desc, func(t *testing.T) {
 			if tc.token == validToken {
-				tc.session = pauth.Session{DomainUserID: validID, UserID: validID, DomainID: validID}
+				tc.session = mgauthn.Session{DomainUserID: validID, UserID: validID, DomainID: validID}
 				tc.identifyRes = &magistrala.IdentityRes{Id: validID, UserId: validID, DomainId: validID}
 			}
 			authCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: tc.token}).Return(tc.identifyRes, tc.identifyErr)
@@ -2596,7 +2596,7 @@ func TestListGroupChannels(t *testing.T) {
 	cases := []struct {
 		desc        string
 		token       string
-		session     pauth.Session
+		session     mgauthn.Session
 		groupID     string
 		pageMeta    sdk.PageMetadata
 		svcReq      groups.Page
@@ -2746,7 +2746,7 @@ func TestListGroupChannels(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.desc, func(t *testing.T) {
 			if tc.token == validToken {
-				tc.session = pauth.Session{DomainUserID: validID, UserID: validID, DomainID: validID}
+				tc.session = mgauthn.Session{DomainUserID: validID, UserID: validID, DomainID: validID}
 				tc.identifyRes = &magistrala.IdentityRes{Id: validID, UserId: validID, DomainId: validID}
 			}
 			authCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: tc.token}).Return(tc.identifyRes, tc.identifyErr)

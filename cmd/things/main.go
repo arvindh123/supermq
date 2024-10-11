@@ -22,11 +22,14 @@ import (
 	gpostgres "github.com/absmach/magistrala/internal/groups/postgres"
 	gtracing "github.com/absmach/magistrala/internal/groups/tracing"
 	mglog "github.com/absmach/magistrala/logger"
-	"github.com/absmach/magistrala/pkg/auth"
-	"github.com/absmach/magistrala/pkg/authclient"
+	authsvcAuthn "github.com/absmach/magistrala/pkg/authn/authsvc"
+	mgauthz "github.com/absmach/magistrala/pkg/authz"
+	authsvcAuthz "github.com/absmach/magistrala/pkg/authz/authsvc"
 	"github.com/absmach/magistrala/pkg/groups"
+	"github.com/absmach/magistrala/pkg/grpcclient"
 	jaegerclient "github.com/absmach/magistrala/pkg/jaeger"
 	"github.com/absmach/magistrala/pkg/policies"
+	"github.com/absmach/magistrala/pkg/policies/spicedb"
 	"github.com/absmach/magistrala/pkg/postgres"
 	pgclient "github.com/absmach/magistrala/pkg/postgres"
 	"github.com/absmach/magistrala/pkg/prometheus"
@@ -41,7 +44,6 @@ import (
 	thevents "github.com/absmach/magistrala/things/events"
 	tmiddleware "github.com/absmach/magistrala/things/middleware"
 	thingspg "github.com/absmach/magistrala/things/postgres"
-	localusers "github.com/absmach/magistrala/things/standalone"
 	ctracing "github.com/absmach/magistrala/things/tracing"
 	"github.com/authzed/authzed-go/v1"
 	"github.com/authzed/grpcutil"
@@ -153,43 +155,45 @@ func main() {
 	}
 	defer cacheclient.Close()
 
-	var (
-		authClient   auth.AuthClient
-		policyClient policies.Manager
-	)
 	switch cfg.StandaloneID != "" && cfg.StandaloneToken != "" {
-	case true:
-		authClient = localusers.NewAuthClient(cfg.StandaloneID, cfg.StandaloneToken)
-		policyClient = localusers.NewPolicyClient(cfg.StandaloneID, cfg.StandaloneToken)
-		logger.Info("Using standalone auth service")
 	default:
-		clientConfig := authclient.Config{}
-		if err := env.ParseWithOptions(&clientConfig, env.Options{Prefix: envPrefixAuth}); err != nil {
-			logger.Error(fmt.Sprintf("failed to load %s auth configuration : %s", svcName, err))
-			exitCode = 1
-			return
-		}
-
-		authServiceClient, authHandler, err := authclient.SetupAuthClient(ctx, clientConfig)
 		if err != nil {
-			logger.Error(err.Error())
+			logger.Error("standalone mode not implemented in things servcie ")
 			exitCode = 1
 			return
 		}
-		defer authHandler.Close()
-		authClient = authServiceClient
-		logger.Info("AuthService gRPC client successfully connected to auth gRPC server " + authHandler.Secure())
-
-		policyClient, err = newPolicyClient(cfg, logger)
-		if err != nil {
-			logger.Error(err.Error())
-			exitCode = 1
-			return
-		}
-		logger.Info("Policy client successfully connected to spicedb gRPC server")
 	}
+	policyEvaluator, policyManager, err := newSpiceDBPolicyManagerEvaluator(cfg, logger)
+	if err != nil {
+		logger.Error(err.Error())
+		exitCode = 1
+		return
+	}
+	logger.Info("Policy Evaluator and Policy manager are successfully connected to SpiceDB gRPC server")
 
-	csvc, gsvc, err := newService(ctx, db, dbConfig, authClient, policyClient, cacheclient, cfg.CacheKeyDuration, cfg.ESURL, tracer, logger)
+	grpcCfg := grpcclient.Config{}
+	if err := env.ParseWithOptions(cfg, env.Options{Prefix: envPrefixAuth}); err != nil {
+		logger.Error(err.Error())
+		exitCode = 1
+		return
+	}
+	authn, authnClient, err := authsvcAuthn.NewAuthentication(ctx, grpcCfg)
+	if err != nil {
+		logger.Error(err.Error())
+		exitCode = 1
+		return
+	}
+	defer authnClient.Close()
+
+	authz, authzClient, err := authsvcAuthz.NewAuthorization(ctx, grpcCfg)
+	if err != nil {
+		logger.Error(err.Error())
+		exitCode = 1
+		return
+	}
+	defer authzClient.Close()
+
+	csvc, gsvc, err := newService(ctx, db, dbConfig, authz, policyEvaluator, policyManager, cacheclient, cfg.CacheKeyDuration, cfg.ESURL, tracer, logger)
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to create services: %s", err))
 		exitCode = 1
@@ -203,7 +207,7 @@ func main() {
 		return
 	}
 	mux := chi.NewRouter()
-	httpSvc := httpserver.NewServer(ctx, cancel, svcName, httpServerConfig, httpapi.MakeHandler(csvc, gsvc, authClient, mux, logger, cfg.InstanceID), logger)
+	httpSvc := httpserver.NewServer(ctx, cancel, svcName, httpServerConfig, httpapi.MakeHandler(csvc, gsvc, authn, mux, logger, cfg.InstanceID), logger)
 
 	grpcServerConfig := server.Config{Port: defSvcAuthGRPCPort}
 	if err := env.ParseWithOptions(&grpcServerConfig, env.Options{Prefix: envPrefixGRPC}); err != nil {
@@ -213,7 +217,7 @@ func main() {
 	}
 	registerThingsServer := func(srv *grpc.Server) {
 		reflection.Register(srv)
-		magistrala.RegisterThingsServiceServer(srv, grpcapi.NewServer(csvc, authClient))
+		magistrala.RegisterThingsServiceServer(srv, grpcapi.NewServer(csvc))
 	}
 	gs := grpcserver.NewServer(ctx, cancel, svcName, grpcServerConfig, registerThingsServer, logger)
 
@@ -240,7 +244,7 @@ func main() {
 	}
 }
 
-func newService(ctx context.Context, db *sqlx.DB, dbConfig pgclient.Config, authClient auth.AuthClient, policyC policies.PolicyClient, cacheClient *redis.Client, keyDuration time.Duration, esURL string, tracer trace.Tracer, logger *slog.Logger) (things.Service, groups.Service, error) {
+func newService(ctx context.Context, db *sqlx.DB, dbConfig pgclient.Config, authz mgauthz.Authorization, pe policies.Evaluator, pm policies.Manager, cacheClient *redis.Client, keyDuration time.Duration, esURL string, tracer trace.Tracer, logger *slog.Logger) (things.Service, groups.Service, error) {
 	database := postgres.NewDatabase(db, dbConfig, tracer)
 	cRepo := thingspg.NewRepository(database)
 	gRepo := gpostgres.New(database)
@@ -249,8 +253,8 @@ func newService(ctx context.Context, db *sqlx.DB, dbConfig pgclient.Config, auth
 
 	thingCache := thcache.NewCache(cacheClient, keyDuration)
 
-	csvc := things.NewService(policyClient, cRepo, gRepo, thingCache, idp)
-	gsvc := mggroups.NewService(gRepo, idp, policyClient)
+	csvc := things.NewService(pe, pm, cRepo, gRepo, thingCache, idp)
+	gsvc := mggroups.NewService(gRepo, idp, pm)
 
 	csvc, err := thevents.NewEventStoreMiddleware(ctx, csvc, esURL)
 	if err != nil {
@@ -262,8 +266,8 @@ func newService(ctx context.Context, db *sqlx.DB, dbConfig pgclient.Config, auth
 		return nil, nil, err
 	}
 
-	csvc = tmiddleware.AuthorizationMiddleware(csvc, authClient)
-	gsvc = gmiddleware.AuthorizationMiddleware(gsvc, authClient)
+	csvc = tmiddleware.AuthorizationMiddleware(csvc, authz)
+	gsvc = gmiddleware.AuthorizationMiddleware(gsvc, authz)
 
 	csvc = ctracing.New(csvc, tracer)
 	csvc = tmiddleware.LoggingMiddleware(csvc, logger)
@@ -278,16 +282,17 @@ func newService(ctx context.Context, db *sqlx.DB, dbConfig pgclient.Config, auth
 	return csvc, gsvc, err
 }
 
-func newPolicyClient(cfg config, logger *slog.Logger) (policies.PolicyClient, error) {
+func newSpiceDBPolicyManagerEvaluator(cfg config, logger *slog.Logger) (policies.Evaluator, policies.Manager, error) {
 	client, err := authzed.NewClientWithExperimentalAPIs(
 		fmt.Sprintf("%s:%s", cfg.SpicedbHost, cfg.SpicedbPort),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpcutil.WithInsecureBearerToken(cfg.SpicedbPreSharedKey),
 	)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	policyClient := mgpolicies.NewPolicyClient(client, logger)
+	pe := spicedb.NewPolicyEvaluator(client, logger)
+	pm := spicedb.NewPolicyManager(client, logger)
 
-	return policyClient, nil
+	return pe, pm, nil
 }

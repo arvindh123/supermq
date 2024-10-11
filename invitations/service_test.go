@@ -10,11 +10,15 @@ import (
 
 	"github.com/absmach/magistrala"
 	"github.com/absmach/magistrala/auth"
+	authmocks "github.com/absmach/magistrala/auth/mocks"
 	"github.com/absmach/magistrala/internal/testsutil"
 	"github.com/absmach/magistrala/invitations"
 	"github.com/absmach/magistrala/invitations/mocks"
 	"github.com/absmach/magistrala/pkg/apiutil"
-	authmocks "github.com/absmach/magistrala/pkg/auth/mocks"
+	mgauthn "github.com/absmach/magistrala/pkg/authn"
+	authnmocks "github.com/absmach/magistrala/pkg/authn/mocks"
+	mgauthz "github.com/absmach/magistrala/pkg/authz"
+	authzmocks "github.com/absmach/magistrala/pkg/authz/mocks"
 	"github.com/absmach/magistrala/pkg/errors"
 	svcerr "github.com/absmach/magistrala/pkg/errors/service"
 	"github.com/absmach/magistrala/pkg/policies"
@@ -35,8 +39,10 @@ var (
 
 func TestSendInvitation(t *testing.T) {
 	repo := new(mocks.Repository)
-	authsvc := new(authmocks.AuthClient)
-	svc := invitations.NewService(repo, authsvc, nil)
+	authn := new(authnmocks.Authentication)
+	authz := new(authzmocks.Authorization)
+	token := new(authmocks.TokenServiceClient)
+	svc := invitations.NewService(authn, authz, token, repo, nil)
 
 	cases := []struct {
 		desc            string
@@ -172,11 +178,11 @@ func TestSendInvitation(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		idRes := &magistrala.IdentityRes{
-			UserId: tc.tokenUserID,
-			Id:     testsutil.GenerateUUID(t) + "_" + tc.tokenUserID,
+		idRes := mgauthn.Session{
+			UserID:       tc.tokenUserID,
+			DomainUserID: testsutil.GenerateUUID(t) + "_" + tc.tokenUserID,
 		}
-		domainMemberReq := magistrala.AuthorizeReq{
+		domainMemberReq := mgauthz.PolicyReq{
 			SubjectType: policies.UserType,
 			SubjectKind: policies.UsersKind,
 			Subject:     auth.EncodeDomainUserID(tc.req.DomainID, tc.req.UserID),
@@ -184,27 +190,27 @@ func TestSendInvitation(t *testing.T) {
 			ObjectType:  policies.DomainType,
 			Object:      tc.req.DomainID,
 		}
-		domaincall := authsvc.On("Authorize", context.Background(), &domainMemberReq).Return(&magistrala.AuthorizeRes{Authorized: tc.authorised}, tc.domainMemberErr)
-		repocall := authsvc.On("Identify", context.Background(), &magistrala.IdentityReq{Token: tc.token}).Return(idRes, tc.authNErr)
-		domainAdminReq := magistrala.AuthorizeReq{
+		domaincall := authz.On("Authorize", context.Background(), &domainMemberReq).Return(tc.domainMemberErr)
+		repocall := authn.On("Authenticate", context.Background(), token).Return(idRes, tc.authNErr)
+		domainAdminReq := mgauthz.PolicyReq{
 			SubjectType: policies.UserType,
 			SubjectKind: policies.UsersKind,
-			Subject:     idRes.GetId(),
+			Subject:     idRes.DomainUserID,
 			Permission:  policies.AdminPermission,
 			ObjectType:  policies.DomainType,
 			Object:      tc.req.DomainID,
 		}
-		domaincall1 := authsvc.On("Authorize", context.Background(), &domainAdminReq).Return(&magistrala.AuthorizeRes{Authorized: tc.authorised}, tc.domainAdminErr)
-		platformReq := magistrala.AuthorizeReq{
+		domaincall1 := authz.On("Authorize", context.Background(), &domainAdminReq).Return(tc.domainAdminErr)
+		platformReq := mgauthz.PolicyReq{
 			SubjectType: policies.UserType,
 			SubjectKind: policies.UsersKind,
-			Subject:     idRes.GetId(),
+			Subject:     idRes.DomainUserID,
 			Permission:  policies.AdminPermission,
 			ObjectType:  policies.PlatformType,
 			Object:      policies.MagistralaObject,
 		}
-		platformcall := authsvc.On("Authorize", context.Background(), &platformReq).Return(&magistrala.AuthorizeRes{Authorized: tc.authorised}, tc.adminErr)
-		repocall1 := authsvc.On("Issue", context.Background(), mock.Anything).Return(&magistrala.Token{AccessToken: tc.req.Token}, tc.issueErr)
+		platformcall := authz.On("Authorize", context.Background(), &platformReq).Return(tc.adminErr)
+		repocall1 := token.On("Issue", context.Background(), mock.Anything).Return(&magistrala.Token{AccessToken: tc.req.Token}, tc.issueErr)
 		repocall2 := repo.On("Create", context.Background(), mock.Anything).Return(tc.repoErr)
 		if tc.req.Resend {
 			repocall2 = repo.On("UpdateToken", context.Background(), mock.Anything).Return(tc.repoErr)
@@ -222,8 +228,10 @@ func TestSendInvitation(t *testing.T) {
 
 func TestViewInvitation(t *testing.T) {
 	repo := new(mocks.Repository)
-	authsvc := new(authmocks.AuthClient)
-	svc := invitations.NewService(repo, authsvc, nil)
+	authn := new(authnmocks.Authentication)
+	authz := new(authzmocks.Authorization)
+	token := new(authmocks.TokenServiceClient)
+	svc := invitations.NewService(authn, authz, token, repo, nil)
 
 	validInvitation := invitations.Invitation{
 		InvitedBy:   testsutil.GenerateUUID(t),
@@ -363,29 +371,29 @@ func TestViewInvitation(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		idRes := &magistrala.IdentityRes{
-			UserId: tc.tokenUserID,
-			Id:     testsutil.GenerateUUID(t) + "_" + tc.tokenUserID,
+		idRes := mgauthn.Session{
+			UserID:       tc.tokenUserID,
+			DomainUserID: testsutil.GenerateUUID(t) + "_" + tc.tokenUserID,
 		}
-		repocall := authsvc.On("Identify", context.Background(), &magistrala.IdentityReq{Token: tc.token}).Return(idRes, tc.authNErr)
-		domainReq := magistrala.AuthorizeReq{
+		repocall := authn.On("Authenticate", context.Background(), token).Return(idRes, tc.authNErr)
+		domainReq := mgauthz.PolicyReq{
 			SubjectType: policies.UserType,
 			SubjectKind: policies.UsersKind,
-			Subject:     idRes.GetId(),
+			Subject:     idRes.DomainUserID,
 			Permission:  policies.AdminPermission,
 			ObjectType:  policies.DomainType,
 			Object:      tc.domainID,
 		}
-		domaincall := authsvc.On("Authorize", context.Background(), &domainReq).Return(&magistrala.AuthorizeRes{Authorized: tc.authorised}, tc.domainErr)
-		platformReq := magistrala.AuthorizeReq{
+		domaincall := authz.On("Authorize", context.Background(), &domainReq).Return(tc.domainErr)
+		platformReq := mgauthz.PolicyReq{
 			SubjectType: policies.UserType,
 			SubjectKind: policies.UsersKind,
-			Subject:     idRes.GetId(),
+			Subject:     idRes.DomainUserID,
 			Permission:  policies.AdminPermission,
 			ObjectType:  policies.PlatformType,
 			Object:      policies.MagistralaObject,
 		}
-		platformcall := authsvc.On("Authorize", context.Background(), &platformReq).Return(&magistrala.AuthorizeRes{Authorized: tc.authorised}, tc.adminErr)
+		platformcall := authz.On("Authorize", context.Background(), &platformReq).Return(tc.adminErr)
 		repocall1 := repo.On("Retrieve", context.Background(), mock.Anything, mock.Anything).Return(tc.resp, tc.repoErr)
 		inv, err := svc.ViewInvitation(context.Background(), tc.token, tc.userID, tc.domainID)
 		assert.Equal(t, tc.err, err, tc.desc)
@@ -399,8 +407,10 @@ func TestViewInvitation(t *testing.T) {
 
 func TestListInvitations(t *testing.T) {
 	repo := new(mocks.Repository)
-	authsvc := new(authmocks.AuthClient)
-	svc := invitations.NewService(repo, authsvc, nil)
+	authn := new(authnmocks.Authentication)
+	authz := new(authzmocks.Authorization)
+	token := new(authmocks.TokenServiceClient)
+	svc := invitations.NewService(authn, authz, token, repo, nil)
 
 	validPage := invitations.Page{
 		Offset: 0,
@@ -541,29 +551,29 @@ func TestListInvitations(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		idRes := &magistrala.IdentityRes{
-			UserId: tc.tokenUserID,
-			Id:     testsutil.GenerateUUID(t) + "_" + tc.tokenUserID,
+		idRes := mgauthn.Session{
+			UserID:       tc.tokenUserID,
+			DomainUserID: testsutil.GenerateUUID(t) + "_" + tc.tokenUserID,
 		}
-		repocall := authsvc.On("Identify", context.Background(), &magistrala.IdentityReq{Token: tc.token}).Return(idRes, tc.authNErr)
-		domainReq := magistrala.AuthorizeReq{
+		repocall := authn.On("Authenticate", context.Background(), token).Return(idRes, tc.authNErr)
+		domainReq := mgauthz.PolicyReq{
 			SubjectType: policies.UserType,
 			SubjectKind: policies.UsersKind,
-			Subject:     idRes.GetId(),
+			Subject:     idRes.DomainUserID,
 			Permission:  policies.AdminPermission,
 			ObjectType:  policies.DomainType,
 			Object:      tc.page.DomainID,
 		}
-		domaincall := authsvc.On("Authorize", context.Background(), &domainReq).Return(&magistrala.AuthorizeRes{Authorized: tc.authorised}, tc.domainErr)
-		platformReq := magistrala.AuthorizeReq{
+		domaincall := authz.On("Authorize", context.Background(), &domainReq).Return(tc.domainErr)
+		platformReq := mgauthz.PolicyReq{
 			SubjectType: policies.UserType,
 			SubjectKind: policies.UsersKind,
-			Subject:     idRes.GetId(),
+			Subject:     idRes.DomainUserID,
 			Permission:  policies.AdminPermission,
 			ObjectType:  policies.PlatformType,
 			Object:      policies.MagistralaObject,
 		}
-		platformcall := authsvc.On("Authorize", context.Background(), &platformReq).Return(&magistrala.AuthorizeRes{Authorized: tc.authorised}, tc.adminErr)
+		platformcall := authz.On("Authorize", context.Background(), &platformReq).Return(tc.adminErr)
 		repocall1 := repo.On("RetrieveAll", context.Background(), mock.Anything).Return(tc.resp, tc.repoErr)
 		resp, err := svc.ListInvitations(context.Background(), tc.token, tc.page)
 		assert.Equal(t, tc.err, err, tc.desc)
@@ -577,9 +587,12 @@ func TestListInvitations(t *testing.T) {
 
 func TestAcceptInvitation(t *testing.T) {
 	repo := new(mocks.Repository)
-	authsvc := new(authmocks.AuthClient)
+	authn := new(authnmocks.Authentication)
+	authz := new(authzmocks.Authorization)
+	token := new(authmocks.TokenServiceClient)
 	sdksvc := new(sdkmocks.SDK)
-	svc := invitations.NewService(repo, authsvc, sdksvc)
+	svc := invitations.NewService(authn, authz, token, repo, nil)
+
 	userID := testsutil.GenerateUUID(t)
 
 	cases := []struct {
@@ -678,7 +691,7 @@ func TestAcceptInvitation(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		repocall := authsvc.On("Identify", context.Background(), &magistrala.IdentityReq{Token: tc.token}).Return(&magistrala.IdentityRes{UserId: tc.tokenUserID}, tc.authNErr)
+		repocall := authn.On("Authenticate", context.Background(), token).Return(mgauthn.Session{UserID: tc.tokenUserID}, tc.authNErr)
 		repocall1 := repo.On("Retrieve", context.Background(), mock.Anything, tc.domainID).Return(tc.resp, tc.repoErr)
 		sdkcall := sdksvc.On("AddUserToDomain", mock.Anything, mock.Anything, mock.Anything).Return(tc.sdkErr)
 		repocall2 := repo.On("UpdateConfirmation", context.Background(), mock.Anything).Return(tc.repoErr1)
@@ -693,8 +706,10 @@ func TestAcceptInvitation(t *testing.T) {
 
 func TestDeleteInvitation(t *testing.T) {
 	repo := new(mocks.Repository)
-	authsvc := new(authmocks.AuthClient)
-	svc := invitations.NewService(repo, authsvc, nil)
+	authn := new(authnmocks.Authentication)
+	authz := new(authzmocks.Authorization)
+	token := new(authmocks.TokenServiceClient)
+	svc := invitations.NewService(authn, authz, token, repo, nil)
 
 	cases := []struct {
 		desc        string
@@ -810,29 +825,29 @@ func TestDeleteInvitation(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		idRes := &magistrala.IdentityRes{
-			UserId: tc.tokenUserID,
-			Id:     tc.domainID + "_" + tc.userID,
+		idRes := mgauthn.Session{
+			UserID:       tc.tokenUserID,
+			DomainUserID: tc.domainID + "_" + tc.userID,
 		}
-		repocall := authsvc.On("Identify", context.Background(), &magistrala.IdentityReq{Token: tc.token}).Return(idRes, tc.authNErr)
-		domainReq := magistrala.AuthorizeReq{
+		repocall := authn.On("Authenticate", context.Background(), token).Return(idRes, tc.authNErr)
+		domainReq := mgauthz.PolicyReq{
 			SubjectType: policies.UserType,
 			SubjectKind: policies.UsersKind,
-			Subject:     idRes.GetId(),
+			Subject:     idRes.DomainUserID,
 			Permission:  policies.AdminPermission,
 			ObjectType:  policies.DomainType,
 			Object:      tc.domainID,
 		}
-		domaincall := authsvc.On("Authorize", context.Background(), &domainReq).Return(&magistrala.AuthorizeRes{Authorized: tc.authorised}, tc.domainErr)
-		platformReq := magistrala.AuthorizeReq{
+		domaincall := authz.On("Authorize", context.Background(), &domainReq).Return(tc.domainErr)
+		platformReq := mgauthz.PolicyReq{
 			SubjectType: policies.UserType,
 			SubjectKind: policies.UsersKind,
-			Subject:     idRes.GetId(),
+			Subject:     idRes.DomainUserID,
 			Permission:  policies.AdminPermission,
 			ObjectType:  policies.PlatformType,
 			Object:      policies.MagistralaObject,
 		}
-		platformcall := authsvc.On("Authorize", context.Background(), &platformReq).Return(&magistrala.AuthorizeRes{Authorized: tc.authorised}, tc.adminErr)
+		platformcall := authz.On("Authorize", context.Background(), &platformReq).Return(tc.adminErr)
 		repocall1 := repo.On("Retrieve", context.Background(), mock.Anything, mock.Anything).Return(tc.resp, tc.repoErr)
 		repocall2 := repo.On("Delete", context.Background(), mock.Anything, mock.Anything).Return(tc.repoErr)
 		err := svc.DeleteInvitation(context.Background(), tc.token, tc.userID, tc.domainID)
@@ -847,8 +862,10 @@ func TestDeleteInvitation(t *testing.T) {
 
 func TestRejectInvitation(t *testing.T) {
 	repo := new(mocks.Repository)
-	authsvc := new(authmocks.AuthClient)
-	svc := invitations.NewService(repo, authsvc, nil)
+	authn := new(authnmocks.Authentication)
+	authz := new(authzmocks.Authorization)
+	token := new(authmocks.TokenServiceClient)
+	svc := invitations.NewService(authn, authz, token, repo, nil)
 
 	cases := []struct {
 		desc        string
@@ -930,11 +947,11 @@ func TestRejectInvitation(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		idRes := &magistrala.IdentityRes{
-			UserId: tc.tokenUserID,
-			Id:     tc.domainID + "_" + tc.userID,
+		idRes := mgauthn.Session{
+			UserID:       tc.tokenUserID,
+			DomainUserID: tc.domainID + "_" + tc.userID,
 		}
-		repocall := authsvc.On("Identify", context.Background(), &magistrala.IdentityReq{Token: tc.token}).Return(idRes, tc.authNErr)
+		repocall := authn.On("Authenticate", context.Background(), token).Return(idRes, tc.authNErr)
 		repocall1 := repo.On("Retrieve", context.Background(), mock.Anything, mock.Anything).Return(tc.resp, tc.repoErr)
 		repocall3 := repo.On("UpdateRejection", context.Background(), mock.Anything).Return(tc.repoErr1)
 		err := svc.RejectInvitation(context.Background(), tc.token, tc.domainID)

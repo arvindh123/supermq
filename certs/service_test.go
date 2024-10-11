@@ -14,7 +14,8 @@ import (
 	"github.com/absmach/magistrala/certs"
 	"github.com/absmach/magistrala/certs/mocks"
 	"github.com/absmach/magistrala/certs/pki"
-	authmocks "github.com/absmach/magistrala/pkg/auth/mocks"
+	authnmocks "github.com/absmach/magistrala/pkg/authn/mocks"
+	authzmocks "github.com/absmach/magistrala/pkg/authz/mocks"
 	"github.com/absmach/magistrala/pkg/errors"
 	repoerr "github.com/absmach/magistrala/pkg/errors/repository"
 	svcerr "github.com/absmach/magistrala/pkg/errors/service"
@@ -37,13 +38,14 @@ const (
 	validID   = "d4ebb847-5d0e-4e46-bdd9-b6aceaaa3a22"
 )
 
-func newService(_ *testing.T) (certs.Service, *mocks.Repository, *mocks.Agent, *authmocks.AuthClient, *sdkmocks.SDK) {
+func newService(_ *testing.T) (certs.Service, *mocks.Repository, *mocks.Agent, *authnmocks.Authentication, *authzmocks.Authorization, *sdkmocks.SDK) {
 	repo := new(mocks.Repository)
 	agent := new(mocks.Agent)
-	auth := new(authmocks.AuthClient)
+	authn := new(authnmocks.Authentication)
+	authz := new(authzmocks.Authorization)
 	sdk := new(sdkmocks.SDK)
 
-	return certs.New(auth, repo, sdk, agent), repo, agent, auth, sdk
+	return certs.New(authn, authz, repo, sdk, agent), repo, agent, authn, authz, sdk
 }
 
 var cert = certs.Cert{
@@ -54,20 +56,20 @@ var cert = certs.Cert{
 }
 
 func TestIssueCert(t *testing.T) {
-	svc, repo, agent, auth, sdk := newService(t)
+	svc, repo, agent, authn, _, sdk := newService(t)
 	cases := []struct {
-		token        string
-		desc         string
-		thingID      string
-		ttl          string
-		key          string
-		pki          pki.Cert
-		identifyRes  *magistrala.IdentityRes
-		identifyErr  error
-		thingErr     errors.SDKError
-		issueCertErr error
-		repoErr      error
-		err          error
+		token           string
+		desc            string
+		thingID         string
+		ttl             string
+		key             string
+		pki             pki.Cert
+		authenticateRes *magistrala.AuthenticateRes
+		authenticateErr error
+		thingErr        errors.SDKError
+		issueCertErr    error
+		repoErr         error
+		err             error
 	}{
 		{
 			desc:    "issue new cert",
@@ -83,7 +85,7 @@ func TestIssueCert(t *testing.T) {
 				Serial:         "",
 				Expire:         0,
 			},
-			identifyRes: &magistrala.IdentityRes{Id: validID},
+			authenticateRes: &magistrala.AuthenticateRes{Id: validID},
 		},
 		{
 			desc:    "issue new cert for non existing thing id",
@@ -99,9 +101,9 @@ func TestIssueCert(t *testing.T) {
 				Serial:         "",
 				Expire:         0,
 			},
-			identifyRes: &magistrala.IdentityRes{Id: validID},
-			thingErr:    errors.NewSDKError(errors.ErrMalformedEntity),
-			err:         certs.ErrFailedCertCreation,
+			authenticateRes: &magistrala.AuthenticateRes{Id: validID},
+			thingErr:        errors.NewSDKError(errors.ErrMalformedEntity),
+			err:             certs.ErrFailedCertCreation,
 		},
 		{
 			desc:    "issue new cert for invalid token",
@@ -117,14 +119,14 @@ func TestIssueCert(t *testing.T) {
 				Serial:         "",
 				Expire:         0,
 			},
-			identifyRes: &magistrala.IdentityRes{Id: validID},
-			identifyErr: svcerr.ErrAuthentication,
-			err:         svcerr.ErrAuthentication,
+			authenticateRes: &magistrala.AuthenticateRes{Id: validID},
+			authenticateErr: svcerr.ErrAuthentication,
+			err:             svcerr.ErrAuthentication,
 		},
 	}
 
 	for _, tc := range cases {
-		authCall := auth.On("Identify", context.Background(), &magistrala.IdentityReq{Token: tc.token}).Return(tc.identifyRes, tc.identifyErr)
+		authCall := authn.On("Authenticate", context.Background(), &magistrala.AuthenticateReq{Token: tc.token}).Return(tc.authenticateRes, tc.authenticateErr)
 		sdkCall := sdk.On("Thing", tc.thingID, tc.token).Return(mgsdk.Thing{ID: tc.thingID, Credentials: mgsdk.Credentials{Secret: thingKey}}, tc.thingErr)
 		agentCall := agent.On("IssueCert", thingKey, tc.ttl).Return(tc.pki, tc.issueCertErr)
 		repoCall := repo.On("Save", context.Background(), mock.Anything).Return("", tc.repoErr)
@@ -143,49 +145,49 @@ func TestIssueCert(t *testing.T) {
 }
 
 func TestRevokeCert(t *testing.T) {
-	svc, repo, _, auth, sdk := newService(t)
+	svc, repo, _, authn, authz, sdk := newService(t)
 	cases := []struct {
-		token       string
-		desc        string
-		thingID     string
-		page        certs.Page
-		identifyRes *magistrala.IdentityRes
-		identifyErr error
-		authErr     error
-		thingErr    errors.SDKError
-		repoErr     error
-		err         error
+		token           string
+		desc            string
+		thingID         string
+		page            certs.Page
+		authenticateRes *magistrala.AuthenticateRes
+		authenticateErr error
+		authErr         error
+		thingErr        errors.SDKError
+		repoErr         error
+		err             error
 	}{
 		{
-			desc:        "revoke cert",
-			token:       token,
-			thingID:     thingID,
-			page:        certs.Page{Limit: 10000, Offset: 0, Total: 1, Certs: []certs.Cert{cert}},
-			identifyRes: &magistrala.IdentityRes{Id: validID},
+			desc:            "revoke cert",
+			token:           token,
+			thingID:         thingID,
+			page:            certs.Page{Limit: 10000, Offset: 0, Total: 1, Certs: []certs.Cert{cert}},
+			authenticateRes: &magistrala.AuthenticateRes{Id: validID},
 		},
 		{
-			desc:        "revoke cert for invalid token",
-			token:       invalid,
-			thingID:     thingID,
-			page:        certs.Page{},
-			identifyRes: &magistrala.IdentityRes{Id: validID},
-			identifyErr: svcerr.ErrAuthentication,
-			err:         svcerr.ErrAuthentication,
+			desc:            "revoke cert for invalid token",
+			token:           invalid,
+			thingID:         thingID,
+			page:            certs.Page{},
+			authenticateRes: &magistrala.AuthenticateRes{Id: validID},
+			authenticateErr: svcerr.ErrAuthentication,
+			err:             svcerr.ErrAuthentication,
 		},
 		{
-			desc:        "revoke cert for invalid thing id",
-			token:       token,
-			thingID:     "2",
-			page:        certs.Page{},
-			identifyRes: &magistrala.IdentityRes{Id: validID},
-			thingErr:    errors.NewSDKError(certs.ErrFailedCertCreation),
-			err:         certs.ErrFailedCertRevocation,
+			desc:            "revoke cert for invalid thing id",
+			token:           token,
+			thingID:         "2",
+			page:            certs.Page{},
+			authenticateRes: &magistrala.AuthenticateRes{Id: validID},
+			thingErr:        errors.NewSDKError(certs.ErrFailedCertCreation),
+			err:             certs.ErrFailedCertRevocation,
 		},
 	}
 
 	for _, tc := range cases {
-		authCall := auth.On("Identify", context.Background(), &magistrala.IdentityReq{Token: tc.token}).Return(tc.identifyRes, tc.identifyErr)
-		authCall1 := auth.On("Authorize", context.Background(), mock.Anything).Return(&magistrala.AuthorizeRes{Authorized: true}, tc.authErr)
+		authCall := authn.On("Authenticate", context.Background(), &magistrala.AuthenticateReq{Token: tc.token}).Return(tc.authenticateRes, tc.authenticateErr)
+		authCall1 := authz.On("Authorize", context.Background(), mock.Anything).Return(&magistrala.AuthorizeRes{Authorized: true}, tc.authErr)
 		sdkCall := sdk.On("Thing", tc.thingID, tc.token).Return(mgsdk.Thing{ID: tc.thingID, Credentials: mgsdk.Credentials{Secret: thingKey}}, tc.thingErr)
 		repoCall := repo.On("RetrieveByThing", context.Background(), validID, tc.thingID, tc.page.Offset, tc.page.Limit).Return(certs.Page{}, tc.repoErr)
 
@@ -199,7 +201,7 @@ func TestRevokeCert(t *testing.T) {
 }
 
 func TestListCerts(t *testing.T) {
-	svc, repo, agent, auth, _ := newService(t)
+	svc, repo, agent, authn, _, _ := newService(t)
 	var mycerts []certs.Cert
 	for i := 0; i < certNum; i++ {
 		c := certs.Cert{
@@ -216,15 +218,15 @@ func TestListCerts(t *testing.T) {
 	}
 
 	cases := []struct {
-		token       string
-		desc        string
-		thingID     string
-		page        certs.Page
-		cert        certs.Cert
-		identifyRes *magistrala.IdentityRes
-		identifyErr error
-		repoErr     error
-		err         error
+		token           string
+		desc            string
+		thingID         string
+		page            certs.Page
+		cert            certs.Cert
+		authenticateRes *magistrala.AuthenticateRes
+		authenticateErr error
+		repoErr         error
+		err             error
 	}{
 		{
 			desc:    "list all certs with valid token",
@@ -237,7 +239,7 @@ func TestListCerts(t *testing.T) {
 				Serial:  "0",
 				Expire:  time.Now().Add(time.Hour),
 			},
-			identifyRes: &magistrala.IdentityRes{Id: validID},
+			authenticateRes: &magistrala.AuthenticateRes{Id: validID},
 		},
 		{
 			desc:    "list all certs with invalid token",
@@ -250,9 +252,9 @@ func TestListCerts(t *testing.T) {
 				Serial:  fmt.Sprintf("%d", certNum-1),
 				Expire:  time.Now().Add(time.Hour),
 			},
-			identifyRes: &magistrala.IdentityRes{Id: validID},
-			identifyErr: svcerr.ErrAuthentication,
-			err:         svcerr.ErrAuthentication,
+			authenticateRes: &magistrala.AuthenticateRes{Id: validID},
+			authenticateErr: svcerr.ErrAuthentication,
+			err:             svcerr.ErrAuthentication,
 		},
 		{
 			desc:    "list half certs with valid token",
@@ -265,7 +267,7 @@ func TestListCerts(t *testing.T) {
 				Serial:  fmt.Sprintf("%d", certNum/2),
 				Expire:  time.Now().Add(time.Hour),
 			},
-			identifyRes: &magistrala.IdentityRes{Id: validID},
+			authenticateRes: &magistrala.AuthenticateRes{Id: validID},
 		},
 		{
 			desc:    "list last cert with valid token",
@@ -278,12 +280,12 @@ func TestListCerts(t *testing.T) {
 				Serial:  fmt.Sprintf("%d", certNum-1),
 				Expire:  time.Now().Add(time.Hour),
 			},
-			identifyRes: &magistrala.IdentityRes{Id: validID},
+			authenticateRes: &magistrala.AuthenticateRes{Id: validID},
 		},
 	}
 
 	for _, tc := range cases {
-		authCall := auth.On("Identify", context.Background(), &magistrala.IdentityReq{Token: tc.token}).Return(tc.identifyRes, tc.identifyErr)
+		authCall := authn.On("Authenticate", context.Background(), &magistrala.AuthenticateReq{Token: tc.token}).Return(tc.authenticateRes, tc.authenticateErr)
 		repoCall := repo.On("RetrieveByThing", context.Background(), validID, thingID, tc.page.Offset, tc.page.Limit).Return(tc.page, tc.repoErr)
 
 		page, err := svc.ListCerts(context.Background(), tc.token, tc.thingID, tc.page.Offset, tc.page.Limit)
@@ -296,7 +298,7 @@ func TestListCerts(t *testing.T) {
 }
 
 func TestListSerials(t *testing.T) {
-	svc, repo, _, auth, _ := newService(t)
+	svc, repo, _, authn, _, _ := newService(t)
 
 	var issuedCerts []certs.Cert
 	for i := 0; i < certNum; i++ {
@@ -310,59 +312,59 @@ func TestListSerials(t *testing.T) {
 	}
 
 	cases := []struct {
-		token       string
-		desc        string
-		thingID     string
-		offset      uint64
-		limit       uint64
-		certs       []certs.Cert
-		identifyRes *magistrala.IdentityRes
-		identifyErr error
-		repoErr     error
-		err         error
+		token           string
+		desc            string
+		thingID         string
+		offset          uint64
+		limit           uint64
+		certs           []certs.Cert
+		authenticateRes *magistrala.AuthenticateRes
+		authenticateErr error
+		repoErr         error
+		err             error
 	}{
 		{
-			desc:        "list all certs with valid token",
-			token:       token,
-			thingID:     thingID,
-			offset:      0,
-			limit:       certNum,
-			certs:       issuedCerts,
-			identifyRes: &magistrala.IdentityRes{Id: validID},
+			desc:            "list all certs with valid token",
+			token:           token,
+			thingID:         thingID,
+			offset:          0,
+			limit:           certNum,
+			certs:           issuedCerts,
+			authenticateRes: &magistrala.AuthenticateRes{Id: validID},
 		},
 		{
-			desc:        "list all certs with invalid token",
-			token:       invalid,
-			thingID:     thingID,
-			offset:      0,
-			limit:       certNum,
-			certs:       nil,
-			identifyRes: &magistrala.IdentityRes{Id: validID},
-			identifyErr: svcerr.ErrAuthentication,
-			err:         svcerr.ErrAuthentication,
+			desc:            "list all certs with invalid token",
+			token:           invalid,
+			thingID:         thingID,
+			offset:          0,
+			limit:           certNum,
+			certs:           nil,
+			authenticateRes: &magistrala.AuthenticateRes{Id: validID},
+			authenticateErr: svcerr.ErrAuthentication,
+			err:             svcerr.ErrAuthentication,
 		},
 		{
-			desc:        "list half certs with valid token",
-			token:       token,
-			thingID:     thingID,
-			offset:      certNum / 2,
-			limit:       certNum,
-			certs:       issuedCerts[certNum/2:],
-			identifyRes: &magistrala.IdentityRes{Id: validID},
+			desc:            "list half certs with valid token",
+			token:           token,
+			thingID:         thingID,
+			offset:          certNum / 2,
+			limit:           certNum,
+			certs:           issuedCerts[certNum/2:],
+			authenticateRes: &magistrala.AuthenticateRes{Id: validID},
 		},
 		{
-			desc:        "list last cert with valid token",
-			token:       token,
-			thingID:     thingID,
-			offset:      certNum - 1,
-			limit:       certNum,
-			certs:       []certs.Cert{issuedCerts[certNum-1]},
-			identifyRes: &magistrala.IdentityRes{Id: validID},
+			desc:            "list last cert with valid token",
+			token:           token,
+			thingID:         thingID,
+			offset:          certNum - 1,
+			limit:           certNum,
+			certs:           []certs.Cert{issuedCerts[certNum-1]},
+			authenticateRes: &magistrala.AuthenticateRes{Id: validID},
 		},
 	}
 
 	for _, tc := range cases {
-		authCall := auth.On("Identify", context.Background(), &magistrala.IdentityReq{Token: tc.token}).Return(tc.identifyRes, tc.identifyErr)
+		authCall := authn.On("Authenticate", context.Background(), &magistrala.AuthenticateReq{Token: tc.token}).Return(tc.authenticateRes, tc.authenticateErr)
 		repoCall := repo.On("RetrieveByThing", context.Background(), mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(certs.Page{Limit: tc.limit, Offset: tc.offset, Total: certNum, Certs: tc.certs}, tc.repoErr)
 
 		page, err := svc.ListSerials(context.Background(), tc.token, tc.thingID, tc.offset, tc.limit)
@@ -374,9 +376,9 @@ func TestListSerials(t *testing.T) {
 }
 
 func TestViewCert(t *testing.T) {
-	svc, repo, agent, auth, sdk := newService(t)
+	svc, repo, agent, authn, _, sdk := newService(t)
 
-	authCall := auth.On("Identify", context.Background(), &magistrala.IdentityReq{Token: token}).Return(&magistrala.IdentityRes{Id: validID}, nil)
+	authCall := authn.On("Authenticate", context.Background(), &magistrala.AuthenticateReq{Token: token}).Return(&magistrala.AuthenticateRes{Id: validID}, nil)
 	sdkCall := sdk.On("Thing", thingID, token).Return(mgsdk.Thing{ID: thingID, Credentials: mgsdk.Credentials{Secret: thingKey}}, nil)
 	agentCall := agent.On("IssueCert", thingKey, ttl).Return(pki.Cert{}, nil)
 	repoCall := repo.On("Save", context.Background(), mock.Anything).Return("", nil)
@@ -396,45 +398,45 @@ func TestViewCert(t *testing.T) {
 	}
 
 	cases := []struct {
-		token       string
-		desc        string
-		serialID    string
-		cert        certs.Cert
-		identifyRes *magistrala.IdentityRes
-		identifyErr error
-		repoErr     error
-		agentErr    error
-		err         error
+		token           string
+		desc            string
+		serialID        string
+		cert            certs.Cert
+		authenticateRes *magistrala.AuthenticateRes
+		authenticateErr error
+		repoErr         error
+		agentErr        error
+		err             error
 	}{
 		{
-			desc:        "list cert with valid token and serial",
-			token:       token,
-			serialID:    cert.Serial,
-			cert:        cert,
-			identifyRes: &magistrala.IdentityRes{Id: validID},
+			desc:            "list cert with valid token and serial",
+			token:           token,
+			serialID:        cert.Serial,
+			cert:            cert,
+			authenticateRes: &magistrala.AuthenticateRes{Id: validID},
 		},
 		{
-			desc:        "list cert with invalid token",
-			token:       invalid,
-			serialID:    cert.Serial,
-			cert:        certs.Cert{},
-			identifyRes: &magistrala.IdentityRes{Id: validID},
-			identifyErr: svcerr.ErrAuthentication,
-			err:         svcerr.ErrAuthentication,
+			desc:            "list cert with invalid token",
+			token:           invalid,
+			serialID:        cert.Serial,
+			cert:            certs.Cert{},
+			authenticateRes: &magistrala.AuthenticateRes{Id: validID},
+			authenticateErr: svcerr.ErrAuthentication,
+			err:             svcerr.ErrAuthentication,
 		},
 		{
-			desc:        "list cert with invalid serial",
-			token:       token,
-			serialID:    invalid,
-			cert:        certs.Cert{},
-			identifyRes: &magistrala.IdentityRes{Id: validID},
-			repoErr:     repoerr.ErrNotFound,
-			err:         svcerr.ErrNotFound,
+			desc:            "list cert with invalid serial",
+			token:           token,
+			serialID:        invalid,
+			cert:            certs.Cert{},
+			authenticateRes: &magistrala.AuthenticateRes{Id: validID},
+			repoErr:         repoerr.ErrNotFound,
+			err:             svcerr.ErrNotFound,
 		},
 	}
 
 	for _, tc := range cases {
-		authCall := auth.On("Identify", context.Background(), &magistrala.IdentityReq{Token: tc.token}).Return(tc.identifyRes, tc.identifyErr)
+		authCall := authn.On("Authenticate", context.Background(), &magistrala.AuthenticateReq{Token: tc.token}).Return(tc.authenticateRes, tc.authenticateErr)
 		repoCall := repo.On("RetrieveBySerial", context.Background(), validID, tc.serialID).Return(tc.cert, tc.repoErr)
 		agentCall := agent.On("Read", tc.serialID).Return(pki.Cert{}, tc.agentErr)
 

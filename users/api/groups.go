@@ -12,7 +12,8 @@ import (
 	"github.com/absmach/magistrala/internal/api"
 	gapi "github.com/absmach/magistrala/internal/groups/api"
 	"github.com/absmach/magistrala/pkg/apiutil"
-	"github.com/absmach/magistrala/pkg/auth"
+	"github.com/absmach/magistrala/pkg/authn"
+	mgauthn "github.com/absmach/magistrala/pkg/authn"
 	"github.com/absmach/magistrala/pkg/errors"
 	svcerr "github.com/absmach/magistrala/pkg/errors/service"
 	"github.com/absmach/magistrala/pkg/groups"
@@ -24,13 +25,13 @@ import (
 )
 
 // MakeHandler returns a HTTP handler for Groups API endpoints.
-func groupsHandler(svc groups.Service, authClient auth.AuthClient, r *chi.Mux, logger *slog.Logger) http.Handler {
+func groupsHandler(svc groups.Service, authn mgauthn.Authentication, r *chi.Mux, logger *slog.Logger) http.Handler {
 	opts := []kithttp.ServerOption{
 		kithttp.ServerErrorEncoder(apiutil.LoggingErrorEncoder(logger, api.EncodeError)),
 	}
 
 	r.Group(func(r chi.Router) {
-		r.Use(api.AuthenticateMiddleware(authClient))
+		r.Use(api.AuthenticateMiddleware(authn))
 
 		r.Route("/groups", func(r chi.Router) {
 			r.Post("/", otelhttp.NewHandler(kithttp.NewServer(
@@ -179,7 +180,7 @@ func assignUsersEndpoint(svc groups.Service) endpoint.Endpoint {
 			return nil, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		session, ok := ctx.Value(api.SessionKey).(auth.Session)
+		session, ok := ctx.Value(api.SessionKey).(authn.Session)
 		if !ok {
 			return nil, svcerr.ErrAuthorization
 		}
@@ -197,7 +198,7 @@ func unassignUsersEndpoint(svc groups.Service) endpoint.Endpoint {
 			return nil, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		session, ok := ctx.Value(api.SessionKey).(auth.Session)
+		session, ok := ctx.Value(api.SessionKey).(authn.Session)
 		if !ok {
 			return nil, svcerr.ErrAuthorization
 		}
@@ -236,7 +237,7 @@ func assignGroupsEndpoint(svc groups.Service) endpoint.Endpoint {
 			return nil, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		session, ok := ctx.Value(api.SessionKey).(auth.Session)
+		session, ok := ctx.Value(api.SessionKey).(authn.Session)
 		if !ok {
 			return nil, svcerr.ErrAuthorization
 		}
@@ -254,7 +255,7 @@ func unassignGroupsEndpoint(svc groups.Service) endpoint.Endpoint {
 			return nil, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		session, ok := ctx.Value(api.SessionKey).(auth.Session)
+		session, ok := ctx.Value(api.SessionKey).(authn.Session)
 		if !ok {
 			return nil, svcerr.ErrAuthorization
 		}

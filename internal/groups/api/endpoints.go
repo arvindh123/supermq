@@ -8,7 +8,7 @@ import (
 
 	"github.com/absmach/magistrala/internal/api"
 	"github.com/absmach/magistrala/pkg/apiutil"
-	"github.com/absmach/magistrala/pkg/auth"
+	"github.com/absmach/magistrala/pkg/authn"
 	"github.com/absmach/magistrala/pkg/errors"
 	svcerr "github.com/absmach/magistrala/pkg/errors/service"
 	"github.com/absmach/magistrala/pkg/groups"
@@ -24,7 +24,7 @@ func CreateGroupEndpoint(svc groups.Service, kind string) endpoint.Endpoint {
 			return createGroupRes{created: false}, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		session, ok := ctx.Value(api.SessionKey).(auth.Session)
+		session, ok := ctx.Value(api.SessionKey).(authn.Session)
 		if !ok {
 			return createGroupRes{created: false}, svcerr.ErrAuthorization
 		}
@@ -45,7 +45,7 @@ func ViewGroupEndpoint(svc groups.Service) endpoint.Endpoint {
 			return viewGroupRes{}, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		session, ok := ctx.Value(api.SessionKey).(auth.Session)
+		session, ok := ctx.Value(api.SessionKey).(authn.Session)
 		if !ok {
 			return viewGroupRes{}, svcerr.ErrAuthorization
 		}
@@ -65,7 +65,7 @@ func ViewGroupPermsEndpoint(svc groups.Service) endpoint.Endpoint {
 			return viewGroupPermsRes{}, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		session, ok := ctx.Value(api.SessionKey).(auth.Session)
+		session, ok := ctx.Value(api.SessionKey).(authn.Session)
 		if !ok {
 			return viewGroupPermsRes{}, svcerr.ErrAuthorization
 		}
@@ -86,7 +86,7 @@ func UpdateGroupEndpoint(svc groups.Service) endpoint.Endpoint {
 			return updateGroupRes{}, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		session, ok := ctx.Value(api.SessionKey).(auth.Session)
+		session, ok := ctx.Value(api.SessionKey).(authn.Session)
 		if !ok {
 			return updateGroupRes{}, svcerr.ErrAuthorization
 		}
@@ -114,7 +114,7 @@ func EnableGroupEndpoint(svc groups.Service) endpoint.Endpoint {
 			return changeStatusRes{}, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		session, ok := ctx.Value(api.SessionKey).(auth.Session)
+		session, ok := ctx.Value(api.SessionKey).(authn.Session)
 		if !ok {
 			return changeStatusRes{}, svcerr.ErrAuthorization
 		}
@@ -134,7 +134,7 @@ func DisableGroupEndpoint(svc groups.Service) endpoint.Endpoint {
 			return changeStatusRes{}, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		session, ok := ctx.Value(api.SessionKey).(auth.Session)
+		session, ok := ctx.Value(api.SessionKey).(authn.Session)
 		if !ok {
 			return changeStatusRes{}, svcerr.ErrAuthorization
 		}
@@ -160,7 +160,7 @@ func ListGroupsEndpoint(svc groups.Service, groupType, memberKind string) endpoi
 			return groupPageRes{}, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		session, ok := ctx.Value(api.SessionKey).(auth.Session)
+		session, ok := ctx.Value(api.SessionKey).(authn.Session)
 		if !ok {
 			if groupType == groupTypeChannels {
 				return channelPageRes{}, svcerr.ErrAuthorization
@@ -198,7 +198,7 @@ func ListMembersEndpoint(svc groups.Service, memberKind string) endpoint.Endpoin
 			return listMembersRes{}, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		session, ok := ctx.Value(api.SessionKey).(auth.Session)
+		session, ok := ctx.Value(api.SessionKey).(authn.Session)
 		if !ok {
 			return listMembersRes{}, svcerr.ErrAuthorization
 		}
@@ -231,7 +231,7 @@ func AssignMembersEndpoint(svc groups.Service, relation, memberKind string) endp
 		if err := req.validate(); err != nil {
 			return assignRes{}, errors.Wrap(apiutil.ErrValidation, err)
 		}
-		session, ok := ctx.Value(api.SessionKey).(auth.Session)
+		session, ok := ctx.Value(api.SessionKey).(authn.Session)
 		if !ok {
 			return assignRes{}, svcerr.ErrAuthorization
 		}
@@ -255,7 +255,7 @@ func UnassignMembersEndpoint(svc groups.Service, relation, memberKind string) en
 		if err := req.validate(); err != nil {
 			return unassignRes{}, errors.Wrap(apiutil.ErrValidation, err)
 		}
-		session, ok := ctx.Value(api.SessionKey).(auth.Session)
+		session, ok := ctx.Value(api.SessionKey).(authn.Session)
 		if !ok {
 			return unassignRes{}, svcerr.ErrAuthorization
 		}
@@ -274,7 +274,7 @@ func DeleteGroupEndpoint(svc groups.Service) endpoint.Endpoint {
 			return deleteGroupRes{}, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		session, ok := ctx.Value(api.SessionKey).(auth.Session)
+		session, ok := ctx.Value(api.SessionKey).(authn.Session)
 		if !ok {
 			return deleteGroupRes{}, svcerr.ErrAuthorization
 		}

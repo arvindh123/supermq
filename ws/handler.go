@@ -160,7 +160,7 @@ func (h *handler) Publish(ctx context.Context, topic *string, payload *[]byte) e
 		token = string(s.Password)
 	}
 
-	ar := &magistrala.ThingsAuthReq{
+	ar := &magistrala.ThingsAuthzReq{
 		Permission: policies.PublishPermission,
 		ThingKey:   token,
 		ChannelID:  chanID,
@@ -229,7 +229,7 @@ func (h *handler) authAccess(ctx context.Context, password, topic, action string
 
 	chanID := channelParts[1]
 
-	ar := &magistrala.ThingsAuthReq{
+	ar := &magistrala.ThingsAuthzReq{
 		Permission: action,
 		ThingKey:   password,
 		ChannelID:  chanID,

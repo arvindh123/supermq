@@ -30,7 +30,7 @@ func (_m *ThingsServiceClient) EXPECT() *ThingsServiceClient_Expecter {
 }
 
 // Authorize provides a mock function with given fields: ctx, in, opts
-func (_m *ThingsServiceClient) Authorize(ctx context.Context, in *magistrala.ThingsAuthReq, opts ...grpc.CallOption) (*magistrala.AuthorizeRes, error) {
+func (_m *ThingsServiceClient) Authorize(ctx context.Context, in *magistrala.ThingsAuthzReq, opts ...grpc.CallOption) (*magistrala.ThingsAuthzRes, error) {
 	_va := make([]interface{}, len(opts))
 	for _i := range opts {
 		_va[_i] = opts[_i]
@@ -44,20 +44,20 @@ func (_m *ThingsServiceClient) Authorize(ctx context.Context, in *magistrala.Thi
 		panic("no return value specified for Authorize")
 	}
 
-	var r0 *magistrala.AuthorizeRes
+	var r0 *magistrala.ThingsAuthzRes
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *magistrala.ThingsAuthReq, ...grpc.CallOption) (*magistrala.AuthorizeRes, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *magistrala.ThingsAuthzReq, ...grpc.CallOption) (*magistrala.ThingsAuthzRes, error)); ok {
 		return rf(ctx, in, opts...)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, *magistrala.ThingsAuthReq, ...grpc.CallOption) *magistrala.AuthorizeRes); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *magistrala.ThingsAuthzReq, ...grpc.CallOption) *magistrala.ThingsAuthzRes); ok {
 		r0 = rf(ctx, in, opts...)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*magistrala.AuthorizeRes)
+			r0 = ret.Get(0).(*magistrala.ThingsAuthzRes)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, *magistrala.ThingsAuthReq, ...grpc.CallOption) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, *magistrala.ThingsAuthzReq, ...grpc.CallOption) error); ok {
 		r1 = rf(ctx, in, opts...)
 	} else {
 		r1 = ret.Error(1)
@@ -73,14 +73,14 @@ type ThingsServiceClient_Authorize_Call struct {
 
 // Authorize is a helper method to define mock.On call
 //   - ctx context.Context
-//   - in *magistrala.ThingsAuthReq
+//   - in *magistrala.ThingsAuthzReq
 //   - opts ...grpc.CallOption
 func (_e *ThingsServiceClient_Expecter) Authorize(ctx interface{}, in interface{}, opts ...interface{}) *ThingsServiceClient_Authorize_Call {
 	return &ThingsServiceClient_Authorize_Call{Call: _e.mock.On("Authorize",
 		append([]interface{}{ctx, in}, opts...)...)}
 }
 
-func (_c *ThingsServiceClient_Authorize_Call) Run(run func(ctx context.Context, in *magistrala.ThingsAuthReq, opts ...grpc.CallOption)) *ThingsServiceClient_Authorize_Call {
+func (_c *ThingsServiceClient_Authorize_Call) Run(run func(ctx context.Context, in *magistrala.ThingsAuthzReq, opts ...grpc.CallOption)) *ThingsServiceClient_Authorize_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		variadicArgs := make([]grpc.CallOption, len(args)-2)
 		for i, a := range args[2:] {
@@ -88,17 +88,17 @@ func (_c *ThingsServiceClient_Authorize_Call) Run(run func(ctx context.Context, 
 				variadicArgs[i] = a.(grpc.CallOption)
 			}
 		}
-		run(args[0].(context.Context), args[1].(*magistrala.ThingsAuthReq), variadicArgs...)
+		run(args[0].(context.Context), args[1].(*magistrala.ThingsAuthzReq), variadicArgs...)
 	})
 	return _c
 }
 
-func (_c *ThingsServiceClient_Authorize_Call) Return(_a0 *magistrala.AuthorizeRes, _a1 error) *ThingsServiceClient_Authorize_Call {
+func (_c *ThingsServiceClient_Authorize_Call) Return(_a0 *magistrala.ThingsAuthzRes, _a1 error) *ThingsServiceClient_Authorize_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *ThingsServiceClient_Authorize_Call) RunAndReturn(run func(context.Context, *magistrala.ThingsAuthReq, ...grpc.CallOption) (*magistrala.AuthorizeRes, error)) *ThingsServiceClient_Authorize_Call {
+func (_c *ThingsServiceClient_Authorize_Call) RunAndReturn(run func(context.Context, *magistrala.ThingsAuthzReq, ...grpc.CallOption) (*magistrala.ThingsAuthzRes, error)) *ThingsServiceClient_Authorize_Call {
 	_c.Call.Return(run)
 	return _c
 }

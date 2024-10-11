@@ -6,7 +6,7 @@ package tracing
 import (
 	"context"
 
-	"github.com/absmach/magistrala/pkg/auth"
+	"github.com/absmach/magistrala/pkg/authn"
 	"github.com/absmach/magistrala/pkg/groups"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -25,7 +25,7 @@ func New(gsvc groups.Service, tracer trace.Tracer) groups.Service {
 }
 
 // CreateGroup traces the "CreateGroup" operation of the wrapped groups.Service.
-func (tm *tracingMiddleware) CreateGroup(ctx context.Context, session auth.Session, kind string, g groups.Group) (groups.Group, error) {
+func (tm *tracingMiddleware) CreateGroup(ctx context.Context, session authn.Session, kind string, g groups.Group) (groups.Group, error) {
 	ctx, span := tm.tracer.Start(ctx, "svc_create_group")
 	defer span.End()
 
@@ -33,7 +33,7 @@ func (tm *tracingMiddleware) CreateGroup(ctx context.Context, session auth.Sessi
 }
 
 // ViewGroup traces the "ViewGroup" operation of the wrapped groups.Service.
-func (tm *tracingMiddleware) ViewGroup(ctx context.Context, session auth.Session, id string) (groups.Group, error) {
+func (tm *tracingMiddleware) ViewGroup(ctx context.Context, session authn.Session, id string) (groups.Group, error) {
 	ctx, span := tm.tracer.Start(ctx, "svc_view_group", trace.WithAttributes(attribute.String("id", id)))
 	defer span.End()
 
@@ -41,7 +41,7 @@ func (tm *tracingMiddleware) ViewGroup(ctx context.Context, session auth.Session
 }
 
 // ViewGroupPerms traces the "ViewGroupPerms" operation of the wrapped groups.Service.
-func (tm *tracingMiddleware) ViewGroupPerms(ctx context.Context, session auth.Session, id string) ([]string, error) {
+func (tm *tracingMiddleware) ViewGroupPerms(ctx context.Context, session authn.Session, id string) ([]string, error) {
 	ctx, span := tm.tracer.Start(ctx, "svc_view_group", trace.WithAttributes(attribute.String("id", id)))
 	defer span.End()
 
@@ -49,7 +49,7 @@ func (tm *tracingMiddleware) ViewGroupPerms(ctx context.Context, session auth.Se
 }
 
 // ListGroups traces the "ListGroups" operation of the wrapped groups.Service.
-func (tm *tracingMiddleware) ListGroups(ctx context.Context, session auth.Session, memberKind, memberID string, gm groups.Page) (groups.Page, error) {
+func (tm *tracingMiddleware) ListGroups(ctx context.Context, session authn.Session, memberKind, memberID string, gm groups.Page) (groups.Page, error) {
 	ctx, span := tm.tracer.Start(ctx, "svc_list_groups")
 	defer span.End()
 
@@ -57,7 +57,7 @@ func (tm *tracingMiddleware) ListGroups(ctx context.Context, session auth.Sessio
 }
 
 // ListMembers traces the "ListMembers" operation of the wrapped groups.Service.
-func (tm *tracingMiddleware) ListMembers(ctx context.Context, session auth.Session, groupID, permission, memberKind string) (groups.MembersPage, error) {
+func (tm *tracingMiddleware) ListMembers(ctx context.Context, session authn.Session, groupID, permission, memberKind string) (groups.MembersPage, error) {
 	ctx, span := tm.tracer.Start(ctx, "svc_list_members", trace.WithAttributes(attribute.String("groupID", groupID)))
 	defer span.End()
 
@@ -65,7 +65,7 @@ func (tm *tracingMiddleware) ListMembers(ctx context.Context, session auth.Sessi
 }
 
 // UpdateGroup traces the "UpdateGroup" operation of the wrapped groups.Service.
-func (tm *tracingMiddleware) UpdateGroup(ctx context.Context, session auth.Session, g groups.Group) (groups.Group, error) {
+func (tm *tracingMiddleware) UpdateGroup(ctx context.Context, session authn.Session, g groups.Group) (groups.Group, error) {
 	ctx, span := tm.tracer.Start(ctx, "svc_update_group")
 	defer span.End()
 
@@ -73,7 +73,7 @@ func (tm *tracingMiddleware) UpdateGroup(ctx context.Context, session auth.Sessi
 }
 
 // EnableGroup traces the "EnableGroup" operation of the wrapped groups.Service.
-func (tm *tracingMiddleware) EnableGroup(ctx context.Context, session auth.Session, id string) (groups.Group, error) {
+func (tm *tracingMiddleware) EnableGroup(ctx context.Context, session authn.Session, id string) (groups.Group, error) {
 	ctx, span := tm.tracer.Start(ctx, "svc_enable_group", trace.WithAttributes(attribute.String("id", id)))
 	defer span.End()
 
@@ -81,7 +81,7 @@ func (tm *tracingMiddleware) EnableGroup(ctx context.Context, session auth.Sessi
 }
 
 // DisableGroup traces the "DisableGroup" operation of the wrapped groups.Service.
-func (tm *tracingMiddleware) DisableGroup(ctx context.Context, session auth.Session, id string) (groups.Group, error) {
+func (tm *tracingMiddleware) DisableGroup(ctx context.Context, session authn.Session, id string) (groups.Group, error) {
 	ctx, span := tm.tracer.Start(ctx, "svc_disable_group", trace.WithAttributes(attribute.String("id", id)))
 	defer span.End()
 
@@ -89,7 +89,7 @@ func (tm *tracingMiddleware) DisableGroup(ctx context.Context, session auth.Sess
 }
 
 // Assign traces the "Assign" operation of the wrapped groups.Service.
-func (tm *tracingMiddleware) Assign(ctx context.Context, session auth.Session, groupID, relation, memberKind string, memberIDs ...string) error {
+func (tm *tracingMiddleware) Assign(ctx context.Context, session authn.Session, groupID, relation, memberKind string, memberIDs ...string) error {
 	ctx, span := tm.tracer.Start(ctx, "svc_assign", trace.WithAttributes(attribute.String("id", groupID)))
 	defer span.End()
 
@@ -97,7 +97,7 @@ func (tm *tracingMiddleware) Assign(ctx context.Context, session auth.Session, g
 }
 
 // Unassign traces the "Unassign" operation of the wrapped groups.Service.
-func (tm *tracingMiddleware) Unassign(ctx context.Context, session auth.Session, groupID, relation, memberKind string, memberIDs ...string) error {
+func (tm *tracingMiddleware) Unassign(ctx context.Context, session authn.Session, groupID, relation, memberKind string, memberIDs ...string) error {
 	ctx, span := tm.tracer.Start(ctx, "svc_unassign", trace.WithAttributes(attribute.String("id", groupID)))
 	defer span.End()
 
@@ -105,7 +105,7 @@ func (tm *tracingMiddleware) Unassign(ctx context.Context, session auth.Session,
 }
 
 // DeleteGroup traces the "DeleteGroup" operation of the wrapped groups.Service.
-func (tm *tracingMiddleware) DeleteGroup(ctx context.Context, session auth.Session, id string) error {
+func (tm *tracingMiddleware) DeleteGroup(ctx context.Context, session authn.Session, id string) error {
 	ctx, span := tm.tracer.Start(ctx, "svc_delete_group", trace.WithAttributes(attribute.String("id", id)))
 	defer span.End()
 

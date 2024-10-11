@@ -52,7 +52,7 @@ func New(thingsClient magistrala.ThingsServiceClient, pubsub messaging.PubSub) S
 }
 
 func (svc *adapterService) Publish(ctx context.Context, key string, msg *messaging.Message) error {
-	ar := &magistrala.ThingsAuthReq{
+	ar := &magistrala.ThingsAuthzReq{
 		Permission: policies.PublishPermission,
 		ThingKey:   key,
 		ChannelID:  msg.GetChannel(),
@@ -70,7 +70,7 @@ func (svc *adapterService) Publish(ctx context.Context, key string, msg *messagi
 }
 
 func (svc *adapterService) Subscribe(ctx context.Context, key, chanID, subtopic string, c Client) error {
-	ar := &magistrala.ThingsAuthReq{
+	ar := &magistrala.ThingsAuthzReq{
 		Permission: policies.SubscribePermission,
 		ThingKey:   key,
 		ChannelID:  chanID,
@@ -95,7 +95,7 @@ func (svc *adapterService) Subscribe(ctx context.Context, key, chanID, subtopic 
 }
 
 func (svc *adapterService) Unsubscribe(ctx context.Context, key, chanID, subtopic, token string) error {
-	ar := &magistrala.ThingsAuthReq{
+	ar := &magistrala.ThingsAuthzReq{
 		Permission: policies.SubscribePermission,
 		ThingKey:   key,
 		ChannelID:  chanID,

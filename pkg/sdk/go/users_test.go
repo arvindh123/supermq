@@ -15,9 +15,9 @@ import (
 	"github.com/absmach/magistrala/internal/testsutil"
 	mglog "github.com/absmach/magistrala/logger"
 	"github.com/absmach/magistrala/pkg/apiutil"
-	"github.com/absmach/magistrala/pkg/auth"
 	pauth "github.com/absmach/magistrala/pkg/auth"
 	authmocks "github.com/absmach/magistrala/pkg/auth/mocks"
+	"github.com/absmach/magistrala/pkg/authn"
 	mgclients "github.com/absmach/magistrala/pkg/clients"
 	"github.com/absmach/magistrala/pkg/errors"
 	svcerr "github.com/absmach/magistrala/pkg/errors/service"
@@ -245,7 +245,7 @@ func TestCreateUser(t *testing.T) {
 			assert.Equal(t, tc.err, err)
 			assert.Equal(t, tc.response, resp)
 			if tc.err == nil {
-				ok := svcCall.Parent.AssertCalled(t, "RegisterClient", mock.Anything, auth.Session{}, tc.svcReq, true)
+				ok := svcCall.Parent.AssertCalled(t, "RegisterClient", mock.Anything, authn.Session{}, tc.svcReq, true)
 				assert.True(t, ok)
 			}
 			svcCall.Unset()

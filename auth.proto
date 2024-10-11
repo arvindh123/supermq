@@ -11,16 +11,19 @@ option go_package = "./magistrala";
 service ThingsService {
   // Authorize checks if the thing is authorized to perform
   // the action on the channel.
-  rpc Authorize(ThingsAuthReq) returns (AuthorizeRes) {}
+  rpc Authorize(ThingsAuthzReq) returns (ThingsAuthzRes) {}
+}
+
+service TokenService {
+  rpc Issue(IssueReq) returns (Token) {}
+  rpc Refresh(RefreshReq) returns (Token) {}
 }
 
 // AuthService is a service that provides authentication and authorization
 // functionalities for magistrala services.
 service AuthService {
   rpc Authorize(AuthorizeReq) returns (AuthorizeRes) {}
-  rpc Issue(IssueReq) returns (Token) {}
-  rpc Refresh(RefreshReq) returns (Token) {}
-  rpc Identify(IdentityReq) returns (IdentityRes) {}
+  rpc Authenticate(AuthenticateReq) returns (AuthenticateRes) {}
 }
 
 // DomainsService is a service that provides access to domains
@@ -38,11 +41,11 @@ message Token {
     string accessType = 3;
 }
 
-message IdentityReq {
+message AuthenticateReq {
     string token = 1;
 }
 
-message IdentityRes {
+message AuthenticateRes {
     string id    = 1; // IMPROVEMENT NOTE: change name from "id" to "subject" , sub in jwt = user id  + domain id //
     string user_id = 2; // user id
     string domain_id = 3; // domain id
@@ -51,7 +54,7 @@ message IdentityRes {
 message IssueReq {
   string user_id = 1;
   optional string domain_id = 2;
-  uint32 type = 3; 
+  uint32 type = 3;
 }
 
 message RefreshReq {
@@ -82,9 +85,14 @@ message DeleteUserReq{
   string id          = 1;
 }
 
-message ThingsAuthReq {
+message ThingsAuthzReq {
   string channelID = 1;
   string thingID = 2;
   string thingKey = 3;
   string permission = 4;
+}
+
+message ThingsAuthzRes {
+  bool authorized = 1;
+  string id = 2;
 }

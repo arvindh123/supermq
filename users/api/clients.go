@@ -15,7 +15,7 @@ import (
 	mgauth "github.com/absmach/magistrala/auth"
 	"github.com/absmach/magistrala/internal/api"
 	"github.com/absmach/magistrala/pkg/apiutil"
-	"github.com/absmach/magistrala/pkg/auth"
+	mgauthn "github.com/absmach/magistrala/pkg/authn"
 	mgclients "github.com/absmach/magistrala/pkg/clients"
 	"github.com/absmach/magistrala/pkg/errors"
 	"github.com/absmach/magistrala/pkg/oauth2"
@@ -29,7 +29,7 @@ import (
 var passRegex = regexp.MustCompile("^.{8,}$")
 
 // MakeHandler returns a HTTP handler for API endpoints.
-func clientsHandler(svc users.Service, authClient auth.AuthClient, selfRegister bool, r *chi.Mux, logger *slog.Logger, pr *regexp.Regexp, providers ...oauth2.Provider) http.Handler {
+func clientsHandler(svc users.Service, authn mgauthn.Authentication, tokenClient magistrala.TokenServiceClient, selfRegister bool, r *chi.Mux, logger *slog.Logger, pr *regexp.Regexp, providers ...oauth2.Provider) http.Handler {
 	passRegex = pr
 
 	opts := []kithttp.ServerOption{
@@ -46,7 +46,7 @@ func clientsHandler(svc users.Service, authClient auth.AuthClient, selfRegister 
 				opts...,
 			), "register_client").ServeHTTP)
 		default:
-			r.With(api.AuthenticateMiddleware(authClient)).Post("/", otelhttp.NewHandler(kithttp.NewServer(
+			r.With(api.AuthenticateMiddleware(authn)).Post("/", otelhttp.NewHandler(kithttp.NewServer(
 				registrationEndpoint(svc, selfRegister),
 				decodeCreateClientReq,
 				api.EncodeResponse,
@@ -55,7 +55,7 @@ func clientsHandler(svc users.Service, authClient auth.AuthClient, selfRegister 
 		}
 
 		r.Group(func(r chi.Router) {
-			r.Use(api.AuthenticateMiddleware(authClient))
+			r.Use(api.AuthenticateMiddleware(authn))
 
 			r.Get("/profile", otelhttp.NewHandler(kithttp.NewServer(
 				viewProfileEndpoint(svc),
@@ -151,7 +151,7 @@ func clientsHandler(svc users.Service, authClient auth.AuthClient, selfRegister 
 	})
 
 	r.Group(func(r chi.Router) {
-		r.Use(api.AuthenticateMiddleware(authClient))
+		r.Use(api.AuthenticateMiddleware(authn))
 		r.Put("/password/reset", otelhttp.NewHandler(kithttp.NewServer(
 			passwordResetEndpoint(svc),
 			decodePasswordReset,
@@ -213,7 +213,7 @@ func clientsHandler(svc users.Service, authClient auth.AuthClient, selfRegister 
 	), "password_reset_req").ServeHTTP)
 
 	for _, provider := range providers {
-		r.HandleFunc("/oauth/callback/"+provider.Name(), oauth2CallbackHandler(provider, svc, authClient))
+		r.HandleFunc("/oauth/callback/"+provider.Name(), oauth2CallbackHandler(provider, svc, tokenClient))
 	}
 
 	return r
@@ -596,7 +596,7 @@ func queryPageParams(r *http.Request, defPermission string) (mgclients.Page, err
 }
 
 // oauth2CallbackHandler is a http.HandlerFunc that handles OAuth2 callbacks.
-func oauth2CallbackHandler(oauth oauth2.Provider, svc users.Service, authClient auth.AuthClient) http.HandlerFunc {
+func oauth2CallbackHandler(oauth oauth2.Provider, svc users.Service, tokenClient magistrala.TokenServiceClient) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !oauth.IsEnabled() {
 			http.Redirect(w, r, oauth.ErrorURL()+"?error=oauth%20provider%20is%20disabled", http.StatusSeeOther)
@@ -631,7 +631,7 @@ func oauth2CallbackHandler(oauth oauth2.Provider, svc users.Service, authClient 
 				return
 			}
 
-			jwt, err := authClient.Issue(r.Context(), &magistrala.IssueReq{
+			jwt, err := tokenClient.Issue(r.Context(), &magistrala.IssueReq{
 				UserId: client.ID,
 				Type:   uint32(mgauth.AccessKey),
 			})

@@ -12,7 +12,7 @@ import (
 
 	"github.com/absmach/magistrala/internal/api"
 	"github.com/absmach/magistrala/pkg/apiutil"
-	"github.com/absmach/magistrala/pkg/auth"
+	mgauthn "github.com/absmach/magistrala/pkg/authn"
 	mgclients "github.com/absmach/magistrala/pkg/clients"
 	"github.com/absmach/magistrala/pkg/errors"
 	"github.com/absmach/magistrala/things"
@@ -21,13 +21,13 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
-func clientsHandler(svc things.Service, r *chi.Mux, authClient auth.AuthClient, logger *slog.Logger) http.Handler {
+func clientsHandler(svc things.Service, r *chi.Mux, authn mgauthn.Authentication, logger *slog.Logger) http.Handler {
 	opts := []kithttp.ServerOption{
 		kithttp.ServerErrorEncoder(apiutil.LoggingErrorEncoder(logger, api.EncodeError)),
 	}
 
 	r.Group(func(r chi.Router) {
-		r.Use(api.AuthenticateMiddleware(authClient))
+		r.Use(api.AuthenticateMiddleware(authn))
 
 		r.Route("/things", func(r chi.Router) {
 			r.Post("/", otelhttp.NewHandler(kithttp.NewServer(

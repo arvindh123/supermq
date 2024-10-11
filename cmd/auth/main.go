@@ -16,7 +16,9 @@ import (
 	"github.com/absmach/magistrala"
 	"github.com/absmach/magistrala/auth"
 	api "github.com/absmach/magistrala/auth/api"
-	grpcapi "github.com/absmach/magistrala/auth/api/grpc"
+	authgrpcapi "github.com/absmach/magistrala/auth/api/grpc/auth"
+	domainsgrpcapi "github.com/absmach/magistrala/auth/api/grpc/domains"
+	tokengrpcapi "github.com/absmach/magistrala/auth/api/grpc/token"
 	httpapi "github.com/absmach/magistrala/auth/api/http"
 	"github.com/absmach/magistrala/auth/events"
 	"github.com/absmach/magistrala/auth/jwt"
@@ -147,8 +149,9 @@ func main() {
 	}
 	registerAuthServiceServer := func(srv *grpc.Server) {
 		reflection.Register(srv)
-		magistrala.RegisterAuthServiceServer(srv, grpcapi.NewAuthServer(svc))
-		magistrala.RegisterDomainsServiceServer(srv, grpcapi.NewDomainsServer(svc))
+		magistrala.RegisterTokenServiceServer(srv, tokengrpcapi.NewTokenServer(svc))
+		magistrala.RegisterDomainsServiceServer(srv, domainsgrpcapi.NewDomainsServer(svc))
+		magistrala.RegisterAuthServiceServer(srv, authgrpcapi.NewAuthServer(svc))
 	}
 
 	gs := grpcserver.NewServer(ctx, cancel, svcName, grpcServerConfig, registerAuthServiceServer, logger)

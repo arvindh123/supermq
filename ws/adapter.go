@@ -85,7 +85,7 @@ func (svc *adapterService) Subscribe(ctx context.Context, thingKey, chanID, subt
 // authorize checks if the thingKey is authorized to access the channel
 // and returns the thingID if it is.
 func (svc *adapterService) authorize(ctx context.Context, thingKey, chanID, action string) (string, error) {
-	ar := &magistrala.ThingsAuthReq{
+	ar := &magistrala.ThingsAuthzReq{
 		Permission: action,
 		ThingKey:   thingKey,
 		ChannelID:  chanID,

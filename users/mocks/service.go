@@ -5,7 +5,7 @@
 package mocks
 
 import (
-	auth "github.com/absmach/magistrala/pkg/auth"
+	authn "github.com/absmach/magistrala/pkg/authn"
 	clients "github.com/absmach/magistrala/pkg/clients"
 
 	context "context"
@@ -21,7 +21,7 @@ type Service struct {
 }
 
 // DeleteClient provides a mock function with given fields: ctx, session, id
-func (_m *Service) DeleteClient(ctx context.Context, session auth.Session, id string) error {
+func (_m *Service) DeleteClient(ctx context.Context, session authn.Session, id string) error {
 	ret := _m.Called(ctx, session, id)
 
 	if len(ret) == 0 {
@@ -29,7 +29,7 @@ func (_m *Service) DeleteClient(ctx context.Context, session auth.Session, id st
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, auth.Session, string) error); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, authn.Session, string) error); ok {
 		r0 = rf(ctx, session, id)
 	} else {
 		r0 = ret.Error(0)
@@ -39,7 +39,7 @@ func (_m *Service) DeleteClient(ctx context.Context, session auth.Session, id st
 }
 
 // DisableClient provides a mock function with given fields: ctx, session, id
-func (_m *Service) DisableClient(ctx context.Context, session auth.Session, id string) (clients.Client, error) {
+func (_m *Service) DisableClient(ctx context.Context, session authn.Session, id string) (clients.Client, error) {
 	ret := _m.Called(ctx, session, id)
 
 	if len(ret) == 0 {
@@ -48,16 +48,16 @@ func (_m *Service) DisableClient(ctx context.Context, session auth.Session, id s
 
 	var r0 clients.Client
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, auth.Session, string) (clients.Client, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, authn.Session, string) (clients.Client, error)); ok {
 		return rf(ctx, session, id)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, auth.Session, string) clients.Client); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, authn.Session, string) clients.Client); ok {
 		r0 = rf(ctx, session, id)
 	} else {
 		r0 = ret.Get(0).(clients.Client)
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, auth.Session, string) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, authn.Session, string) error); ok {
 		r1 = rf(ctx, session, id)
 	} else {
 		r1 = ret.Error(1)
@@ -67,7 +67,7 @@ func (_m *Service) DisableClient(ctx context.Context, session auth.Session, id s
 }
 
 // EnableClient provides a mock function with given fields: ctx, session, id
-func (_m *Service) EnableClient(ctx context.Context, session auth.Session, id string) (clients.Client, error) {
+func (_m *Service) EnableClient(ctx context.Context, session authn.Session, id string) (clients.Client, error) {
 	ret := _m.Called(ctx, session, id)
 
 	if len(ret) == 0 {
@@ -76,16 +76,16 @@ func (_m *Service) EnableClient(ctx context.Context, session auth.Session, id st
 
 	var r0 clients.Client
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, auth.Session, string) (clients.Client, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, authn.Session, string) (clients.Client, error)); ok {
 		return rf(ctx, session, id)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, auth.Session, string) clients.Client); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, authn.Session, string) clients.Client); ok {
 		r0 = rf(ctx, session, id)
 	} else {
 		r0 = ret.Get(0).(clients.Client)
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, auth.Session, string) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, authn.Session, string) error); ok {
 		r1 = rf(ctx, session, id)
 	} else {
 		r1 = ret.Error(1)
@@ -113,7 +113,7 @@ func (_m *Service) GenerateResetToken(ctx context.Context, email string, host st
 }
 
 // Identify provides a mock function with given fields: ctx, session
-func (_m *Service) Identify(ctx context.Context, session auth.Session) (string, error) {
+func (_m *Service) Identify(ctx context.Context, session authn.Session) (string, error) {
 	ret := _m.Called(ctx, session)
 
 	if len(ret) == 0 {
@@ -122,16 +122,16 @@ func (_m *Service) Identify(ctx context.Context, session auth.Session) (string, 
 
 	var r0 string
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, auth.Session) (string, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, authn.Session) (string, error)); ok {
 		return rf(ctx, session)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, auth.Session) string); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, authn.Session) string); ok {
 		r0 = rf(ctx, session)
 	} else {
 		r0 = ret.Get(0).(string)
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, auth.Session) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, authn.Session) error); ok {
 		r1 = rf(ctx, session)
 	} else {
 		r1 = ret.Error(1)
@@ -171,7 +171,7 @@ func (_m *Service) IssueToken(ctx context.Context, identity string, secret strin
 }
 
 // ListClients provides a mock function with given fields: ctx, session, pm
-func (_m *Service) ListClients(ctx context.Context, session auth.Session, pm clients.Page) (clients.ClientsPage, error) {
+func (_m *Service) ListClients(ctx context.Context, session authn.Session, pm clients.Page) (clients.ClientsPage, error) {
 	ret := _m.Called(ctx, session, pm)
 
 	if len(ret) == 0 {
@@ -180,16 +180,16 @@ func (_m *Service) ListClients(ctx context.Context, session auth.Session, pm cli
 
 	var r0 clients.ClientsPage
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, auth.Session, clients.Page) (clients.ClientsPage, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, authn.Session, clients.Page) (clients.ClientsPage, error)); ok {
 		return rf(ctx, session, pm)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, auth.Session, clients.Page) clients.ClientsPage); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, authn.Session, clients.Page) clients.ClientsPage); ok {
 		r0 = rf(ctx, session, pm)
 	} else {
 		r0 = ret.Get(0).(clients.ClientsPage)
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, auth.Session, clients.Page) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, authn.Session, clients.Page) error); ok {
 		r1 = rf(ctx, session, pm)
 	} else {
 		r1 = ret.Error(1)
@@ -199,7 +199,7 @@ func (_m *Service) ListClients(ctx context.Context, session auth.Session, pm cli
 }
 
 // ListMembers provides a mock function with given fields: ctx, session, objectKind, objectID, pm
-func (_m *Service) ListMembers(ctx context.Context, session auth.Session, objectKind string, objectID string, pm clients.Page) (clients.MembersPage, error) {
+func (_m *Service) ListMembers(ctx context.Context, session authn.Session, objectKind string, objectID string, pm clients.Page) (clients.MembersPage, error) {
 	ret := _m.Called(ctx, session, objectKind, objectID, pm)
 
 	if len(ret) == 0 {
@@ -208,16 +208,16 @@ func (_m *Service) ListMembers(ctx context.Context, session auth.Session, object
 
 	var r0 clients.MembersPage
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, auth.Session, string, string, clients.Page) (clients.MembersPage, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, authn.Session, string, string, clients.Page) (clients.MembersPage, error)); ok {
 		return rf(ctx, session, objectKind, objectID, pm)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, auth.Session, string, string, clients.Page) clients.MembersPage); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, authn.Session, string, string, clients.Page) clients.MembersPage); ok {
 		r0 = rf(ctx, session, objectKind, objectID, pm)
 	} else {
 		r0 = ret.Get(0).(clients.MembersPage)
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, auth.Session, string, string, clients.Page) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, authn.Session, string, string, clients.Page) error); ok {
 		r1 = rf(ctx, session, objectKind, objectID, pm)
 	} else {
 		r1 = ret.Error(1)
@@ -273,7 +273,7 @@ func (_m *Service) OAuthCallback(ctx context.Context, client clients.Client) (cl
 }
 
 // RefreshToken provides a mock function with given fields: ctx, session, refreshToken, domainID
-func (_m *Service) RefreshToken(ctx context.Context, session auth.Session, refreshToken string, domainID string) (*magistrala.Token, error) {
+func (_m *Service) RefreshToken(ctx context.Context, session authn.Session, refreshToken string, domainID string) (*magistrala.Token, error) {
 	ret := _m.Called(ctx, session, refreshToken, domainID)
 
 	if len(ret) == 0 {
@@ -282,10 +282,10 @@ func (_m *Service) RefreshToken(ctx context.Context, session auth.Session, refre
 
 	var r0 *magistrala.Token
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, auth.Session, string, string) (*magistrala.Token, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, authn.Session, string, string) (*magistrala.Token, error)); ok {
 		return rf(ctx, session, refreshToken, domainID)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, auth.Session, string, string) *magistrala.Token); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, authn.Session, string, string) *magistrala.Token); ok {
 		r0 = rf(ctx, session, refreshToken, domainID)
 	} else {
 		if ret.Get(0) != nil {
@@ -293,7 +293,7 @@ func (_m *Service) RefreshToken(ctx context.Context, session auth.Session, refre
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, auth.Session, string, string) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, authn.Session, string, string) error); ok {
 		r1 = rf(ctx, session, refreshToken, domainID)
 	} else {
 		r1 = ret.Error(1)
@@ -303,7 +303,7 @@ func (_m *Service) RefreshToken(ctx context.Context, session auth.Session, refre
 }
 
 // RegisterClient provides a mock function with given fields: ctx, session, client, selfRegister
-func (_m *Service) RegisterClient(ctx context.Context, session auth.Session, client clients.Client, selfRegister bool) (clients.Client, error) {
+func (_m *Service) RegisterClient(ctx context.Context, session authn.Session, client clients.Client, selfRegister bool) (clients.Client, error) {
 	ret := _m.Called(ctx, session, client, selfRegister)
 
 	if len(ret) == 0 {
@@ -312,16 +312,16 @@ func (_m *Service) RegisterClient(ctx context.Context, session auth.Session, cli
 
 	var r0 clients.Client
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, auth.Session, clients.Client, bool) (clients.Client, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, authn.Session, clients.Client, bool) (clients.Client, error)); ok {
 		return rf(ctx, session, client, selfRegister)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, auth.Session, clients.Client, bool) clients.Client); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, authn.Session, clients.Client, bool) clients.Client); ok {
 		r0 = rf(ctx, session, client, selfRegister)
 	} else {
 		r0 = ret.Get(0).(clients.Client)
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, auth.Session, clients.Client, bool) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, authn.Session, clients.Client, bool) error); ok {
 		r1 = rf(ctx, session, client, selfRegister)
 	} else {
 		r1 = ret.Error(1)
@@ -331,7 +331,7 @@ func (_m *Service) RegisterClient(ctx context.Context, session auth.Session, cli
 }
 
 // ResetSecret provides a mock function with given fields: ctx, session, secret
-func (_m *Service) ResetSecret(ctx context.Context, session auth.Session, secret string) error {
+func (_m *Service) ResetSecret(ctx context.Context, session authn.Session, secret string) error {
 	ret := _m.Called(ctx, session, secret)
 
 	if len(ret) == 0 {
@@ -339,7 +339,7 @@ func (_m *Service) ResetSecret(ctx context.Context, session auth.Session, secret
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, auth.Session, string) error); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, authn.Session, string) error); ok {
 		r0 = rf(ctx, session, secret)
 	} else {
 		r0 = ret.Error(0)
@@ -395,7 +395,7 @@ func (_m *Service) SendPasswordReset(ctx context.Context, host string, email str
 }
 
 // UpdateClient provides a mock function with given fields: ctx, session, client
-func (_m *Service) UpdateClient(ctx context.Context, session auth.Session, client clients.Client) (clients.Client, error) {
+func (_m *Service) UpdateClient(ctx context.Context, session authn.Session, client clients.Client) (clients.Client, error) {
 	ret := _m.Called(ctx, session, client)
 
 	if len(ret) == 0 {
@@ -404,16 +404,16 @@ func (_m *Service) UpdateClient(ctx context.Context, session auth.Session, clien
 
 	var r0 clients.Client
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, auth.Session, clients.Client) (clients.Client, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, authn.Session, clients.Client) (clients.Client, error)); ok {
 		return rf(ctx, session, client)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, auth.Session, clients.Client) clients.Client); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, authn.Session, clients.Client) clients.Client); ok {
 		r0 = rf(ctx, session, client)
 	} else {
 		r0 = ret.Get(0).(clients.Client)
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, auth.Session, clients.Client) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, authn.Session, clients.Client) error); ok {
 		r1 = rf(ctx, session, client)
 	} else {
 		r1 = ret.Error(1)
@@ -423,7 +423,7 @@ func (_m *Service) UpdateClient(ctx context.Context, session auth.Session, clien
 }
 
 // UpdateClientIdentity provides a mock function with given fields: ctx, session, id, identity
-func (_m *Service) UpdateClientIdentity(ctx context.Context, session auth.Session, id string, identity string) (clients.Client, error) {
+func (_m *Service) UpdateClientIdentity(ctx context.Context, session authn.Session, id string, identity string) (clients.Client, error) {
 	ret := _m.Called(ctx, session, id, identity)
 
 	if len(ret) == 0 {
@@ -432,16 +432,16 @@ func (_m *Service) UpdateClientIdentity(ctx context.Context, session auth.Sessio
 
 	var r0 clients.Client
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, auth.Session, string, string) (clients.Client, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, authn.Session, string, string) (clients.Client, error)); ok {
 		return rf(ctx, session, id, identity)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, auth.Session, string, string) clients.Client); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, authn.Session, string, string) clients.Client); ok {
 		r0 = rf(ctx, session, id, identity)
 	} else {
 		r0 = ret.Get(0).(clients.Client)
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, auth.Session, string, string) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, authn.Session, string, string) error); ok {
 		r1 = rf(ctx, session, id, identity)
 	} else {
 		r1 = ret.Error(1)
@@ -451,7 +451,7 @@ func (_m *Service) UpdateClientIdentity(ctx context.Context, session auth.Sessio
 }
 
 // UpdateClientRole provides a mock function with given fields: ctx, session, client
-func (_m *Service) UpdateClientRole(ctx context.Context, session auth.Session, client clients.Client) (clients.Client, error) {
+func (_m *Service) UpdateClientRole(ctx context.Context, session authn.Session, client clients.Client) (clients.Client, error) {
 	ret := _m.Called(ctx, session, client)
 
 	if len(ret) == 0 {
@@ -460,16 +460,16 @@ func (_m *Service) UpdateClientRole(ctx context.Context, session auth.Session, c
 
 	var r0 clients.Client
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, auth.Session, clients.Client) (clients.Client, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, authn.Session, clients.Client) (clients.Client, error)); ok {
 		return rf(ctx, session, client)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, auth.Session, clients.Client) clients.Client); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, authn.Session, clients.Client) clients.Client); ok {
 		r0 = rf(ctx, session, client)
 	} else {
 		r0 = ret.Get(0).(clients.Client)
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, auth.Session, clients.Client) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, authn.Session, clients.Client) error); ok {
 		r1 = rf(ctx, session, client)
 	} else {
 		r1 = ret.Error(1)
@@ -479,7 +479,7 @@ func (_m *Service) UpdateClientRole(ctx context.Context, session auth.Session, c
 }
 
 // UpdateClientSecret provides a mock function with given fields: ctx, session, oldSecret, newSecret
-func (_m *Service) UpdateClientSecret(ctx context.Context, session auth.Session, oldSecret string, newSecret string) (clients.Client, error) {
+func (_m *Service) UpdateClientSecret(ctx context.Context, session authn.Session, oldSecret string, newSecret string) (clients.Client, error) {
 	ret := _m.Called(ctx, session, oldSecret, newSecret)
 
 	if len(ret) == 0 {
@@ -488,16 +488,16 @@ func (_m *Service) UpdateClientSecret(ctx context.Context, session auth.Session,
 
 	var r0 clients.Client
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, auth.Session, string, string) (clients.Client, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, authn.Session, string, string) (clients.Client, error)); ok {
 		return rf(ctx, session, oldSecret, newSecret)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, auth.Session, string, string) clients.Client); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, authn.Session, string, string) clients.Client); ok {
 		r0 = rf(ctx, session, oldSecret, newSecret)
 	} else {
 		r0 = ret.Get(0).(clients.Client)
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, auth.Session, string, string) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, authn.Session, string, string) error); ok {
 		r1 = rf(ctx, session, oldSecret, newSecret)
 	} else {
 		r1 = ret.Error(1)
@@ -507,7 +507,7 @@ func (_m *Service) UpdateClientSecret(ctx context.Context, session auth.Session,
 }
 
 // UpdateClientTags provides a mock function with given fields: ctx, session, client
-func (_m *Service) UpdateClientTags(ctx context.Context, session auth.Session, client clients.Client) (clients.Client, error) {
+func (_m *Service) UpdateClientTags(ctx context.Context, session authn.Session, client clients.Client) (clients.Client, error) {
 	ret := _m.Called(ctx, session, client)
 
 	if len(ret) == 0 {
@@ -516,16 +516,16 @@ func (_m *Service) UpdateClientTags(ctx context.Context, session auth.Session, c
 
 	var r0 clients.Client
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, auth.Session, clients.Client) (clients.Client, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, authn.Session, clients.Client) (clients.Client, error)); ok {
 		return rf(ctx, session, client)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, auth.Session, clients.Client) clients.Client); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, authn.Session, clients.Client) clients.Client); ok {
 		r0 = rf(ctx, session, client)
 	} else {
 		r0 = ret.Get(0).(clients.Client)
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, auth.Session, clients.Client) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, authn.Session, clients.Client) error); ok {
 		r1 = rf(ctx, session, client)
 	} else {
 		r1 = ret.Error(1)
@@ -535,7 +535,7 @@ func (_m *Service) UpdateClientTags(ctx context.Context, session auth.Session, c
 }
 
 // ViewClient provides a mock function with given fields: ctx, session, id
-func (_m *Service) ViewClient(ctx context.Context, session auth.Session, id string) (clients.Client, error) {
+func (_m *Service) ViewClient(ctx context.Context, session authn.Session, id string) (clients.Client, error) {
 	ret := _m.Called(ctx, session, id)
 
 	if len(ret) == 0 {
@@ -544,16 +544,16 @@ func (_m *Service) ViewClient(ctx context.Context, session auth.Session, id stri
 
 	var r0 clients.Client
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, auth.Session, string) (clients.Client, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, authn.Session, string) (clients.Client, error)); ok {
 		return rf(ctx, session, id)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, auth.Session, string) clients.Client); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, authn.Session, string) clients.Client); ok {
 		r0 = rf(ctx, session, id)
 	} else {
 		r0 = ret.Get(0).(clients.Client)
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, auth.Session, string) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, authn.Session, string) error); ok {
 		r1 = rf(ctx, session, id)
 	} else {
 		r1 = ret.Error(1)
@@ -563,7 +563,7 @@ func (_m *Service) ViewClient(ctx context.Context, session auth.Session, id stri
 }
 
 // ViewProfile provides a mock function with given fields: ctx, session
-func (_m *Service) ViewProfile(ctx context.Context, session auth.Session) (clients.Client, error) {
+func (_m *Service) ViewProfile(ctx context.Context, session authn.Session) (clients.Client, error) {
 	ret := _m.Called(ctx, session)
 
 	if len(ret) == 0 {
@@ -572,16 +572,16 @@ func (_m *Service) ViewProfile(ctx context.Context, session auth.Session) (clien
 
 	var r0 clients.Client
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, auth.Session) (clients.Client, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, authn.Session) (clients.Client, error)); ok {
 		return rf(ctx, session)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, auth.Session) clients.Client); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, authn.Session) clients.Client); ok {
 		r0 = rf(ctx, session)
 	} else {
 		r0 = ret.Get(0).(clients.Client)
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, auth.Session) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, authn.Session) error); ok {
 		r1 = rf(ctx, session)
 	} else {
 		r1 = ret.Error(1)

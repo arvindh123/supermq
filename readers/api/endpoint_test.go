@@ -15,7 +15,7 @@ import (
 	"github.com/absmach/magistrala"
 	"github.com/absmach/magistrala/internal/testsutil"
 	"github.com/absmach/magistrala/pkg/apiutil"
-	authmocks "github.com/absmach/magistrala/pkg/auth/mocks"
+	authzmocks "github.com/absmach/magistrala/pkg/authz/mocks"
 	svcerr "github.com/absmach/magistrala/pkg/errors/service"
 	"github.com/absmach/magistrala/pkg/transformers/senml"
 	"github.com/absmach/magistrala/readers"
@@ -50,8 +50,8 @@ var (
 	sum float64 = 42
 )
 
-func newServer(repo *mocks.MessageRepository, authClient *authmocks.AuthClient, thingsAuthzClient *thmocks.ThingsServiceClient) *httptest.Server {
-	mux := api.MakeHandler(repo, authClient, thingsAuthzClient, svcName, instanceID)
+func newServer(repo *mocks.MessageRepository, authz *authzmocks.Authorization, thingsAuthzClient *thmocks.ThingsServiceClient) *httptest.Server {
+	mux := api.MakeHandler(repo, authz, thingsAuthzClient, svcName, instanceID)
 	return httptest.NewServer(mux)
 }
 
@@ -129,9 +129,9 @@ func TestReadAll(t *testing.T) {
 	}
 
 	repo := new(mocks.MessageRepository)
-	auth := new(authmocks.AuthClient)
+	authz := new(authzmocks.Authorization)
 	things := new(thmocks.ThingsServiceClient)
-	ts := newServer(repo, auth, things)
+	ts := newServer(repo, authz, things)
 	defer ts.Close()
 
 	cases := []struct {
@@ -977,8 +977,8 @@ func TestReadAll(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		repoCall := auth.On("Identify", context.Background(), mock.Anything).Return(&magistrala.IdentityRes{Id: testsutil.GenerateUUID(t)}, nil)
-		authCall := auth.On("Authorize", mock.Anything, mock.Anything).Return(&magistrala.AuthorizeRes{Authorized: tc.authResponse}, tc.err)
+		repoCall := authz.On("Identify", context.Background(), mock.Anything).Return(&magistrala.AuthenticateRes{Id: testsutil.GenerateUUID(t)}, nil)
+		authCall := authz.On("Authorize", mock.Anything, mock.Anything).Return(&magistrala.AuthorizeRes{Authorized: tc.authResponse}, tc.err)
 		repo.On("ReadAll", chanID, tc.res.PageMetadata).Return(readers.MessagesPage{Total: tc.res.Total, Messages: fromSenml(tc.res.Messages)}, nil)
 		if tc.key != "" {
 			repoCall = things.On("Authorize", mock.Anything, mock.Anything).Return(&magistrala.AuthorizeRes{Authorized: tc.authResponse}, tc.err)

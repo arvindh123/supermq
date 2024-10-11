@@ -18,3 +18,13 @@ packages:
           dir: "./auth/mocks"
           mockname: "DomainsServiceClient"
           filename: "domains_client.go"
+      TokenServiceClient:
+        config:
+          dir: "./auth/mocks"
+          mockname: "TokenServiceClient"
+          filename: "token_client.go"
+      AuthServiceClient:
+        config:
+          dir: "./auth/mocks"
+          mockname: "AuthServiceClient"
+          filename: "auth_client.go"

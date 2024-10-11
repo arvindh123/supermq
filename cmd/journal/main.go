@@ -20,9 +20,12 @@ import (
 	"github.com/absmach/magistrala/journal/middleware"
 	journalpg "github.com/absmach/magistrala/journal/postgres"
 	mglog "github.com/absmach/magistrala/logger"
-	"github.com/absmach/magistrala/pkg/auth"
-	"github.com/absmach/magistrala/pkg/authclient"
+	mgauthn "github.com/absmach/magistrala/pkg/authn"
+	authsvcAuthn "github.com/absmach/magistrala/pkg/authn/authsvc"
+	mgauthz "github.com/absmach/magistrala/pkg/authz"
+	authsvcAuthz "github.com/absmach/magistrala/pkg/authz/authsvc"
 	"github.com/absmach/magistrala/pkg/events/store"
+	"github.com/absmach/magistrala/pkg/grpcclient"
 	jaegerclient "github.com/absmach/magistrala/pkg/jaeger"
 	"github.com/absmach/magistrala/pkg/postgres"
 	pgclient "github.com/absmach/magistrala/pkg/postgres"
@@ -93,22 +96,30 @@ func main() {
 	}
 	defer db.Close()
 
-	authClientCfg := authclient.Config{}
+	authClientCfg := grpcclient.Config{}
 	if err := env.ParseWithOptions(&authClientCfg, env.Options{Prefix: envPrefixAuth}); err != nil {
 		logger.Error(fmt.Sprintf("failed to load %s auth configuration : %s", svcName, err))
 		exitCode = 1
 		return
 	}
 
-	authClient, authHandler, err := authclient.SetupAuthClient(ctx, authClientCfg)
+	authn, authnHandler, err := authsvcAuthn.NewAuthentication(ctx, authClientCfg)
 	if err != nil {
 		logger.Error(err.Error())
 		exitCode = 1
 		return
 	}
-	defer authHandler.Close()
+	defer authnHandler.Close()
+	logger.Info("Authn successfully connected to auth gRPC server " + authnHandler.Secure())
 
-	logger.Info("AuthService gRPC client successfully connected to auth gRPC server " + authHandler.Secure())
+	authz, authzHandler, err := authsvcAuthz.NewAuthorization(ctx, authClientCfg)
+	if err != nil {
+		logger.Error(err.Error())
+		exitCode = 1
+		return
+	}
+	defer authzHandler.Close()
+	logger.Info("Authz successfully connected to auth gRPC server " + authzHandler.Secure())
 
 	tp, err := jaegerclient.NewProvider(ctx, svcName, cfg.JaegerURL, cfg.InstanceID, cfg.TraceRatio)
 	if err != nil {
@@ -123,7 +134,7 @@ func main() {
 	}()
 	tracer := tp.Tracer(svcName)
 
-	svc := newService(db, dbConfig, authClient, logger, tracer)
+	svc := newService(db, dbConfig, authn, authz, logger, tracer)
 
 	subscriber, err := store.NewSubscriber(ctx, cfg.ESURL, logger)
 	if err != nil {
@@ -167,12 +178,12 @@ func main() {
 	}
 }
 
-func newService(db *sqlx.DB, dbConfig pgclient.Config, authClient auth.AuthClient, logger *slog.Logger, tracer trace.Tracer) journal.Service {
+func newService(db *sqlx.DB, dbConfig pgclient.Config, authn mgauthn.Authentication, authz mgauthz.Authorization, logger *slog.Logger, tracer trace.Tracer) journal.Service {
 	database := postgres.NewDatabase(db, dbConfig, tracer)
 	repo := journalpg.NewRepository(database)
 	idp := uuid.New()
 
-	svc := journal.NewService(idp, repo, authClient)
+	svc := journal.NewService(authn, authz, idp, repo)
 	svc = middleware.LoggingMiddleware(svc, logger)
 	counter, latency := prometheus.MakeMetrics("journal", "journal_writer")
 	svc = middleware.MetricsMiddleware(svc, counter, latency)

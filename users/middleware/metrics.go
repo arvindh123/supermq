@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/absmach/magistrala"
-	"github.com/absmach/magistrala/pkg/auth"
+	"github.com/absmach/magistrala/pkg/authn"
 	mgclients "github.com/absmach/magistrala/pkg/clients"
 	"github.com/absmach/magistrala/users"
 	"github.com/go-kit/kit/metrics"
@@ -32,7 +32,7 @@ func MetricsMiddleware(svc users.Service, counter metrics.Counter, latency metri
 }
 
 // RegisterClient instruments RegisterClient method with metrics.
-func (ms *metricsMiddleware) RegisterClient(ctx context.Context, session auth.Session, client mgclients.Client, selfRegister bool) (mgclients.Client, error) {
+func (ms *metricsMiddleware) RegisterClient(ctx context.Context, session authn.Session, client mgclients.Client, selfRegister bool) (mgclients.Client, error) {
 	defer func(begin time.Time) {
 		ms.counter.With("method", "register_client").Add(1)
 		ms.latency.With("method", "register_client").Observe(time.Since(begin).Seconds())
@@ -50,7 +50,7 @@ func (ms *metricsMiddleware) IssueToken(ctx context.Context, identity, secret, d
 }
 
 // RefreshToken instruments RefreshToken method with metrics.
-func (ms *metricsMiddleware) RefreshToken(ctx context.Context, session auth.Session, refreshToken, domainID string) (token *magistrala.Token, err error) {
+func (ms *metricsMiddleware) RefreshToken(ctx context.Context, session authn.Session, refreshToken, domainID string) (token *magistrala.Token, err error) {
 	defer func(begin time.Time) {
 		ms.counter.With("method", "refresh_token").Add(1)
 		ms.latency.With("method", "refresh_token").Observe(time.Since(begin).Seconds())
@@ -59,7 +59,7 @@ func (ms *metricsMiddleware) RefreshToken(ctx context.Context, session auth.Sess
 }
 
 // ViewClient instruments ViewClient method with metrics.
-func (ms *metricsMiddleware) ViewClient(ctx context.Context, session auth.Session, id string) (mgclients.Client, error) {
+func (ms *metricsMiddleware) ViewClient(ctx context.Context, session authn.Session, id string) (mgclients.Client, error) {
 	defer func(begin time.Time) {
 		ms.counter.With("method", "view_client").Add(1)
 		ms.latency.With("method", "view_client").Observe(time.Since(begin).Seconds())
@@ -68,7 +68,7 @@ func (ms *metricsMiddleware) ViewClient(ctx context.Context, session auth.Sessio
 }
 
 // ViewProfile instruments ViewProfile method with metrics.
-func (ms *metricsMiddleware) ViewProfile(ctx context.Context, session auth.Session) (mgclients.Client, error) {
+func (ms *metricsMiddleware) ViewProfile(ctx context.Context, session authn.Session) (mgclients.Client, error) {
 	defer func(begin time.Time) {
 		ms.counter.With("method", "view_profile").Add(1)
 		ms.latency.With("method", "view_profile").Observe(time.Since(begin).Seconds())
@@ -77,7 +77,7 @@ func (ms *metricsMiddleware) ViewProfile(ctx context.Context, session auth.Sessi
 }
 
 // ListClients instruments ListClients method with metrics.
-func (ms *metricsMiddleware) ListClients(ctx context.Context, session auth.Session, pm mgclients.Page) (mgclients.ClientsPage, error) {
+func (ms *metricsMiddleware) ListClients(ctx context.Context, session authn.Session, pm mgclients.Page) (mgclients.ClientsPage, error) {
 	defer func(begin time.Time) {
 		ms.counter.With("method", "list_clients").Add(1)
 		ms.latency.With("method", "list_clients").Observe(time.Since(begin).Seconds())
@@ -95,7 +95,7 @@ func (ms *metricsMiddleware) SearchUsers(ctx context.Context, pm mgclients.Page)
 }
 
 // UpdateClient instruments UpdateClient method with metrics.
-func (ms *metricsMiddleware) UpdateClient(ctx context.Context, session auth.Session, client mgclients.Client) (mgclients.Client, error) {
+func (ms *metricsMiddleware) UpdateClient(ctx context.Context, session authn.Session, client mgclients.Client) (mgclients.Client, error) {
 	defer func(begin time.Time) {
 		ms.counter.With("method", "update_client_name_and_metadata").Add(1)
 		ms.latency.With("method", "update_client_name_and_metadata").Observe(time.Since(begin).Seconds())
@@ -104,7 +104,7 @@ func (ms *metricsMiddleware) UpdateClient(ctx context.Context, session auth.Sess
 }
 
 // UpdateClientTags instruments UpdateClientTags method with metrics.
-func (ms *metricsMiddleware) UpdateClientTags(ctx context.Context, session auth.Session, client mgclients.Client) (mgclients.Client, error) {
+func (ms *metricsMiddleware) UpdateClientTags(ctx context.Context, session authn.Session, client mgclients.Client) (mgclients.Client, error) {
 	defer func(begin time.Time) {
 		ms.counter.With("method", "update_client_tags").Add(1)
 		ms.latency.With("method", "update_client_tags").Observe(time.Since(begin).Seconds())
@@ -113,7 +113,7 @@ func (ms *metricsMiddleware) UpdateClientTags(ctx context.Context, session auth.
 }
 
 // UpdateClientIdentity instruments UpdateClientIdentity method with metrics.
-func (ms *metricsMiddleware) UpdateClientIdentity(ctx context.Context, session auth.Session, id, identity string) (mgclients.Client, error) {
+func (ms *metricsMiddleware) UpdateClientIdentity(ctx context.Context, session authn.Session, id, identity string) (mgclients.Client, error) {
 	defer func(begin time.Time) {
 		ms.counter.With("method", "update_client_identity").Add(1)
 		ms.latency.With("method", "update_client_identity").Observe(time.Since(begin).Seconds())
@@ -122,7 +122,7 @@ func (ms *metricsMiddleware) UpdateClientIdentity(ctx context.Context, session a
 }
 
 // UpdateClientSecret instruments UpdateClientSecret method with metrics.
-func (ms *metricsMiddleware) UpdateClientSecret(ctx context.Context, session auth.Session, oldSecret, newSecret string) (mgclients.Client, error) {
+func (ms *metricsMiddleware) UpdateClientSecret(ctx context.Context, session authn.Session, oldSecret, newSecret string) (mgclients.Client, error) {
 	defer func(begin time.Time) {
 		ms.counter.With("method", "update_client_secret").Add(1)
 		ms.latency.With("method", "update_client_secret").Observe(time.Since(begin).Seconds())
@@ -140,7 +140,7 @@ func (ms *metricsMiddleware) GenerateResetToken(ctx context.Context, email, host
 }
 
 // ResetSecret instruments ResetSecret method with metrics.
-func (ms *metricsMiddleware) ResetSecret(ctx context.Context, session auth.Session, secret string) error {
+func (ms *metricsMiddleware) ResetSecret(ctx context.Context, session authn.Session, secret string) error {
 	defer func(begin time.Time) {
 		ms.counter.With("method", "reset_secret").Add(1)
 		ms.latency.With("method", "reset_secret").Observe(time.Since(begin).Seconds())
@@ -158,7 +158,7 @@ func (ms *metricsMiddleware) SendPasswordReset(ctx context.Context, host, email,
 }
 
 // UpdateClientRole instruments UpdateClientRole method with metrics.
-func (ms *metricsMiddleware) UpdateClientRole(ctx context.Context, session auth.Session, client mgclients.Client) (mgclients.Client, error) {
+func (ms *metricsMiddleware) UpdateClientRole(ctx context.Context, session authn.Session, client mgclients.Client) (mgclients.Client, error) {
 	defer func(begin time.Time) {
 		ms.counter.With("method", "update_client_role").Add(1)
 		ms.latency.With("method", "update_client_role").Observe(time.Since(begin).Seconds())
@@ -167,7 +167,7 @@ func (ms *metricsMiddleware) UpdateClientRole(ctx context.Context, session auth.
 }
 
 // EnableClient instruments EnableClient method with metrics.
-func (ms *metricsMiddleware) EnableClient(ctx context.Context, session auth.Session, id string) (mgclients.Client, error) {
+func (ms *metricsMiddleware) EnableClient(ctx context.Context, session authn.Session, id string) (mgclients.Client, error) {
 	defer func(begin time.Time) {
 		ms.counter.With("method", "enable_client").Add(1)
 		ms.latency.With("method", "enable_client").Observe(time.Since(begin).Seconds())
@@ -176,7 +176,7 @@ func (ms *metricsMiddleware) EnableClient(ctx context.Context, session auth.Sess
 }
 
 // DisableClient instruments DisableClient method with metrics.
-func (ms *metricsMiddleware) DisableClient(ctx context.Context, session auth.Session, id string) (mgclients.Client, error) {
+func (ms *metricsMiddleware) DisableClient(ctx context.Context, session authn.Session, id string) (mgclients.Client, error) {
 	defer func(begin time.Time) {
 		ms.counter.With("method", "disable_client").Add(1)
 		ms.latency.With("method", "disable_client").Observe(time.Since(begin).Seconds())
@@ -185,7 +185,7 @@ func (ms *metricsMiddleware) DisableClient(ctx context.Context, session auth.Ses
 }
 
 // ListMembers instruments ListMembers method with metrics.
-func (ms *metricsMiddleware) ListMembers(ctx context.Context, session auth.Session, objectKind, objectID string, pm mgclients.Page) (mp mgclients.MembersPage, err error) {
+func (ms *metricsMiddleware) ListMembers(ctx context.Context, session authn.Session, objectKind, objectID string, pm mgclients.Page) (mp mgclients.MembersPage, err error) {
 	defer func(begin time.Time) {
 		ms.counter.With("method", "list_members").Add(1)
 		ms.latency.With("method", "list_members").Observe(time.Since(begin).Seconds())
@@ -194,7 +194,7 @@ func (ms *metricsMiddleware) ListMembers(ctx context.Context, session auth.Sessi
 }
 
 // Identify instruments Identify method with metrics.
-func (ms *metricsMiddleware) Identify(ctx context.Context, session auth.Session) (string, error) {
+func (ms *metricsMiddleware) Identify(ctx context.Context, session authn.Session) (string, error) {
 	defer func(begin time.Time) {
 		ms.counter.With("method", "identify").Add(1)
 		ms.latency.With("method", "identify").Observe(time.Since(begin).Seconds())
@@ -212,7 +212,7 @@ func (ms *metricsMiddleware) OAuthCallback(ctx context.Context, client mgclients
 }
 
 // DeleteClient instruments DeleteClient method with metrics.
-func (ms *metricsMiddleware) DeleteClient(ctx context.Context, session auth.Session, id string) error {
+func (ms *metricsMiddleware) DeleteClient(ctx context.Context, session authn.Session, id string) error {
 	defer func(begin time.Time) {
 		ms.counter.With("method", "delete_client").Add(1)
 		ms.latency.With("method", "delete_client").Observe(time.Since(begin).Seconds())

@@ -11,7 +11,7 @@ import (
 	"github.com/absmach/magistrala"
 	mgauth "github.com/absmach/magistrala/auth"
 	"github.com/absmach/magistrala/pkg/apiutil"
-	"github.com/absmach/magistrala/pkg/auth"
+	"github.com/absmach/magistrala/pkg/authn"
 	mgclients "github.com/absmach/magistrala/pkg/clients"
 	"github.com/absmach/magistrala/pkg/errors"
 	svcerr "github.com/absmach/magistrala/pkg/errors/service"
@@ -40,7 +40,7 @@ func NewService(g groups.Repository, idp magistrala.IDProvider, policyManager po
 	}
 }
 
-func (svc service) CreateGroup(ctx context.Context, session auth.Session, kind string, g groups.Group) (gr groups.Group, err error) {
+func (svc service) CreateGroup(ctx context.Context, session authn.Session, kind string, g groups.Group) (gr groups.Group, err error) {
 	groupID, err := svc.idProvider.ID()
 	if err != nil {
 		return groups.Group{}, err
@@ -74,7 +74,7 @@ func (svc service) CreateGroup(ctx context.Context, session auth.Session, kind s
 	return saved, nil
 }
 
-func (svc service) ViewGroup(ctx context.Context, session auth.Session, id string) (groups.Group, error) {
+func (svc service) ViewGroup(ctx context.Context, session authn.Session, id string) (groups.Group, error) {
 	group, err := svc.groups.RetrieveByID(ctx, id)
 	if err != nil {
 		return groups.Group{}, errors.Wrap(svcerr.ErrViewEntity, err)
@@ -83,11 +83,11 @@ func (svc service) ViewGroup(ctx context.Context, session auth.Session, id strin
 	return group, nil
 }
 
-func (svc service) ViewGroupPerms(ctx context.Context, session auth.Session, id string) ([]string, error) {
+func (svc service) ViewGroupPerms(ctx context.Context, session authn.Session, id string) ([]string, error) {
 	return svc.listUserGroupPermission(ctx, session.DomainUserID, id)
 }
 
-func (svc service) ListGroups(ctx context.Context, session auth.Session, memberKind, memberID string, gm groups.Page) (groups.Page, error) {
+func (svc service) ListGroups(ctx context.Context, session authn.Session, memberKind, memberID string, gm groups.Page) (groups.Page, error) {
 	var ids []string
 	var err error
 
@@ -215,7 +215,7 @@ func (svc service) listUserGroupPermission(ctx context.Context, userID, groupID 
 }
 
 // IMPROVEMENT NOTE: remove this function and all its related auxiliary function, ListMembers are moved to respective service.
-func (svc service) ListMembers(ctx context.Context, session auth.Session, groupID, permission, memberKind string) (groups.MembersPage, error) {
+func (svc service) ListMembers(ctx context.Context, session authn.Session, groupID, permission, memberKind string) (groups.MembersPage, error) {
 	switch memberKind {
 	case policies.ThingsKind:
 		tids, err := svc.policies.ListAllObjects(ctx, policies.PolicyReq{
@@ -272,14 +272,14 @@ func (svc service) ListMembers(ctx context.Context, session auth.Session, groupI
 	}
 }
 
-func (svc service) UpdateGroup(ctx context.Context, session auth.Session, g groups.Group) (groups.Group, error) {
+func (svc service) UpdateGroup(ctx context.Context, session authn.Session, g groups.Group) (groups.Group, error) {
 	g.UpdatedAt = time.Now()
 	g.UpdatedBy = session.UserID
 
 	return svc.groups.Update(ctx, g)
 }
 
-func (svc service) EnableGroup(ctx context.Context, session auth.Session, id string) (groups.Group, error) {
+func (svc service) EnableGroup(ctx context.Context, session authn.Session, id string) (groups.Group, error) {
 	group := groups.Group{
 		ID:        id,
 		Status:    mgclients.EnabledStatus,
@@ -292,7 +292,7 @@ func (svc service) EnableGroup(ctx context.Context, session auth.Session, id str
 	return group, nil
 }
 
-func (svc service) DisableGroup(ctx context.Context, session auth.Session, id string) (groups.Group, error) {
+func (svc service) DisableGroup(ctx context.Context, session authn.Session, id string) (groups.Group, error) {
 	group := groups.Group{
 		ID:        id,
 		Status:    mgclients.DisabledStatus,
@@ -305,7 +305,7 @@ func (svc service) DisableGroup(ctx context.Context, session auth.Session, id st
 	return group, nil
 }
 
-func (svc service) Assign(ctx context.Context, session auth.Session, groupID, relation, memberKind string, memberIDs ...string) error {
+func (svc service) Assign(ctx context.Context, session authn.Session, groupID, relation, memberKind string, memberIDs ...string) error {
 	policyList := []policies.PolicyReq{}
 	switch memberKind {
 	case policies.ThingsKind:
@@ -432,7 +432,7 @@ func (svc service) unassignParentGroup(ctx context.Context, domain, parentGroupI
 	return svc.groups.UnassignParentGroup(ctx, parentGroupID, groupIDs...)
 }
 
-func (svc service) Unassign(ctx context.Context, session auth.Session, groupID, relation, memberKind string, memberIDs ...string) error {
+func (svc service) Unassign(ctx context.Context, session authn.Session, groupID, relation, memberKind string, memberIDs ...string) error {
 	policyList := []policies.PolicyReq{}
 	switch memberKind {
 	case policies.ThingsKind:
@@ -481,7 +481,7 @@ func (svc service) Unassign(ctx context.Context, session auth.Session, groupID, 
 	return nil
 }
 
-func (svc service) DeleteGroup(ctx context.Context, session auth.Session, id string) error {
+func (svc service) DeleteGroup(ctx context.Context, session authn.Session, id string) error {
 	req := policies.PolicyReq{
 		SubjectType: policies.GroupType,
 		Subject:     id,
@@ -536,7 +536,7 @@ func (svc service) listAllGroupsOfUserID(ctx context.Context, userID, permission
 	return allowedIDs.Policies, nil
 }
 
-func (svc service) changeGroupStatus(ctx context.Context, session auth.Session, group groups.Group) (groups.Group, error) {
+func (svc service) changeGroupStatus(ctx context.Context, session authn.Session, group groups.Group) (groups.Group, error) {
 	dbGroup, err := svc.groups.RetrieveByID(ctx, group.ID)
 	if err != nil {
 		return groups.Group{}, errors.Wrap(svcerr.ErrViewEntity, err)

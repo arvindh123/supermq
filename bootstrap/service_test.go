@@ -18,7 +18,8 @@ import (
 	"github.com/absmach/magistrala/bootstrap"
 	"github.com/absmach/magistrala/bootstrap/mocks"
 	"github.com/absmach/magistrala/internal/testsutil"
-	authmocks "github.com/absmach/magistrala/pkg/auth/mocks"
+	authnmocks "github.com/absmach/magistrala/pkg/authn/mocks"
+	authzmocks "github.com/absmach/magistrala/pkg/authz/mocks"
 	"github.com/absmach/magistrala/pkg/errors"
 	svcerr "github.com/absmach/magistrala/pkg/errors/service"
 	policysvc "github.com/absmach/magistrala/pkg/policies"
@@ -77,11 +78,12 @@ func enc(in []byte) ([]byte, error) {
 
 func TestAdd(t *testing.T) {
 	boot := new(mocks.ConfigRepository)
-	auth := new(authmocks.AuthClient)
+	authn := new(authnmocks.Authentication)
+	authz := new(authzmocks.Authorization)
 	policies := new(policymocks.Manager)
 	sdk := new(sdkmocks.SDK)
 	idp := uuid.NewMock()
-	svc := bootstrap.New(auth, policies, boot, sdk, encKey, idp)
+	svc := bootstrap.New(authn, authz, policies, boot, sdk, encKey, idp)
 
 	neID := config
 	neID.ThingID = "non-existent"
@@ -99,7 +101,7 @@ func TestAdd(t *testing.T) {
 		domainID        string
 		authResponse    *magistrala.AuthorizeRes
 		authorizeErr    error
-		identifyErr     error
+		authenticateErr error
 		thingErr        error
 		createThingErr  error
 		channelErr      error
@@ -170,28 +172,28 @@ func TestAdd(t *testing.T) {
 			err:          svcerr.ErrAuthorization,
 		},
 		{
-			desc:        "add a config with empty domain ID",
-			config:      config,
-			token:       validToken,
-			userID:      validID,
-			domainID:    "",
-			identifyErr: svcerr.ErrAuthentication,
-			err:         svcerr.ErrAuthentication,
+			desc:            "add a config with empty domain ID",
+			config:          config,
+			token:           validToken,
+			userID:          validID,
+			domainID:        "",
+			authenticateErr: svcerr.ErrAuthentication,
+			err:             svcerr.ErrAuthentication,
 		},
 		{
-			desc:        "add a config with invalid domain ID",
-			config:      config,
-			token:       validToken,
-			userID:      validID,
-			domainID:    invalidDomainID,
-			identifyErr: svcerr.ErrAuthentication,
-			err:         svcerr.ErrAuthentication,
+			desc:            "add a config with invalid domain ID",
+			config:          config,
+			token:           validToken,
+			userID:          validID,
+			domainID:        invalidDomainID,
+			authenticateErr: svcerr.ErrAuthentication,
+			err:             svcerr.ErrAuthentication,
 		},
 	}
 
 	for _, tc := range cases {
-		authCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: tc.token}).Return(&magistrala.IdentityRes{Id: tc.userID, DomainId: tc.domainID}, tc.identifyErr)
-		authCall1 := auth.On("Authorize", context.Background(), mock.Anything).Return(tc.authResponse, tc.authorizeErr)
+		authCall := authn.On("Authenticate", mock.Anything, &magistrala.AuthenticateReq{Token: tc.token}).Return(&magistrala.AuthenticateRes{Id: tc.userID, DomainId: tc.domainID}, tc.authenticateErr)
+		authCall1 := authz.On("Authorize", context.Background(), mock.Anything).Return(tc.authResponse, tc.authorizeErr)
 		repoCall := sdk.On("Thing", tc.config.ThingID, tc.token).Return(mgsdk.Thing{ID: tc.config.ThingID, Credentials: mgsdk.Credentials{Secret: tc.config.ThingKey}}, tc.thingErr)
 		repoCall1 := sdk.On("CreateThing", mock.Anything, tc.token).Return(mgsdk.Thing{}, tc.createThingErr)
 		repoCall2 := sdk.On("DeleteThing", tc.config.ThingID, tc.token).Return(tc.deleteThingErr)
@@ -213,26 +215,27 @@ func TestAdd(t *testing.T) {
 
 func TestView(t *testing.T) {
 	boot := new(mocks.ConfigRepository)
-	auth := new(authmocks.AuthClient)
+	authn := new(authnmocks.Authentication)
+	authz := new(authzmocks.Authorization)
 	policies := new(policymocks.Manager)
 	sdk := new(sdkmocks.SDK)
 	idp := uuid.NewMock()
-	svc := bootstrap.New(auth, policies, boot, sdk, encKey, idp)
+	svc := bootstrap.New(authn, authz, policies, boot, sdk, encKey, idp)
 
 	cases := []struct {
-		desc         string
-		configID     string
-		userID       string
-		domain       string
-		thingDomain  string
-		authorizeRes *magistrala.AuthorizeRes
-		token        string
-		identifyErr  error
-		authorizeErr error
-		retrieveErr  error
-		thingErr     error
-		channelErr   error
-		err          error
+		desc            string
+		configID        string
+		userID          string
+		domain          string
+		thingDomain     string
+		authorizeRes    *magistrala.AuthorizeRes
+		token           string
+		authenticateErr error
+		authorizeErr    error
+		retrieveErr     error
+		thingErr        error
+		channelErr      error
+		err             error
 	}{
 		{
 			desc:         "view an existing config",
@@ -256,33 +259,33 @@ func TestView(t *testing.T) {
 			err:          svcerr.ErrNotFound,
 		},
 		{
-			desc:        "view a config with wrong credentials",
-			configID:    config.ThingID,
-			thingDomain: domainID,
-			domain:      domainID,
-			token:       invalidToken,
-			identifyErr: svcerr.ErrAuthentication,
-			err:         svcerr.ErrAuthentication,
+			desc:            "view a config with wrong credentials",
+			configID:        config.ThingID,
+			thingDomain:     domainID,
+			domain:          domainID,
+			token:           invalidToken,
+			authenticateErr: svcerr.ErrAuthentication,
+			err:             svcerr.ErrAuthentication,
 		},
 		{
-			desc:        "view a config with invalid domain",
-			configID:    config.ThingID,
-			userID:      validID,
-			thingDomain: domainID,
-			domain:      invalidDomainID,
-			token:       validToken,
-			identifyErr: svcerr.ErrAuthentication,
-			err:         svcerr.ErrAuthentication,
+			desc:            "view a config with invalid domain",
+			configID:        config.ThingID,
+			userID:          validID,
+			thingDomain:     domainID,
+			domain:          invalidDomainID,
+			token:           validToken,
+			authenticateErr: svcerr.ErrAuthentication,
+			err:             svcerr.ErrAuthentication,
 		},
 		{
-			desc:        "view a config with invalid thing domain",
-			configID:    config.ThingID,
-			userID:      validID,
-			thingDomain: invalidDomainID,
-			domain:      domainID,
-			token:       validToken,
-			identifyErr: svcerr.ErrAuthentication,
-			err:         svcerr.ErrAuthentication,
+			desc:            "view a config with invalid thing domain",
+			configID:        config.ThingID,
+			userID:          validID,
+			thingDomain:     invalidDomainID,
+			domain:          domainID,
+			token:           validToken,
+			authenticateErr: svcerr.ErrAuthentication,
+			err:             svcerr.ErrAuthentication,
 		},
 		{
 			desc:         "view a config with failed authorization",
@@ -298,8 +301,8 @@ func TestView(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		authCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: tc.token}).Return(&magistrala.IdentityRes{Id: tc.userID, DomainId: tc.domain}, tc.identifyErr)
-		authCall1 := auth.On("Authorize", context.Background(), mock.Anything).Return(tc.authorizeRes, tc.authorizeErr)
+		authCall := authn.On("Authenticate", mock.Anything, &magistrala.AuthenticateReq{Token: tc.token}).Return(&magistrala.AuthenticateRes{Id: tc.userID, DomainId: tc.domain}, tc.authenticateErr)
+		authCall1 := authz.On("Authorize", context.Background(), mock.Anything).Return(tc.authorizeRes, tc.authorizeErr)
 		repoCall := boot.On("RetrieveByID", context.Background(), tc.thingDomain, tc.configID).Return(config, tc.retrieveErr)
 
 		_, err := svc.View(context.Background(), tc.token, tc.configID)
@@ -312,11 +315,12 @@ func TestView(t *testing.T) {
 
 func TestUpdate(t *testing.T) {
 	boot := new(mocks.ConfigRepository)
-	auth := new(authmocks.AuthClient)
+	authn := new(authnmocks.Authentication)
+	authz := new(authzmocks.Authorization)
 	policies := new(policymocks.Manager)
 	sdk := new(sdkmocks.SDK)
 	idp := uuid.NewMock()
-	svc := bootstrap.New(auth, policies, boot, sdk, encKey, idp)
+	svc := bootstrap.New(authn, authz, policies, boot, sdk, encKey, idp)
 
 	c := config
 	ch := channel
@@ -331,16 +335,16 @@ func TestUpdate(t *testing.T) {
 	nonExisting.ThingID = unknown
 
 	cases := []struct {
-		desc         string
-		config       bootstrap.Config
-		token        string
-		userID       string
-		domainID     string
-		authorizeRes *magistrala.AuthorizeRes
-		authorizeErr error
-		identifyErr  error
-		updateErr    error
-		err          error
+		desc            string
+		config          bootstrap.Config
+		token           string
+		userID          string
+		domainID        string
+		authorizeRes    *magistrala.AuthorizeRes
+		authorizeErr    error
+		authenticateErr error
+		updateErr       error
+		err             error
 	}{
 		{
 			desc:         "update a config with state Created",
@@ -362,11 +366,11 @@ func TestUpdate(t *testing.T) {
 			err:          svcerr.ErrNotFound,
 		},
 		{
-			desc:        "update a config with wrong credentials",
-			config:      c,
-			token:       invalidToken,
-			identifyErr: svcerr.ErrAuthentication,
-			err:         svcerr.ErrAuthentication,
+			desc:            "update a config with wrong credentials",
+			config:          c,
+			token:           invalidToken,
+			authenticateErr: svcerr.ErrAuthentication,
+			err:             svcerr.ErrAuthentication,
 		},
 		{
 			desc:         "update a config with failed authorization",
@@ -391,8 +395,8 @@ func TestUpdate(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		authCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: tc.token}).Return(&magistrala.IdentityRes{Id: tc.userID, DomainId: tc.domainID}, tc.identifyErr)
-		authCall1 := auth.On("Authorize", context.Background(), mock.Anything).Return(tc.authorizeRes, tc.authorizeErr)
+		authCall := authn.On("Authenticate", mock.Anything, &magistrala.AuthenticateReq{Token: tc.token}).Return(&magistrala.AuthenticateRes{Id: tc.userID, DomainId: tc.domainID}, tc.authenticateErr)
+		authCall1 := authz.On("Authorize", context.Background(), mock.Anything).Return(tc.authorizeRes, tc.authorizeErr)
 		repoCall := boot.On("Update", context.Background(), mock.Anything).Return(tc.updateErr)
 		err := svc.Update(context.Background(), tc.token, tc.config)
 		assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s: expected %s got %s\n", tc.desc, tc.err, err))
@@ -404,11 +408,12 @@ func TestUpdate(t *testing.T) {
 
 func TestUpdateCert(t *testing.T) {
 	boot := new(mocks.ConfigRepository)
-	auth := new(authmocks.AuthClient)
+	authn := new(authnmocks.Authentication)
+	authz := new(authzmocks.Authorization)
 	policies := new(policymocks.Manager)
 	sdk := new(sdkmocks.SDK)
 	idp := uuid.NewMock()
-	svc := bootstrap.New(auth, policies, boot, sdk, encKey, idp)
+	svc := bootstrap.New(authn, authz, policies, boot, sdk, encKey, idp)
 
 	c := config
 	ch := channel
@@ -416,20 +421,20 @@ func TestUpdateCert(t *testing.T) {
 	c.Channels = append(c.Channels, ch)
 
 	cases := []struct {
-		desc           string
-		token          string
-		userID         string
-		domainID       string
-		thingID        string
-		clientCert     string
-		clientKey      string
-		caCert         string
-		expectedConfig bootstrap.Config
-		authorizeRes   *magistrala.AuthorizeRes
-		authorizeErr   error
-		identifyErr    error
-		updateErr      error
-		err            error
+		desc            string
+		token           string
+		userID          string
+		domainID        string
+		thingID         string
+		clientCert      string
+		clientKey       string
+		caCert          string
+		expectedConfig  bootstrap.Config
+		authorizeRes    *magistrala.AuthorizeRes
+		authorizeErr    error
+		authenticateErr error
+		updateErr       error
+		err             error
 	}{
 		{
 			desc:         "update certs for the valid config",
@@ -472,15 +477,15 @@ func TestUpdateCert(t *testing.T) {
 			err:            svcerr.ErrNotFound,
 		},
 		{
-			desc:           "update config cert with wrong credentials",
-			thingID:        c.ThingID,
-			clientCert:     "newCert",
-			clientKey:      "newKey",
-			caCert:         "newCert",
-			token:          invalidToken,
-			expectedConfig: bootstrap.Config{},
-			identifyErr:    svcerr.ErrAuthentication,
-			err:            svcerr.ErrAuthentication,
+			desc:            "update config cert with wrong credentials",
+			thingID:         c.ThingID,
+			clientCert:      "newCert",
+			clientKey:       "newKey",
+			caCert:          "newCert",
+			token:           invalidToken,
+			expectedConfig:  bootstrap.Config{},
+			authenticateErr: svcerr.ErrAuthentication,
+			err:             svcerr.ErrAuthentication,
 		},
 		{
 			desc:           "update config cert with failed authorization",
@@ -499,8 +504,8 @@ func TestUpdateCert(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		authCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: tc.token}).Return(&magistrala.IdentityRes{Id: tc.userID, DomainId: tc.domainID}, tc.identifyErr)
-		authCall1 := auth.On("Authorize", context.Background(), mock.Anything).Return(tc.authorizeRes, tc.authorizeErr)
+		authCall := authn.On("Authenticate", mock.Anything, &magistrala.AuthenticateReq{Token: tc.token}).Return(&magistrala.AuthenticateRes{Id: tc.userID, DomainId: tc.domainID}, tc.authenticateErr)
+		authCall1 := authz.On("Authorize", context.Background(), mock.Anything).Return(tc.authorizeRes, tc.authorizeErr)
 		repoCall := boot.On("UpdateCert", context.Background(), mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(tc.expectedConfig, tc.updateErr)
 
 		cfg, err := svc.UpdateCert(context.Background(), tc.token, tc.thingID, tc.clientCert, tc.clientKey, tc.caCert)
@@ -520,11 +525,12 @@ func TestUpdateCert(t *testing.T) {
 
 func TestUpdateConnections(t *testing.T) {
 	boot := new(mocks.ConfigRepository)
-	auth := new(authmocks.AuthClient)
+	authn := new(authnmocks.Authentication)
+	authz := new(authzmocks.Authorization)
 	policies := new(policymocks.Manager)
 	sdk := new(sdkmocks.SDK)
 	idp := uuid.NewMock()
-	svc := bootstrap.New(auth, policies, boot, sdk, encKey, idp)
+	svc := bootstrap.New(authn, authz, policies, boot, sdk, encKey, idp)
 
 	c := config
 	c.State = bootstrap.Inactive
@@ -538,22 +544,22 @@ func TestUpdateConnections(t *testing.T) {
 	nonExisting.ThingID = unknown
 
 	cases := []struct {
-		desc         string
-		token        string
-		id           string
-		state        bootstrap.State
-		userID       string
-		domainID     string
-		connections  []string
-		authorizeRes *magistrala.AuthorizeRes
-		authorizeErr error
-		identifyErr  error
-		updateErr    error
-		thingErr     error
-		channelErr   error
-		retrieveErr  error
-		listErr      error
-		err          error
+		desc            string
+		token           string
+		id              string
+		state           bootstrap.State
+		userID          string
+		domainID        string
+		connections     []string
+		authorizeRes    *magistrala.AuthorizeRes
+		authorizeErr    error
+		authenticateErr error
+		updateErr       error
+		thingErr        error
+		channelErr      error
+		retrieveErr     error
+		listErr         error
+		err             error
 	}{
 		{
 			desc:         "update connections for config with state Inactive",
@@ -600,12 +606,12 @@ func TestUpdateConnections(t *testing.T) {
 			err:          svcerr.ErrNotFound,
 		},
 		{
-			desc:        "update connections a config with wrong credentials",
-			token:       invalidToken,
-			id:          c.ThingID,
-			connections: []string{ch.ID, "3"},
-			identifyErr: svcerr.ErrAuthentication,
-			err:         svcerr.ErrAuthentication,
+			desc:            "update connections a config with wrong credentials",
+			token:           invalidToken,
+			id:              c.ThingID,
+			connections:     []string{ch.ID, "3"},
+			authenticateErr: svcerr.ErrAuthentication,
+			err:             svcerr.ErrAuthentication,
 		},
 		{
 			desc:         "update connections a config with failed authorization",
@@ -621,8 +627,8 @@ func TestUpdateConnections(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		authCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: tc.token}).Return(&magistrala.IdentityRes{Id: tc.userID, DomainId: tc.domainID}, tc.identifyErr)
-		authCall1 := auth.On("Authorize", context.Background(), mock.Anything).Return(tc.authorizeRes, tc.authorizeErr)
+		authCall := authn.On("Authenticate", mock.Anything, &magistrala.AuthenticateReq{Token: tc.token}).Return(&magistrala.AuthenticateRes{Id: tc.userID, DomainId: tc.domainID}, tc.authenticateErr)
+		authCall1 := authz.On("Authorize", context.Background(), mock.Anything).Return(tc.authorizeRes, tc.authorizeErr)
 		sdkCall := sdk.On("Channel", mock.Anything, tc.token).Return(mgsdk.Channel{}, tc.channelErr)
 		repoCall := boot.On("RetrieveByID", context.Background(), tc.domainID, tc.id).Return(c, tc.retrieveErr)
 		repoCall1 := boot.On("ListExisting", context.Background(), mock.Anything, mock.Anything, mock.Anything).Return(c.Channels, tc.listErr)
@@ -640,11 +646,12 @@ func TestUpdateConnections(t *testing.T) {
 
 func TestList(t *testing.T) {
 	boot := new(mocks.ConfigRepository)
-	auth := new(authmocks.AuthClient)
+	authn := new(authnmocks.Authentication)
+	authz := new(authzmocks.Authorization)
 	policies := new(policymocks.Manager)
 	sdk := new(sdkmocks.SDK)
 	idp := uuid.NewMock()
-	svc := bootstrap.New(auth, policies, boot, sdk, encKey, idp)
+	svc := bootstrap.New(authn, authz, policies, boot, sdk, encKey, idp)
 
 	numThings := 101
 	var saved []bootstrap.Config
@@ -673,7 +680,7 @@ func TestList(t *testing.T) {
 		domainAdmiAuthErr   error
 		listObjectsResponse policysvc.PolicyPage
 		authorizeErr        error
-		identifyErr         error
+		authenticateErr     error
 		listObjectsErr      error
 		retrieveErr         error
 		err                 error
@@ -816,14 +823,14 @@ func TestList(t *testing.T) {
 			err:                 nil,
 		},
 		{
-			desc:        "list configs with invalid token",
-			config:      bootstrap.ConfigsPage{},
-			filter:      bootstrap.Filter{},
-			token:       invalidToken,
-			offset:      0,
-			limit:       10,
-			identifyErr: svcerr.ErrAuthentication,
-			err:         svcerr.ErrAuthentication,
+			desc:            "list configs with invalid token",
+			config:          bootstrap.ConfigsPage{},
+			filter:          bootstrap.Filter{},
+			token:           invalidToken,
+			offset:          0,
+			limit:           10,
+			authenticateErr: svcerr.ErrAuthentication,
+			err:             svcerr.ErrAuthentication,
 		},
 		{
 			desc: "List configs with empty domain",
@@ -969,15 +976,15 @@ func TestList(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		authCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: tc.token}).Return(&magistrala.IdentityRes{Id: tc.userID, DomainId: tc.domainID}, tc.identifyErr)
-		authCall1 := auth.On("Authorize", context.Background(), &magistrala.AuthorizeReq{
+		authCall := authn.On("Authenticate", mock.Anything, &magistrala.AuthenticateReq{Token: tc.token}).Return(&magistrala.AuthenticateRes{Id: tc.userID, DomainId: tc.domainID}, tc.authenticateErr)
+		authCall1 := authz.On("Authorize", context.Background(), &magistrala.AuthorizeReq{
 			SubjectType: policysvc.UserType,
 			Subject:     tc.userID,
 			Permission:  policysvc.AdminPermission,
 			ObjectType:  policysvc.PlatformType,
 			Object:      policysvc.MagistralaObject,
 		}).Return(tc.superAdminAuthRes, tc.superAdmiAuthErr)
-		authCall2 := auth.On("Authorize", context.Background(), &magistrala.AuthorizeReq{
+		authCall2 := authz.On("Authorize", context.Background(), &magistrala.AuthorizeReq{
 			SubjectType: policysvc.UserType,
 			SubjectKind: policysvc.UsersKind,
 			Subject:     tc.userID,
@@ -1007,32 +1014,33 @@ func TestList(t *testing.T) {
 
 func TestRemove(t *testing.T) {
 	boot := new(mocks.ConfigRepository)
-	auth := new(authmocks.AuthClient)
+	authn := new(authnmocks.Authentication)
+	authz := new(authzmocks.Authorization)
 	policies := new(policymocks.Manager)
 	sdk := new(sdkmocks.SDK)
 	idp := uuid.NewMock()
-	svc := bootstrap.New(auth, policies, boot, sdk, encKey, idp)
+	svc := bootstrap.New(authn, authz, policies, boot, sdk, encKey, idp)
 
 	c := config
 	cases := []struct {
-		desc         string
-		id           string
-		token        string
-		userID       string
-		domainID     string
-		authorizeRes *magistrala.AuthorizeRes
-		authorizeErr error
-		identifyErr  error
-		removeErr    error
-		err          error
+		desc            string
+		id              string
+		token           string
+		userID          string
+		domainID        string
+		authorizeRes    *magistrala.AuthorizeRes
+		authorizeErr    error
+		authenticateErr error
+		removeErr       error
+		err             error
 	}{
 		{
-			desc:        "remove a config with wrong credentials",
-			id:          c.ThingID,
-			token:       invalidToken,
-			domainID:    invalidDomainID,
-			identifyErr: svcerr.ErrAuthentication,
-			err:         svcerr.ErrAuthentication,
+			desc:            "remove a config with wrong credentials",
+			id:              c.ThingID,
+			token:           invalidToken,
+			domainID:        invalidDomainID,
+			authenticateErr: svcerr.ErrAuthentication,
+			err:             svcerr.ErrAuthentication,
 		},
 		{
 			desc:         "remove an existing config",
@@ -1083,8 +1091,8 @@ func TestRemove(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		authCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: tc.token}).Return(&magistrala.IdentityRes{Id: tc.userID, DomainId: tc.domainID}, tc.identifyErr)
-		authCall1 := auth.On("Authorize", context.Background(), mock.Anything).Return(tc.authorizeRes, tc.authorizeErr)
+		authCall := authn.On("Authenticate", mock.Anything, &magistrala.AuthenticateReq{Token: tc.token}).Return(&magistrala.AuthenticateRes{Id: tc.userID, DomainId: tc.domainID}, tc.authenticateErr)
+		authCall1 := authz.On("Authorize", context.Background(), mock.Anything).Return(tc.authorizeRes, tc.authorizeErr)
 		repoCall := boot.On("Remove", context.Background(), mock.Anything, mock.Anything).Return(tc.removeErr)
 		err := svc.Remove(context.Background(), tc.token, tc.id)
 		assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s: expected %s got %s\n", tc.desc, tc.err, err))
@@ -1096,11 +1104,12 @@ func TestRemove(t *testing.T) {
 
 func TestBootstrap(t *testing.T) {
 	boot := new(mocks.ConfigRepository)
-	auth := new(authmocks.AuthClient)
+	authn := new(authnmocks.Authentication)
+	authz := new(authzmocks.Authorization)
 	policies := new(policymocks.Manager)
 	sdk := new(sdkmocks.SDK)
 	idp := uuid.NewMock()
-	svc := bootstrap.New(auth, policies, boot, sdk, encKey, idp)
+	svc := bootstrap.New(authn, authz, policies, boot, sdk, encKey, idp)
 
 	c := config
 	e, err := enc([]byte(c.ExternalKey))
@@ -1169,35 +1178,36 @@ func TestBootstrap(t *testing.T) {
 
 func TestChangeState(t *testing.T) {
 	boot := new(mocks.ConfigRepository)
-	auth := new(authmocks.AuthClient)
+	authn := new(authnmocks.Authentication)
+	authz := new(authzmocks.Authorization)
 	policies := new(policymocks.Manager)
 	sdk := new(sdkmocks.SDK)
 	idp := uuid.NewMock()
-	svc := bootstrap.New(auth, policies, boot, sdk, encKey, idp)
+	svc := bootstrap.New(authn, authz, policies, boot, sdk, encKey, idp)
 
 	c := config
 	cases := []struct {
-		desc          string
-		state         bootstrap.State
-		id            string
-		token         string
-		userID        string
-		domainID      string
-		identifyErr   error
-		retrieveErr   error
-		connectErr    errors.SDKError
-		disconenctErr error
-		stateErr      error
-		err           error
+		desc            string
+		state           bootstrap.State
+		id              string
+		token           string
+		userID          string
+		domainID        string
+		authenticateErr error
+		retrieveErr     error
+		connectErr      errors.SDKError
+		disconenctErr   error
+		stateErr        error
+		err             error
 	}{
 		{
-			desc:        "change state with wrong credentials",
-			state:       bootstrap.Active,
-			id:          c.ThingID,
-			token:       invalidToken,
-			domainID:    invalidDomainID,
-			identifyErr: svcerr.ErrAuthentication,
-			err:         svcerr.ErrAuthentication,
+			desc:            "change state with wrong credentials",
+			state:           bootstrap.Active,
+			id:              c.ThingID,
+			token:           invalidToken,
+			domainID:        invalidDomainID,
+			authenticateErr: svcerr.ErrAuthentication,
+			err:             svcerr.ErrAuthentication,
 		},
 		{
 			desc:        "change state of non-existing config",
@@ -1259,7 +1269,7 @@ func TestChangeState(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		authCall := auth.On("Identify", mock.Anything, &magistrala.IdentityReq{Token: tc.token}).Return(&magistrala.IdentityRes{Id: tc.userID, DomainId: tc.domainID}, tc.identifyErr)
+		authCall := authn.On("Authenticate", mock.Anything, &magistrala.AuthenticateReq{Token: tc.token}).Return(&magistrala.AuthenticateRes{Id: tc.userID, DomainId: tc.domainID}, tc.authenticateErr)
 		repoCall := boot.On("RetrieveByID", context.Background(), tc.domainID, tc.id).Return(c, tc.retrieveErr)
 		sdkCall := sdk.On("Connect", mock.Anything, mock.Anything).Return(tc.connectErr)
 		repoCall1 := boot.On("ChangeState", context.Background(), mock.Anything, mock.Anything, mock.Anything).Return(tc.stateErr)
@@ -1275,11 +1285,12 @@ func TestChangeState(t *testing.T) {
 
 func TestUpdateChannelHandler(t *testing.T) {
 	boot := new(mocks.ConfigRepository)
-	auth := new(authmocks.AuthClient)
+	authn := new(authnmocks.Authentication)
+	authz := new(authzmocks.Authorization)
 	policies := new(policymocks.Manager)
 	sdk := new(sdkmocks.SDK)
 	idp := uuid.NewMock()
-	svc := bootstrap.New(auth, policies, boot, sdk, encKey, idp)
+	svc := bootstrap.New(authn, authz, policies, boot, sdk, encKey, idp)
 
 	ch := bootstrap.Channel{
 		ID:       channel.ID,
@@ -1314,11 +1325,12 @@ func TestUpdateChannelHandler(t *testing.T) {
 
 func TestRemoveChannelHandler(t *testing.T) {
 	boot := new(mocks.ConfigRepository)
-	auth := new(authmocks.AuthClient)
+	authn := new(authnmocks.Authentication)
+	authz := new(authzmocks.Authorization)
 	policies := new(policymocks.Manager)
 	sdk := new(sdkmocks.SDK)
 	idp := uuid.NewMock()
-	svc := bootstrap.New(auth, policies, boot, sdk, encKey, idp)
+	svc := bootstrap.New(authn, authz, policies, boot, sdk, encKey, idp)
 
 	cases := []struct {
 		desc string
@@ -1347,11 +1359,12 @@ func TestRemoveChannelHandler(t *testing.T) {
 
 func TestRemoveConfigHandler(t *testing.T) {
 	boot := new(mocks.ConfigRepository)
-	auth := new(authmocks.AuthClient)
+	authn := new(authnmocks.Authentication)
+	authz := new(authzmocks.Authorization)
 	policies := new(policymocks.Manager)
 	sdk := new(sdkmocks.SDK)
 	idp := uuid.NewMock()
-	svc := bootstrap.New(auth, policies, boot, sdk, encKey, idp)
+	svc := bootstrap.New(authn, authz, policies, boot, sdk, encKey, idp)
 
 	cases := []struct {
 		desc string
@@ -1380,11 +1393,12 @@ func TestRemoveConfigHandler(t *testing.T) {
 
 func TestConnectThingsHandler(t *testing.T) {
 	boot := new(mocks.ConfigRepository)
-	auth := new(authmocks.AuthClient)
+	authn := new(authnmocks.Authentication)
+	authz := new(authzmocks.Authorization)
 	policies := new(policymocks.Manager)
 	sdk := new(sdkmocks.SDK)
 	idp := uuid.NewMock()
-	svc := bootstrap.New(auth, policies, boot, sdk, encKey, idp)
+	svc := bootstrap.New(authn, authz, policies, boot, sdk, encKey, idp)
 
 	cases := []struct {
 		desc      string
@@ -1416,11 +1430,12 @@ func TestConnectThingsHandler(t *testing.T) {
 
 func TestDisconnectThingsHandler(t *testing.T) {
 	boot := new(mocks.ConfigRepository)
-	auth := new(authmocks.AuthClient)
+	authn := new(authnmocks.Authentication)
+	authz := new(authzmocks.Authorization)
 	policies := new(policymocks.Manager)
 	sdk := new(sdkmocks.SDK)
 	idp := uuid.NewMock()
-	svc := bootstrap.New(auth, policies, boot, sdk, encKey, idp)
+	svc := bootstrap.New(authn, authz, policies, boot, sdk, encKey, idp)
 
 	cases := []struct {
 		desc      string

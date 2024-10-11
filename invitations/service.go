@@ -9,7 +9,8 @@ import (
 
 	"github.com/absmach/magistrala"
 	"github.com/absmach/magistrala/auth"
-	authclient "github.com/absmach/magistrala/pkg/auth"
+	mgauthn "github.com/absmach/magistrala/pkg/authn"
+	mgauthz "github.com/absmach/magistrala/pkg/authz"
 	"github.com/absmach/magistrala/pkg/errors"
 	svcerr "github.com/absmach/magistrala/pkg/errors/service"
 	"github.com/absmach/magistrala/pkg/policies"
@@ -17,19 +18,23 @@ import (
 )
 
 type service struct {
-	repo Repository
-	auth authclient.AuthClient
-	sdk  mgsdk.SDK
+	authn mgauthn.Authentication
+	authz mgauthz.Authorization
+	token magistrala.TokenServiceClient
+	repo  Repository
+	sdk   mgsdk.SDK
 }
 
 // ErrMemberExist indicates that the user is already a member of the domain.
 var ErrMemberExist = errors.New("user is already a member of the domain")
 
-func NewService(repo Repository, authClient authclient.AuthClient, sdk mgsdk.SDK) Service {
+func NewService(authn mgauthn.Authentication, authz mgauthz.Authorization, token magistrala.TokenServiceClient, repo Repository, sdk mgsdk.SDK) Service {
 	return &service{
-		repo: repo,
-		auth: authClient,
-		sdk:  sdk,
+		authn: authn,
+		authz: authz,
+		token: token,
+		repo:  repo,
+		sdk:   sdk,
 	}
 }
 
@@ -38,11 +43,11 @@ func (svc *service) SendInvitation(ctx context.Context, token string, invitation
 		return err
 	}
 
-	user, err := svc.identify(ctx, token)
+	session, err := svc.authn.Authenticate(ctx, token)
 	if err != nil {
 		return err
 	}
-	invitation.InvitedBy = user.GetUserId()
+	invitation.InvitedBy = session.UserID
 
 	domainUserId := auth.EncodeDomainUserID(invitation.DomainID, invitation.UserID)
 	if err := svc.authorize(ctx, domainUserId, policies.MembershipPermission, policies.DomainType, invitation.DomainID); err == nil {
@@ -50,11 +55,11 @@ func (svc *service) SendInvitation(ctx context.Context, token string, invitation
 		return errors.Wrap(svcerr.ErrConflict, ErrMemberExist)
 	}
 
-	if err := svc.checkAdmin(ctx, user.GetId(), invitation.DomainID); err != nil {
+	if err := svc.checkAdmin(ctx, session.DomainUserID, invitation.DomainID); err != nil {
 		return err
 	}
 
-	joinToken, err := svc.auth.Issue(ctx, &magistrala.IssueReq{UserId: user.GetUserId(), DomainId: &invitation.DomainID, Type: uint32(auth.InvitationKey)})
+	joinToken, err := svc.token.Issue(ctx, &magistrala.IssueReq{UserId: session.UserID, DomainId: &invitation.DomainID, Type: uint32(auth.InvitationKey)})
 	if err != nil {
 		return err
 	}
@@ -72,7 +77,7 @@ func (svc *service) SendInvitation(ctx context.Context, token string, invitation
 }
 
 func (svc *service) ViewInvitation(ctx context.Context, token, userID, domainID string) (invitation Invitation, err error) {
-	user, err := svc.identify(ctx, token)
+	session, err := svc.authn.Authenticate(ctx, token)
 	if err != nil {
 		return Invitation{}, err
 	}
@@ -82,15 +87,15 @@ func (svc *service) ViewInvitation(ctx context.Context, token, userID, domainID 
 	}
 	inv.Token = ""
 
-	if user.GetUserId() == userID {
+	if session.UserID == userID {
 		return inv, nil
 	}
 
-	if inv.InvitedBy == user.GetUserId() {
+	if inv.InvitedBy == session.UserID {
 		return inv, nil
 	}
 
-	if err := svc.checkAdmin(ctx, user.GetId(), domainID); err != nil {
+	if err := svc.checkAdmin(ctx, session.DomainUserID, domainID); err != nil {
 		return Invitation{}, err
 	}
 
@@ -98,40 +103,40 @@ func (svc *service) ViewInvitation(ctx context.Context, token, userID, domainID 
 }
 
 func (svc *service) ListInvitations(ctx context.Context, token string, page Page) (invitations InvitationPage, err error) {
-	user, err := svc.identify(ctx, token)
+	session, err := svc.authn.Authenticate(ctx, token)
 	if err != nil {
 		return InvitationPage{}, err
 	}
 
-	if err := svc.authorize(ctx, user.GetId(), policies.AdminPermission, policies.PlatformType, policies.MagistralaObject); err == nil {
+	if err := svc.authorize(ctx, session.DomainUserID, policies.AdminPermission, policies.PlatformType, policies.MagistralaObject); err == nil {
 		return svc.repo.RetrieveAll(ctx, page)
 	}
 
 	if page.DomainID != "" {
-		if err := svc.checkAdmin(ctx, user.GetId(), page.DomainID); err != nil {
+		if err := svc.checkAdmin(ctx, session.DomainUserID, page.DomainID); err != nil {
 			return InvitationPage{}, err
 		}
 
 		return svc.repo.RetrieveAll(ctx, page)
 	}
 
-	page.InvitedByOrUserID = user.GetUserId()
+	page.InvitedByOrUserID = session.UserID
 
 	return svc.repo.RetrieveAll(ctx, page)
 }
 
 func (svc *service) AcceptInvitation(ctx context.Context, token, domainID string) error {
-	user, err := svc.identify(ctx, token)
+	session, err := svc.authn.Authenticate(ctx, token)
 	if err != nil {
 		return err
 	}
 
-	inv, err := svc.repo.Retrieve(ctx, user.GetUserId(), domainID)
+	inv, err := svc.repo.Retrieve(ctx, session.UserID, domainID)
 	if err != nil {
 		return err
 	}
 
-	if inv.UserID != user.GetUserId() {
+	if inv.UserID != session.UserID {
 		return svcerr.ErrAuthorization
 	}
 
@@ -145,7 +150,7 @@ func (svc *service) AcceptInvitation(ctx context.Context, token, domainID string
 
 	req := mgsdk.UsersRelationRequest{
 		Relation: inv.Relation,
-		UserIDs:  []string{user.GetUserId()},
+		UserIDs:  []string{session.UserID},
 	}
 	if sdkerr := svc.sdk.AddUserToDomain(inv.DomainID, req, inv.Token); sdkerr != nil {
 		return sdkerr
@@ -157,17 +162,17 @@ func (svc *service) AcceptInvitation(ctx context.Context, token, domainID string
 }
 
 func (svc *service) RejectInvitation(ctx context.Context, token, domainID string) error {
-	user, err := svc.identify(ctx, token)
+	session, err := svc.authn.Authenticate(ctx, token)
 	if err != nil {
 		return err
 	}
 
-	inv, err := svc.repo.Retrieve(ctx, user.GetUserId(), domainID)
+	inv, err := svc.repo.Retrieve(ctx, session.UserID, domainID)
 	if err != nil {
 		return err
 	}
 
-	if inv.UserID != user.GetUserId() {
+	if inv.UserID != session.UserID {
 		return svcerr.ErrAuthorization
 	}
 
@@ -185,11 +190,11 @@ func (svc *service) RejectInvitation(ctx context.Context, token, domainID string
 }
 
 func (svc *service) DeleteInvitation(ctx context.Context, token, userID, domainID string) error {
-	user, err := svc.identify(ctx, token)
+	session, err := svc.authn.Authenticate(ctx, token)
 	if err != nil {
 		return err
 	}
-	if user.GetUserId() == userID {
+	if session.UserID == userID {
 		return svc.repo.Delete(ctx, userID, domainID)
 	}
 
@@ -198,28 +203,19 @@ func (svc *service) DeleteInvitation(ctx context.Context, token, userID, domainI
 		return err
 	}
 
-	if inv.InvitedBy == user.GetUserId() {
+	if inv.InvitedBy == session.UserID {
 		return svc.repo.Delete(ctx, userID, domainID)
 	}
 
-	if err := svc.checkAdmin(ctx, user.GetId(), domainID); err != nil {
+	if err := svc.checkAdmin(ctx, session.DomainUserID, domainID); err != nil {
 		return err
 	}
 
 	return svc.repo.Delete(ctx, userID, domainID)
 }
 
-func (svc *service) identify(ctx context.Context, token string) (*magistrala.IdentityRes, error) {
-	user, err := svc.auth.Identify(ctx, &magistrala.IdentityReq{Token: token})
-	if err != nil {
-		return &magistrala.IdentityRes{}, err
-	}
-
-	return user, nil
-}
-
 func (svc *service) authorize(ctx context.Context, subj, perm, objType, obj string) error {
-	req := &magistrala.AuthorizeReq{
+	req := mgauthz.PolicyReq{
 		SubjectType: policies.UserType,
 		SubjectKind: policies.UsersKind,
 		Subject:     subj,
@@ -227,13 +223,8 @@ func (svc *service) authorize(ctx context.Context, subj, perm, objType, obj stri
 		ObjectType:  objType,
 		Object:      obj,
 	}
-	res, err := svc.auth.Authorize(ctx, req)
-	if err != nil {
-		return errors.Wrap(svcerr.ErrAuthorization, err)
-	}
-
-	if !res.GetAuthorized() {
-		return errors.Wrap(svcerr.ErrAuthorization, err)
+	if err := svc.authz.Authorize(ctx, req); err != nil {
+		return err
 	}
 
 	return nil

@@ -20,7 +20,11 @@ import (
 	certspg "github.com/absmach/magistrala/certs/postgres"
 	"github.com/absmach/magistrala/certs/tracing"
 	mglog "github.com/absmach/magistrala/logger"
-	"github.com/absmach/magistrala/pkg/authclient"
+	mgauthn "github.com/absmach/magistrala/pkg/authn"
+	authsvcAuthn "github.com/absmach/magistrala/pkg/authn/authsvc"
+	mgauthz "github.com/absmach/magistrala/pkg/authz"
+	authsvcAuthz "github.com/absmach/magistrala/pkg/authz/authsvc"
+	"github.com/absmach/magistrala/pkg/grpcclient"
 	jaegerclient "github.com/absmach/magistrala/pkg/jaeger"
 	"github.com/absmach/magistrala/pkg/postgres"
 	pgclient "github.com/absmach/magistrala/pkg/postgres"
@@ -119,22 +123,27 @@ func main() {
 	}
 	defer db.Close()
 
-	authClientCfg := authclient.Config{}
-	if err := env.ParseWithOptions(&authClientCfg, env.Options{Prefix: envPrefixAuth}); err != nil {
-		logger.Error(fmt.Sprintf("failed to load %s auth configuration : %s", svcName, err))
+	grpcCfg := grpcclient.Config{}
+	if err := env.ParseWithOptions(cfg, env.Options{Prefix: envPrefixAuth}); err != nil {
+		logger.Error(err.Error())
 		exitCode = 1
 		return
 	}
-
-	authClient, authHandler, err := authclient.SetupAuthClient(ctx, authClientCfg)
+	authn, authnClient, err := authsvcAuthn.NewAuthentication(ctx, grpcCfg)
 	if err != nil {
 		logger.Error(err.Error())
 		exitCode = 1
 		return
 	}
-	defer authHandler.Close()
+	defer authnClient.Close()
 
-	logger.Info("AuthService gRPC client successfully connected to auth gRPC server " + authHandler.Secure())
+	authz, authzClient, err := authsvcAuthz.NewAuthorization(ctx, grpcCfg)
+	if err != nil {
+		logger.Error(err.Error())
+		exitCode = 1
+		return
+	}
+	defer authzClient.Close()
 
 	tp, err := jaegerclient.NewProvider(ctx, svcName, cfg.JaegerURL, cfg.InstanceID, cfg.TraceRatio)
 	if err != nil {
@@ -149,7 +158,7 @@ func main() {
 	}()
 	tracer := tp.Tracer(svcName)
 
-	svc := newService(authClient, db, tracer, logger, cfg, dbConfig, pkiclient)
+	svc := newService(authn, authz, db, tracer, logger, cfg, dbConfig, pkiclient)
 
 	httpServerConfig := server.Config{Port: defSvcHTTPPort}
 	if err := env.ParseWithOptions(&httpServerConfig, env.Options{Prefix: envPrefixHTTP}); err != nil {
@@ -177,14 +186,14 @@ func main() {
 	}
 }
 
-func newService(authClient magistrala.AuthServiceClient, db *sqlx.DB, tracer trace.Tracer, logger *slog.Logger, cfg config, dbConfig pgclient.Config, pkiAgent vault.Agent) certs.Service {
+func newService(authn mgauthn.Authentication, authz mgauthz.Authorization, db *sqlx.DB, tracer trace.Tracer, logger *slog.Logger, cfg config, dbConfig pgclient.Config, pkiAgent vault.Agent) certs.Service {
 	database := postgres.NewDatabase(db, dbConfig, tracer)
 	certsRepo := certspg.NewRepository(database, logger)
 	config := mgsdk.Config{
 		ThingsURL: cfg.ThingsURL,
 	}
 	sdk := mgsdk.NewSDK(config)
-	svc := certs.New(authClient, certsRepo, sdk, pkiAgent)
+	svc := certs.New(authn, authz, certsRepo, sdk, pkiAgent)
 	svc = api.LoggingMiddleware(svc, logger)
 	counter, latency := prometheus.MakeMetrics(svcName, "api")
 	svc = api.MetricsMiddleware(svc, counter, latency)

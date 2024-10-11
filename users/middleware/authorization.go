@@ -8,9 +8,10 @@ import (
 
 	"github.com/absmach/magistrala"
 	mgauth "github.com/absmach/magistrala/auth"
-	"github.com/absmach/magistrala/pkg/auth"
+	"github.com/absmach/magistrala/pkg/authn"
+	"github.com/absmach/magistrala/pkg/authz"
+	mgauthz "github.com/absmach/magistrala/pkg/authz"
 	"github.com/absmach/magistrala/pkg/clients"
-	"github.com/absmach/magistrala/pkg/errors"
 	svcerr "github.com/absmach/magistrala/pkg/errors/service"
 	"github.com/absmach/magistrala/pkg/policies"
 	"github.com/absmach/magistrala/users"
@@ -19,19 +20,21 @@ import (
 var _ users.Service = (*authorizationMiddleware)(nil)
 
 type authorizationMiddleware struct {
-	svc        users.Service
-	authClient auth.AuthClient
+	svc          users.Service
+	authz        mgauthz.Authorization
+	selfRegister bool
 }
 
 // AuthorizationMiddleware adds authorization to the clients service.
-func AuthorizationMiddleware(svc users.Service, authClient auth.AuthClient) users.Service {
+func AuthorizationMiddleware(svc users.Service, authz mgauthz.Authorization, selfRegister bool) users.Service {
 	return &authorizationMiddleware{
-		svc:        svc,
-		authClient: authClient,
+		svc:          svc,
+		authz:        authz,
+		selfRegister: selfRegister,
 	}
 }
 
-func (am *authorizationMiddleware) RegisterClient(ctx context.Context, session auth.Session, client clients.Client, selfRegister bool) (clients.Client, error) {
+func (am *authorizationMiddleware) RegisterClient(ctx context.Context, session authn.Session, client clients.Client, selfRegister bool) (clients.Client, error) {
 	if selfRegister {
 		if err := am.checkSuperAdmin(ctx, session.UserID); err == nil {
 			session.SuperAdmin = true
@@ -41,7 +44,7 @@ func (am *authorizationMiddleware) RegisterClient(ctx context.Context, session a
 	return am.svc.RegisterClient(ctx, session, client, selfRegister)
 }
 
-func (am *authorizationMiddleware) ViewClient(ctx context.Context, session auth.Session, id string) (clients.Client, error) {
+func (am *authorizationMiddleware) ViewClient(ctx context.Context, session authn.Session, id string) (clients.Client, error) {
 	if err := am.checkSuperAdmin(ctx, session.UserID); err == nil {
 		session.SuperAdmin = true
 	}
@@ -49,11 +52,11 @@ func (am *authorizationMiddleware) ViewClient(ctx context.Context, session auth.
 	return am.svc.ViewClient(ctx, session, id)
 }
 
-func (am *authorizationMiddleware) ViewProfile(ctx context.Context, session auth.Session) (clients.Client, error) {
+func (am *authorizationMiddleware) ViewProfile(ctx context.Context, session authn.Session) (clients.Client, error) {
 	return am.svc.ViewProfile(ctx, session)
 }
 
-func (am *authorizationMiddleware) ListClients(ctx context.Context, session auth.Session, pm clients.Page) (clients.ClientsPage, error) {
+func (am *authorizationMiddleware) ListClients(ctx context.Context, session authn.Session, pm clients.Page) (clients.ClientsPage, error) {
 	if err := am.checkSuperAdmin(ctx, session.UserID); err == nil {
 		session.SuperAdmin = true
 	}
@@ -61,7 +64,7 @@ func (am *authorizationMiddleware) ListClients(ctx context.Context, session auth
 	return am.svc.ListClients(ctx, session, pm)
 }
 
-func (am *authorizationMiddleware) ListMembers(ctx context.Context, session auth.Session, objectKind, objectID string, pm clients.Page) (clients.MembersPage, error) {
+func (am *authorizationMiddleware) ListMembers(ctx context.Context, session authn.Session, objectKind, objectID string, pm clients.Page) (clients.MembersPage, error) {
 	if session.DomainUserID == "" {
 		return clients.MembersPage{}, svcerr.ErrDomainAuthorization
 	}
@@ -89,7 +92,7 @@ func (am *authorizationMiddleware) SearchUsers(ctx context.Context, pm clients.P
 	return am.svc.SearchUsers(ctx, pm)
 }
 
-func (am *authorizationMiddleware) UpdateClient(ctx context.Context, session auth.Session, client clients.Client) (clients.Client, error) {
+func (am *authorizationMiddleware) UpdateClient(ctx context.Context, session authn.Session, client clients.Client) (clients.Client, error) {
 	if err := am.checkSuperAdmin(ctx, session.UserID); err == nil {
 		session.SuperAdmin = true
 	}
@@ -97,7 +100,7 @@ func (am *authorizationMiddleware) UpdateClient(ctx context.Context, session aut
 	return am.svc.UpdateClient(ctx, session, client)
 }
 
-func (am *authorizationMiddleware) UpdateClientTags(ctx context.Context, session auth.Session, client clients.Client) (clients.Client, error) {
+func (am *authorizationMiddleware) UpdateClientTags(ctx context.Context, session authn.Session, client clients.Client) (clients.Client, error) {
 	if err := am.checkSuperAdmin(ctx, session.UserID); err == nil {
 		session.SuperAdmin = true
 	}
@@ -105,7 +108,7 @@ func (am *authorizationMiddleware) UpdateClientTags(ctx context.Context, session
 	return am.svc.UpdateClientTags(ctx, session, client)
 }
 
-func (am *authorizationMiddleware) UpdateClientIdentity(ctx context.Context, session auth.Session, id, identity string) (clients.Client, error) {
+func (am *authorizationMiddleware) UpdateClientIdentity(ctx context.Context, session authn.Session, id, identity string) (clients.Client, error) {
 	if err := am.checkSuperAdmin(ctx, session.UserID); err == nil {
 		session.SuperAdmin = true
 	}
@@ -117,11 +120,11 @@ func (am *authorizationMiddleware) GenerateResetToken(ctx context.Context, email
 	return am.svc.GenerateResetToken(ctx, email, host)
 }
 
-func (am *authorizationMiddleware) UpdateClientSecret(ctx context.Context, session auth.Session, oldSecret, newSecret string) (clients.Client, error) {
+func (am *authorizationMiddleware) UpdateClientSecret(ctx context.Context, session authn.Session, oldSecret, newSecret string) (clients.Client, error) {
 	return am.svc.UpdateClientSecret(ctx, session, oldSecret, newSecret)
 }
 
-func (am *authorizationMiddleware) ResetSecret(ctx context.Context, session auth.Session, secret string) error {
+func (am *authorizationMiddleware) ResetSecret(ctx context.Context, session authn.Session, secret string) error {
 	return am.svc.ResetSecret(ctx, session, secret)
 }
 
@@ -129,7 +132,7 @@ func (am *authorizationMiddleware) SendPasswordReset(ctx context.Context, host, 
 	return am.svc.SendPasswordReset(ctx, host, email, user, token)
 }
 
-func (am *authorizationMiddleware) UpdateClientRole(ctx context.Context, session auth.Session, client clients.Client) (clients.Client, error) {
+func (am *authorizationMiddleware) UpdateClientRole(ctx context.Context, session authn.Session, client clients.Client) (clients.Client, error) {
 	if err := am.checkSuperAdmin(ctx, session.UserID); err == nil {
 		session.SuperAdmin = true
 	}
@@ -140,7 +143,7 @@ func (am *authorizationMiddleware) UpdateClientRole(ctx context.Context, session
 	return am.svc.UpdateClientRole(ctx, session, client)
 }
 
-func (am *authorizationMiddleware) EnableClient(ctx context.Context, session auth.Session, id string) (clients.Client, error) {
+func (am *authorizationMiddleware) EnableClient(ctx context.Context, session authn.Session, id string) (clients.Client, error) {
 	if err := am.checkSuperAdmin(ctx, session.UserID); err == nil {
 		session.SuperAdmin = true
 	}
@@ -148,7 +151,7 @@ func (am *authorizationMiddleware) EnableClient(ctx context.Context, session aut
 	return am.svc.EnableClient(ctx, session, id)
 }
 
-func (am *authorizationMiddleware) DisableClient(ctx context.Context, session auth.Session, id string) (clients.Client, error) {
+func (am *authorizationMiddleware) DisableClient(ctx context.Context, session authn.Session, id string) (clients.Client, error) {
 	if err := am.checkSuperAdmin(ctx, session.UserID); err == nil {
 		session.SuperAdmin = true
 	}
@@ -156,7 +159,7 @@ func (am *authorizationMiddleware) DisableClient(ctx context.Context, session au
 	return am.svc.DisableClient(ctx, session, id)
 }
 
-func (am *authorizationMiddleware) DeleteClient(ctx context.Context, session auth.Session, id string) error {
+func (am *authorizationMiddleware) DeleteClient(ctx context.Context, session authn.Session, id string) error {
 	if err := am.checkSuperAdmin(ctx, session.UserID); err == nil {
 		session.SuperAdmin = true
 	}
@@ -164,7 +167,7 @@ func (am *authorizationMiddleware) DeleteClient(ctx context.Context, session aut
 	return am.svc.DeleteClient(ctx, session, id)
 }
 
-func (am *authorizationMiddleware) Identify(ctx context.Context, session auth.Session) (string, error) {
+func (am *authorizationMiddleware) Identify(ctx context.Context, session authn.Session) (string, error) {
 	return am.svc.Identify(ctx, session)
 }
 
@@ -172,7 +175,7 @@ func (am *authorizationMiddleware) IssueToken(ctx context.Context, identity, sec
 	return am.svc.IssueToken(ctx, identity, secret, domainID)
 }
 
-func (am *authorizationMiddleware) RefreshToken(ctx context.Context, session auth.Session, refreshToken, domainID string) (*magistrala.Token, error) {
+func (am *authorizationMiddleware) RefreshToken(ctx context.Context, session authn.Session, refreshToken, domainID string) (*magistrala.Token, error) {
 	return am.svc.RefreshToken(ctx, session, refreshToken, domainID)
 }
 
@@ -188,7 +191,7 @@ func (am *authorizationMiddleware) OAuthAddClientPolicy(ctx context.Context, cli
 }
 
 func (am *authorizationMiddleware) checkSuperAdmin(ctx context.Context, adminID string) error {
-	if _, err := am.authClient.Authorize(ctx, &magistrala.AuthorizeReq{
+	if err := am.authz.Authorize(ctx, authz.PolicyReq{
 		SubjectType: policies.UserType,
 		Subject:     adminID,
 		Permission:  policies.AdminPermission,
@@ -201,7 +204,7 @@ func (am *authorizationMiddleware) checkSuperAdmin(ctx context.Context, adminID 
 }
 
 func (am *authorizationMiddleware) authorize(ctx context.Context, domain, subjType, subjKind, subj, perm, objType, obj string) error {
-	req := &magistrala.AuthorizeReq{
+	req := authz.PolicyReq{
 		Domain:      domain,
 		SubjectType: subjType,
 		SubjectKind: subjKind,
@@ -210,12 +213,8 @@ func (am *authorizationMiddleware) authorize(ctx context.Context, domain, subjTy
 		ObjectType:  objType,
 		Object:      obj,
 	}
-	res, err := am.authClient.Authorize(ctx, req)
-	if err != nil {
-		return errors.Wrap(svcerr.ErrAuthorization, err)
-	}
-	if !res.GetAuthorized() {
-		return errors.Wrap(svcerr.ErrAuthorization, err)
+	if err := am.authz.Authorize(ctx, req); err != nil {
+		return err
 	}
 	return nil
 }

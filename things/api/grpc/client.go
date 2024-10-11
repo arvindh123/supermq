@@ -18,9 +18,9 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-const svcName = "magistrala.AuthzService"
+const svcName = "magistrala.ThingsService"
 
-var _ magistrala.AuthzServiceClient = (*grpcClient)(nil)
+var _ magistrala.ThingsServiceClient = (*grpcClient)(nil)
 
 type grpcClient struct {
 	timeout   time.Duration
@@ -28,7 +28,7 @@ type grpcClient struct {
 }
 
 // NewClient returns new gRPC client instance.
-func NewClient(conn *grpc.ClientConn, timeout time.Duration) magistrala.AuthzServiceClient {
+func NewClient(conn *grpc.ClientConn, timeout time.Duration) magistrala.ThingsServiceClient {
 	return &grpcClient{
 		authorize: kitgrpc.NewClient(
 			conn,
@@ -43,35 +43,31 @@ func NewClient(conn *grpc.ClientConn, timeout time.Duration) magistrala.AuthzSer
 	}
 }
 
-func (client grpcClient) Authorize(ctx context.Context, req *magistrala.AuthorizeReq, _ ...grpc.CallOption) (r *magistrala.AuthorizeRes, err error) {
+func (client grpcClient) Authorize(ctx context.Context, req *magistrala.ThingsAuthzReq, _ ...grpc.CallOption) (r *magistrala.ThingsAuthzRes, err error) {
 	ctx, cancel := context.WithTimeout(ctx, client.timeout)
 	defer cancel()
 
 	res, err := client.authorize(ctx, req)
 	if err != nil {
-		return &magistrala.AuthorizeRes{}, decodeError(err)
+		return &magistrala.ThingsAuthzRes{}, decodeError(err)
 	}
 
 	ar := res.(authorizeRes)
-	return &magistrala.AuthorizeRes{Authorized: ar.authorized, Id: ar.id}, nil
+	return &magistrala.ThingsAuthzRes{Authorized: ar.authorized, Id: ar.id}, nil
 }
 
 func decodeAuthorizeResponse(_ context.Context, grpcRes interface{}) (interface{}, error) {
-	res := grpcRes.(*magistrala.AuthorizeRes)
+	res := grpcRes.(*magistrala.ThingsAuthzRes)
 	return authorizeRes{authorized: res.Authorized, id: res.Id}, nil
 }
 
 func encodeAuthorizeRequest(_ context.Context, grpcReq interface{}) (interface{}, error) {
-	req := grpcReq.(*magistrala.AuthorizeReq)
-	return &magistrala.AuthorizeReq{
-		Domain:      req.GetDomain(),
-		SubjectType: req.GetSubjectType(),
-		Subject:     req.GetSubject(),
-		SubjectKind: req.GetSubjectKind(),
-		Relation:    req.GetRelation(),
-		Permission:  req.GetPermission(),
-		ObjectType:  req.GetObjectType(),
-		Object:      req.GetObject(),
+	req := grpcReq.(*magistrala.ThingsAuthzReq)
+	return authorizeReq{
+		ChannelID:  req.GetChannelID(),
+		ThingID:    req.GetThingID(),
+		ThingKey:   req.GetThingKey(),
+		Permission: req.GetPermission(),
 	}, nil
 }
 

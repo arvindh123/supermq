@@ -19,8 +19,11 @@ import (
 	"github.com/absmach/magistrala/invitations/middleware"
 	invitationspg "github.com/absmach/magistrala/invitations/postgres"
 	mglog "github.com/absmach/magistrala/logger"
-	"github.com/absmach/magistrala/pkg/auth"
-	"github.com/absmach/magistrala/pkg/authclient"
+	mgauthn "github.com/absmach/magistrala/pkg/authn"
+	authsvcAuthn "github.com/absmach/magistrala/pkg/authn/authsvc"
+	mgauthz "github.com/absmach/magistrala/pkg/authz"
+	authsvcAuthz "github.com/absmach/magistrala/pkg/authz/authsvc"
+	"github.com/absmach/magistrala/pkg/grpcclient"
 	"github.com/absmach/magistrala/pkg/jaeger"
 	"github.com/absmach/magistrala/pkg/postgres"
 	clientspg "github.com/absmach/magistrala/pkg/postgres"
@@ -93,20 +96,38 @@ func main() {
 	}
 	defer db.Close()
 
-	authClientCfg := authclient.Config{}
+	authClientCfg := grpcclient.Config{}
 	if err := env.ParseWithOptions(&authClientCfg, env.Options{Prefix: envPrefixAuth}); err != nil {
 		logger.Error(fmt.Sprintf("failed to load auth configuration : %s", err.Error()))
 		exitCode = 1
 		return
 	}
-	authClient, authHandler, err := authclient.SetupAuthClient(ctx, authClientCfg)
+	tokenClient, tokenHandler, err := grpcclient.SetupTokenClient(ctx, authClientCfg)
 	if err != nil {
 		logger.Error(err.Error())
 		exitCode = 1
 		return
 	}
-	defer authHandler.Close()
-	logger.Info("AuthService gRPC client successfully connected to auth gRPC server " + authHandler.Secure())
+	defer tokenHandler.Close()
+	logger.Info("Token service client successfully connected to auth gRPC server " + tokenHandler.Secure())
+
+	authn, authnHandler, err := authsvcAuthn.NewAuthentication(ctx, authClientCfg)
+	if err != nil {
+		logger.Error(err.Error())
+		exitCode = 1
+		return
+	}
+	defer authnHandler.Close()
+	logger.Info("Authn successfully connected to auth gRPC server " + authnHandler.Secure())
+
+	authz, authzHandler, err := authsvcAuthz.NewAuthorization(ctx, authClientCfg)
+	if err != nil {
+		logger.Error(err.Error())
+		exitCode = 1
+		return
+	}
+	defer authzHandler.Close()
+	logger.Info("Authz successfully connected to auth gRPC server " + authzHandler.Secure())
 
 	tp, err := jaeger.NewProvider(ctx, svcName, cfg.JaegerURL, cfg.InstanceID, cfg.TraceRatio)
 	if err != nil {
@@ -121,7 +142,7 @@ func main() {
 	}()
 	tracer := tp.Tracer(svcName)
 
-	svc, err := newService(db, dbConfig, authClient, tracer, cfg, logger)
+	svc, err := newService(db, dbConfig, authn, authz, tokenClient, tracer, cfg, logger)
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to create %s service: %s", svcName, err))
 		exitCode = 1
@@ -155,7 +176,7 @@ func main() {
 	}
 }
 
-func newService(db *sqlx.DB, dbConfig clientspg.Config, authClient auth.AuthClient, tracer trace.Tracer, conf config, logger *slog.Logger) (invitations.Service, error) {
+func newService(db *sqlx.DB, dbConfig clientspg.Config, authn mgauthn.Authentication, authz mgauthz.Authorization, token magistrala.TokenServiceClient, tracer trace.Tracer, conf config, logger *slog.Logger) (invitations.Service, error) {
 	database := postgres.NewDatabase(db, dbConfig, tracer)
 	repo := invitationspg.NewRepository(database)
 
@@ -165,7 +186,7 @@ func newService(db *sqlx.DB, dbConfig clientspg.Config, authClient auth.AuthClie
 	}
 	sdk := mgsdk.NewSDK(config)
 
-	svc := invitations.NewService(repo, authClient, sdk)
+	svc := invitations.NewService(authn, authz, token, repo, sdk)
 	svc = middleware.Tracing(svc, tracer)
 	svc = middleware.Logging(logger, svc)
 	counter, latency := prometheus.MakeMetrics(svcName, "api")

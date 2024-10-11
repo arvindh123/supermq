@@ -8,7 +8,7 @@ import (
 
 	"github.com/absmach/magistrala/internal/api"
 	"github.com/absmach/magistrala/pkg/apiutil"
-	"github.com/absmach/magistrala/pkg/auth"
+	"github.com/absmach/magistrala/pkg/authn"
 	mgclients "github.com/absmach/magistrala/pkg/clients"
 	"github.com/absmach/magistrala/pkg/errors"
 	svcerr "github.com/absmach/magistrala/pkg/errors/service"
@@ -25,7 +25,7 @@ func createClientEndpoint(svc things.Service) endpoint.Endpoint {
 			return nil, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		session, ok := ctx.Value(api.SessionKey).(auth.Session)
+		session, ok := ctx.Value(api.SessionKey).(authn.Session)
 		if !ok {
 			return nil, svcerr.ErrAuthorization
 		}
@@ -49,7 +49,7 @@ func createClientsEndpoint(svc things.Service) endpoint.Endpoint {
 			return nil, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		session, ok := ctx.Value(api.SessionKey).(auth.Session)
+		session, ok := ctx.Value(api.SessionKey).(authn.Session)
 		if !ok {
 			return nil, svcerr.ErrAuthorization
 		}
@@ -80,7 +80,7 @@ func viewClientEndpoint(svc things.Service) endpoint.Endpoint {
 			return nil, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		session, ok := ctx.Value(api.SessionKey).(auth.Session)
+		session, ok := ctx.Value(api.SessionKey).(authn.Session)
 		if !ok {
 			return nil, svcerr.ErrAuthorization
 		}
@@ -101,7 +101,7 @@ func viewClientPermsEndpoint(svc things.Service) endpoint.Endpoint {
 			return nil, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		session, ok := ctx.Value(api.SessionKey).(auth.Session)
+		session, ok := ctx.Value(api.SessionKey).(authn.Session)
 		if !ok {
 			return nil, svcerr.ErrAuthorization
 		}
@@ -122,7 +122,7 @@ func listClientsEndpoint(svc things.Service) endpoint.Endpoint {
 			return nil, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		session, ok := ctx.Value(api.SessionKey).(auth.Session)
+		session, ok := ctx.Value(api.SessionKey).(authn.Session)
 		if !ok {
 			return nil, svcerr.ErrAuthorization
 		}
@@ -167,7 +167,7 @@ func listMembersEndpoint(svc things.Service) endpoint.Endpoint {
 			return nil, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		session, ok := ctx.Value(api.SessionKey).(auth.Session)
+		session, ok := ctx.Value(api.SessionKey).(authn.Session)
 		if !ok {
 			return nil, svcerr.ErrAuthorization
 		}
@@ -189,7 +189,7 @@ func updateClientEndpoint(svc things.Service) endpoint.Endpoint {
 			return nil, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		session, ok := ctx.Value(api.SessionKey).(auth.Session)
+		session, ok := ctx.Value(api.SessionKey).(authn.Session)
 		if !ok {
 			return nil, svcerr.ErrAuthorization
 		}
@@ -215,7 +215,7 @@ func updateClientTagsEndpoint(svc things.Service) endpoint.Endpoint {
 			return nil, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		session, ok := ctx.Value(api.SessionKey).(auth.Session)
+		session, ok := ctx.Value(api.SessionKey).(authn.Session)
 		if !ok {
 			return nil, svcerr.ErrAuthorization
 		}
@@ -240,7 +240,7 @@ func updateClientSecretEndpoint(svc things.Service) endpoint.Endpoint {
 			return nil, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		session, ok := ctx.Value(api.SessionKey).(auth.Session)
+		session, ok := ctx.Value(api.SessionKey).(authn.Session)
 		if !ok {
 			return nil, svcerr.ErrAuthorization
 		}
@@ -261,7 +261,7 @@ func enableClientEndpoint(svc things.Service) endpoint.Endpoint {
 			return nil, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		session, ok := ctx.Value(api.SessionKey).(auth.Session)
+		session, ok := ctx.Value(api.SessionKey).(authn.Session)
 		if !ok {
 			return nil, svcerr.ErrAuthorization
 		}
@@ -282,7 +282,7 @@ func disableClientEndpoint(svc things.Service) endpoint.Endpoint {
 			return nil, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		session, ok := ctx.Value(api.SessionKey).(auth.Session)
+		session, ok := ctx.Value(api.SessionKey).(authn.Session)
 		if !ok {
 			return nil, svcerr.ErrAuthorization
 		}
@@ -319,7 +319,7 @@ func assignUsersEndpoint(svc groups.Service) endpoint.Endpoint {
 			return nil, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		session, ok := ctx.Value(api.SessionKey).(auth.Session)
+		session, ok := ctx.Value(api.SessionKey).(authn.Session)
 		if !ok {
 			return nil, svcerr.ErrAuthorization
 		}
@@ -339,7 +339,7 @@ func unassignUsersEndpoint(svc groups.Service) endpoint.Endpoint {
 			return nil, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		session, ok := ctx.Value(api.SessionKey).(auth.Session)
+		session, ok := ctx.Value(api.SessionKey).(authn.Session)
 		if !ok {
 			return nil, svcerr.ErrAuthorization
 		}
@@ -359,7 +359,7 @@ func assignUserGroupsEndpoint(svc groups.Service) endpoint.Endpoint {
 			return nil, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		session, ok := ctx.Value(api.SessionKey).(auth.Session)
+		session, ok := ctx.Value(api.SessionKey).(authn.Session)
 		if !ok {
 			return nil, svcerr.ErrAuthorization
 		}
@@ -379,7 +379,7 @@ func unassignUserGroupsEndpoint(svc groups.Service) endpoint.Endpoint {
 			return nil, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		session, ok := ctx.Value(api.SessionKey).(auth.Session)
+		session, ok := ctx.Value(api.SessionKey).(authn.Session)
 		if !ok {
 			return nil, svcerr.ErrAuthorization
 		}
@@ -399,7 +399,7 @@ func connectChannelThingEndpoint(svc groups.Service) endpoint.Endpoint {
 			return nil, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		session, ok := ctx.Value(api.SessionKey).(auth.Session)
+		session, ok := ctx.Value(api.SessionKey).(authn.Session)
 		if !ok {
 			return nil, svcerr.ErrAuthorization
 		}
@@ -419,7 +419,7 @@ func disconnectChannelThingEndpoint(svc groups.Service) endpoint.Endpoint {
 			return nil, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		session, ok := ctx.Value(api.SessionKey).(auth.Session)
+		session, ok := ctx.Value(api.SessionKey).(authn.Session)
 		if !ok {
 			return nil, svcerr.ErrAuthorization
 		}
@@ -439,7 +439,7 @@ func connectEndpoint(svc groups.Service) endpoint.Endpoint {
 			return nil, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		session, ok := ctx.Value(api.SessionKey).(auth.Session)
+		session, ok := ctx.Value(api.SessionKey).(authn.Session)
 		if !ok {
 			return nil, svcerr.ErrAuthorization
 		}
@@ -459,7 +459,7 @@ func disconnectEndpoint(svc groups.Service) endpoint.Endpoint {
 			return nil, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		session, ok := ctx.Value(api.SessionKey).(auth.Session)
+		session, ok := ctx.Value(api.SessionKey).(authn.Session)
 		if !ok {
 			return nil, svcerr.ErrAuthorization
 		}
@@ -479,7 +479,7 @@ func thingShareEndpoint(svc things.Service) endpoint.Endpoint {
 			return nil, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		session, ok := ctx.Value(api.SessionKey).(auth.Session)
+		session, ok := ctx.Value(api.SessionKey).(authn.Session)
 		if !ok {
 			return nil, svcerr.ErrAuthorization
 		}
@@ -499,7 +499,7 @@ func thingUnshareEndpoint(svc things.Service) endpoint.Endpoint {
 			return nil, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		session, ok := ctx.Value(api.SessionKey).(auth.Session)
+		session, ok := ctx.Value(api.SessionKey).(authn.Session)
 		if !ok {
 			return nil, svcerr.ErrAuthorization
 		}
@@ -519,7 +519,7 @@ func deleteClientEndpoint(svc things.Service) endpoint.Endpoint {
 			return nil, errors.Wrap(apiutil.ErrValidation, err)
 		}
 
-		session, ok := ctx.Value(api.SessionKey).(auth.Session)
+		session, ok := ctx.Value(api.SessionKey).(authn.Session)
 		if !ok {
 			return nil, svcerr.ErrAuthorization
 		}

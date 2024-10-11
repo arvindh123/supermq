@@ -140,7 +140,7 @@ func (h *handler) Publish(ctx context.Context, topic *string, payload *[]byte) e
 	default:
 		tok = string(s.Password)
 	}
-	ar := &magistrala.ThingsAuthReq{
+	ar := &magistrala.ThingsAuthzReq{
 		ThingKey:   tok,
 		ChannelID:  msg.Channel,
 		Permission: policies.PublishPermission,

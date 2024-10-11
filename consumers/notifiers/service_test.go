@@ -8,11 +8,11 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/absmach/magistrala"
 	"github.com/absmach/magistrala/consumers/notifiers"
 	"github.com/absmach/magistrala/consumers/notifiers/mocks"
 	"github.com/absmach/magistrala/internal/testsutil"
-	authmocks "github.com/absmach/magistrala/pkg/auth/mocks"
+	mgauthn "github.com/absmach/magistrala/pkg/authn"
+	authnmocks "github.com/absmach/magistrala/pkg/authn/mocks"
 	"github.com/absmach/magistrala/pkg/errors"
 	repoerr "github.com/absmach/magistrala/pkg/errors/repository"
 	svcerr "github.com/absmach/magistrala/pkg/errors/service"
@@ -29,9 +29,9 @@ const (
 	validID      = "d4ebb847-5d0e-4e46-bdd9-b6aceaaa3a22"
 )
 
-func newService() (notifiers.Service, *authmocks.AuthClient, *mocks.SubscriptionsRepository) {
+func newService() (notifiers.Service, *authnmocks.Authentication, *mocks.SubscriptionsRepository) {
 	repo := new(mocks.SubscriptionsRepository)
-	auth := new(authmocks.AuthClient)
+	auth := new(authnmocks.Authentication)
 	notifier := new(mocks.Notifier)
 	idp := uuid.NewMock()
 	from := "exampleFrom"
@@ -79,7 +79,7 @@ func TestCreateSubscription(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		repoCall := auth.On("Identify", context.Background(), &magistrala.IdentityReq{Token: tc.token}).Return(&magistrala.IdentityRes{Id: tc.userID}, tc.identifyErr)
+		repoCall := auth.On("Authenticate", context.Background(), tc.token).Return(mgauthn.Session{UserID: tc.userID}, tc.identifyErr)
 		repoCall1 := repo.On("Save", context.Background(), mock.Anything).Return(tc.id, tc.err)
 		id, err := svc.CreateSubscription(context.Background(), tc.token, tc.sub)
 		assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s: expected %s got %s\n", tc.desc, tc.err, err))
@@ -136,7 +136,7 @@ func TestViewSubscription(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		repoCall := auth.On("Identify", context.Background(), &magistrala.IdentityReq{Token: tc.token}).Return(&magistrala.IdentityRes{Id: tc.userID}, tc.identifyErr)
+		repoCall := auth.On("Authenticate", context.Background(), tc.token).Return(mgauthn.Session{UserID: tc.userID}, tc.identifyErr)
 		repoCall1 := repo.On("Retrieve", context.Background(), tc.id).Return(tc.sub, tc.err)
 		sub, err := svc.ViewSubscription(context.Background(), tc.token, tc.id)
 		assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s: expected %s got %s\n", tc.desc, tc.err, err))
@@ -263,7 +263,7 @@ func TestListSubscriptions(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		repoCall := auth.On("Identify", context.Background(), &magistrala.IdentityReq{Token: tc.token}).Return(&magistrala.IdentityRes{Id: tc.userID}, tc.identifyErr)
+		repoCall := auth.On("Authenticate", context.Background(), tc.token).Return(mgauthn.Session{UserID: tc.userID}, tc.identifyErr)
 		repoCall1 := repo.On("RetrieveAll", context.Background(), tc.pageMeta).Return(tc.page, tc.err)
 		page, err := svc.ListSubscriptions(context.Background(), tc.token, tc.pageMeta)
 		assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s: expected %s got %s\n", tc.desc, tc.err, err))
@@ -313,7 +313,7 @@ func TestRemoveSubscription(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		repoCall := auth.On("Identify", context.Background(), &magistrala.IdentityReq{Token: tc.token}).Return(&magistrala.IdentityRes{Id: tc.userID}, tc.identifyErr)
+		repoCall := auth.On("Authenticate", context.Background(), tc.token).Return(mgauthn.Session{UserID: tc.userID}, tc.identifyErr)
 		repoCall1 := repo.On("Remove", context.Background(), tc.id).Return(tc.err)
 		err := svc.RemoveSubscription(context.Background(), tc.token, tc.id)
 		assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s: expected %s got %s\n", tc.desc, tc.err, err))

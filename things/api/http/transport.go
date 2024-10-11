@@ -8,7 +8,7 @@ import (
 	"net/http"
 
 	"github.com/absmach/magistrala"
-	"github.com/absmach/magistrala/pkg/auth"
+	mgauthn "github.com/absmach/magistrala/pkg/authn"
 	"github.com/absmach/magistrala/pkg/groups"
 	"github.com/absmach/magistrala/things"
 	"github.com/go-chi/chi/v5"
@@ -16,9 +16,9 @@ import (
 )
 
 // MakeHandler returns a HTTP handler for Things and Groups API endpoints.
-func MakeHandler(tsvc things.Service, grps groups.Service, authClient auth.AuthClient, mux *chi.Mux, logger *slog.Logger, instanceID string) http.Handler {
-	clientsHandler(tsvc, mux, authClient, logger)
-	groupsHandler(grps, authClient, mux, logger)
+func MakeHandler(tsvc things.Service, grps groups.Service, authn mgauthn.Authentication, mux *chi.Mux, logger *slog.Logger, instanceID string) http.Handler {
+	clientsHandler(tsvc, mux, authn, logger)
+	groupsHandler(grps, authn, mux, logger)
 
 	mux.Get("/health", magistrala.Health("things", instanceID))
 	mux.Handle("/metrics", promhttp.Handler())

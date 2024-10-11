@@ -224,7 +224,7 @@ func (h *handler) authAccess(ctx context.Context, password, topic, action string
 
 	chanID := channelParts[1]
 
-	ar := &magistrala.ThingsAuthReq{
+	ar := &magistrala.ThingsAuthzReq{
 		Permission: action,
 		ThingKey:   password,
 		ChannelID:  chanID,

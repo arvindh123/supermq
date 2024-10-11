@@ -6,38 +6,23 @@ package grpc
 import (
 	"context"
 
-	"github.com/absmach/magistrala"
-	"github.com/absmach/magistrala/pkg/auth"
-	"github.com/absmach/magistrala/pkg/errors"
-	svcerr "github.com/absmach/magistrala/pkg/errors/service"
-	"github.com/absmach/magistrala/pkg/policies"
 	"github.com/absmach/magistrala/things"
 	"github.com/go-kit/kit/endpoint"
 )
 
-func authorizeEndpoint(svc things.Service, authClient auth.AuthClient) endpoint.Endpoint {
+func authorizeEndpoint(svc things.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
-		req := request.(*magistrala.AuthorizeReq)
+		req := request.(authorizeReq)
 
-		thingID, err := svc.Identify(ctx, req.GetSubject())
+		thingID, err := svc.Authorize(ctx, things.AuthzReq{
+			ChannelID:  req.ChannelID,
+			ThingID:    req.ThingID,
+			ThingKey:   req.ThingKey,
+			Permission: req.Permission,
+		})
 		if err != nil {
 			return authorizeRes{}, err
 		}
-		r := &magistrala.AuthorizeReq{
-			SubjectType: policies.GroupType,
-			Subject:     req.GetObject(),
-			ObjectType:  policies.ThingType,
-			Object:      thingID,
-			Permission:  req.GetPermission(),
-		}
-		resp, err := authClient.Authorize(ctx, r)
-		if err != nil {
-			return authorizeRes{}, errors.Wrap(svcerr.ErrAuthorization, err)
-		}
-		if !resp.GetAuthorized() {
-			return authorizeRes{}, svcerr.ErrAuthorization
-		}
-
 		return authorizeRes{
 			authorized: true,
 			id:         thingID,
