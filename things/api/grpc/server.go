@@ -45,7 +45,12 @@ func (s *grpcServer) Authorize(ctx context.Context, req *magistrala.ThingsAuthzR
 
 func decodeAuthorizeRequest(_ context.Context, grpcReq interface{}) (interface{}, error) {
 	req := grpcReq.(*magistrala.ThingsAuthzReq)
-	return req, nil
+	return authorizeReq{
+		ThingID:    req.GetThingID(),
+		ThingKey:   req.GetThingKey(),
+		ChannelID:  req.GetChannelID(),
+		Permission: req.GetPermission(),
+	}, nil
 }
 
 func encodeAuthorizeResponse(_ context.Context, grpcRes interface{}) (interface{}, error) {

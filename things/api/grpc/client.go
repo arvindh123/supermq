@@ -11,6 +11,7 @@ import (
 	"github.com/absmach/magistrala"
 	"github.com/absmach/magistrala/pkg/errors"
 	svcerr "github.com/absmach/magistrala/pkg/errors/service"
+	"github.com/absmach/magistrala/things"
 	"github.com/go-kit/kit/endpoint"
 	kitgrpc "github.com/go-kit/kit/transport/grpc"
 	"google.golang.org/grpc"
@@ -36,7 +37,7 @@ func NewClient(conn *grpc.ClientConn, timeout time.Duration) magistrala.ThingsSe
 			"Authorize",
 			encodeAuthorizeRequest,
 			decodeAuthorizeResponse,
-			magistrala.AuthorizeRes{},
+			magistrala.ThingsAuthzRes{},
 		).Endpoint(),
 
 		timeout: timeout,
@@ -47,7 +48,12 @@ func (client grpcClient) Authorize(ctx context.Context, req *magistrala.ThingsAu
 	ctx, cancel := context.WithTimeout(ctx, client.timeout)
 	defer cancel()
 
-	res, err := client.authorize(ctx, req)
+	res, err := client.authorize(ctx, things.AuthzReq{
+		ThingID:    req.GetThingID(),
+		ThingKey:   req.GetThingKey(),
+		ChannelID:  req.GetChannelID(),
+		Permission: req.GetPermission(),
+	})
 	if err != nil {
 		return &magistrala.ThingsAuthzRes{}, decodeError(err)
 	}
@@ -62,12 +68,12 @@ func decodeAuthorizeResponse(_ context.Context, grpcRes interface{}) (interface{
 }
 
 func encodeAuthorizeRequest(_ context.Context, grpcReq interface{}) (interface{}, error) {
-	req := grpcReq.(*magistrala.ThingsAuthzReq)
-	return authorizeReq{
-		ChannelID:  req.GetChannelID(),
-		ThingID:    req.GetThingID(),
-		ThingKey:   req.GetThingKey(),
-		Permission: req.GetPermission(),
+	req := grpcReq.(things.AuthzReq)
+	return &magistrala.ThingsAuthzReq{
+		ChannelID:  req.ChannelID,
+		ThingID:    req.ThingID,
+		ThingKey:   req.ThingKey,
+		Permission: req.Permission,
 	}, nil
 }
 

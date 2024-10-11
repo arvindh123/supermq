@@ -76,8 +76,8 @@ func TestAuthorize(t *testing.T) {
 				Permission: policies.PublishPermission,
 			},
 			authorizeReq: things.AuthzReq{
+				ThingKey:   thingKey,
 				ChannelID:  channelID,
-				ThingID:    thingID,
 				Permission: policies.PublishPermission,
 			},
 			authorizeRes: thingID,
@@ -92,10 +92,16 @@ func TestAuthorize(t *testing.T) {
 				ChannelID:  channelID,
 				Permission: policies.PublishPermission,
 			},
-			identifyKey: invalid,
-			identifyErr: svcerr.ErrAuthentication,
-			res:         &magistrala.ThingsAuthzRes{},
-			err:         svcerr.ErrAuthentication,
+			authorizeReq: things.AuthzReq{
+				ThingKey:   invalid,
+				ChannelID:  channelID,
+				Permission: policies.PublishPermission,
+			},
+			authorizeErr: svcerr.ErrAuthentication,
+			identifyKey:  invalid,
+			identifyErr:  svcerr.ErrAuthentication,
+			res:          &magistrala.ThingsAuthzRes{},
+			err:          svcerr.ErrAuthentication,
 		},
 		{
 			desc:    "authorize with failed authorization",
@@ -106,13 +112,14 @@ func TestAuthorize(t *testing.T) {
 				Permission: policies.PublishPermission,
 			},
 			authorizeReq: things.AuthzReq{
+				ThingKey:   thingKey,
 				ChannelID:  channelID,
-				ThingID:    thingID,
 				Permission: policies.PublishPermission,
 			},
-			identifyKey: thingKey,
-			res:         &magistrala.ThingsAuthzRes{Authorized: false},
-			err:         svcerr.ErrAuthorization,
+			authorizeErr: svcerr.ErrAuthorization,
+			identifyKey:  thingKey,
+			res:          &magistrala.ThingsAuthzRes{Authorized: false},
+			err:          svcerr.ErrAuthorization,
 		},
 
 		{
@@ -121,11 +128,11 @@ func TestAuthorize(t *testing.T) {
 			req: &magistrala.ThingsAuthzReq{
 				ThingKey:   thingKey,
 				ChannelID:  channelID,
-				Permission: policies.PublishPermission,
+				Permission: invalid,
 			},
 			authorizeReq: things.AuthzReq{
 				ChannelID:  channelID,
-				ThingID:    thingID,
+				ThingKey:   thingKey,
 				Permission: invalid,
 			},
 			identifyKey:  thingKey,
@@ -143,7 +150,7 @@ func TestAuthorize(t *testing.T) {
 			},
 			authorizeReq: things.AuthzReq{
 				ChannelID:  invalid,
-				ThingID:    thingID,
+				ThingKey:   thingKey,
 				Permission: policies.PublishPermission,
 			},
 			identifyKey:  thingKey,
@@ -160,13 +167,14 @@ func TestAuthorize(t *testing.T) {
 				Permission: policies.PublishPermission,
 			},
 			authorizeReq: things.AuthzReq{
+				ThingKey:   thingKey,
 				ChannelID:  "",
-				ThingID:    thingID,
 				Permission: policies.PublishPermission,
 			},
-			identifyKey: thingKey,
-			res:         &magistrala.ThingsAuthzRes{Authorized: false},
-			err:         svcerr.ErrAuthorization,
+			authorizeErr: svcerr.ErrAuthorization,
+			identifyKey:  thingKey,
+			res:          &magistrala.ThingsAuthzRes{Authorized: false},
+			err:          svcerr.ErrAuthorization,
 		},
 		{
 			desc:    "authorize with empty permission",
@@ -178,8 +186,8 @@ func TestAuthorize(t *testing.T) {
 			},
 			authorizeReq: things.AuthzReq{
 				ChannelID:  channelID,
-				ThingID:    thingID,
 				Permission: "",
+				ThingKey:   thingKey,
 			},
 			identifyKey:  thingKey,
 			authorizeErr: svcerr.ErrAuthorization,
@@ -190,7 +198,7 @@ func TestAuthorize(t *testing.T) {
 
 	for _, tc := range cases {
 		svcCall1 := svc.On("Identify", mock.Anything, tc.identifyKey).Return(tc.thingID, tc.identifyErr)
-		svcCall2 := svc.On("Authorize", mock.Anything, tc.authorizeReq).Return(tc.res, tc.authorizeErr)
+		svcCall2 := svc.On("Authorize", mock.Anything, tc.authorizeReq).Return(tc.thingID, tc.authorizeErr)
 		res, err := client.Authorize(context.Background(), tc.req)
 		assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s: expected %s got %s", tc.desc, tc.err, err))
 		assert.Equal(t, tc.res, res, fmt.Sprintf("%s: expected %s got %s", tc.desc, tc.res, res))
