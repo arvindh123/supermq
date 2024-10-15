@@ -259,6 +259,10 @@ func decodeListUsers(_ context.Context, r *http.Request) (interface{}, error) {
 	if err != nil {
 		return nil, errors.Wrap(apiutil.ErrValidation, err)
 	}
+	d, err := apiutil.ReadStringQuery(r, api.IdentityKey, "")
+	if err != nil {
+		return nil, errors.Wrap(apiutil.ErrValidation, err)
+	}
 	i, err := apiutil.ReadStringQuery(r, api.FirstNameKey, "")
 	if err != nil {
 		return nil, errors.Wrap(apiutil.ErrValidation, err)
@@ -300,6 +304,7 @@ func decodeListUsers(_ context.Context, r *http.Request) (interface{}, error) {
 		dir:      dir,
 		id:       id,
 	}
+
 	return req, nil
 }
 
@@ -621,6 +626,10 @@ func queryPageParams(r *http.Request, defPermission string) (users.Page, error) 
 	if err != nil {
 		return users.Page{}, errors.Wrap(apiutil.ErrValidation, err)
 	}
+	i, err := apiutil.ReadStringQuery(r, api.IdentityKey, "")
+	if err != nil {
+		return users.Page{}, errors.Wrap(apiutil.ErrValidation, err)
+	}
 
 	return users.Page{
 		Status:     st,
@@ -630,6 +639,7 @@ func queryPageParams(r *http.Request, defPermission string) (users.Page, error) 
 		FirstName:  f,
 		UserName:   n,
 		LastName:   a,
+		Identity:   i,
 		Tag:        t,
 		Permission: p,
 		ListPerms:  lp,
