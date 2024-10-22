@@ -441,12 +441,12 @@ func TestRefreshIssueTokenCmd(t *testing.T) {
 			switch len(tc.args) {
 			case 1:
 				lg := mgsdk.Login{
-					Identity: tc.args[0],
+					Email: tc.args[0],
 				}
 				sdkCall = sdkMock.On("RefreshToken", lg).Return(tc.token, tc.sdkerr)
 			case 2:
 				lg := mgsdk.Login{
-					Identity: tc.args[0],
+					Email:    tc.args[0],
 					DomainID: tc.args[1],
 				}
 				sdkCall = sdkMock.On("RefreshToken", lg).Return(tc.token, tc.sdkerr)
