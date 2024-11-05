@@ -140,7 +140,14 @@ func ListGroupsEndpoint(svc groups.Service) endpoint.Endpoint {
 			return groupPageRes{}, svcerr.ErrAuthentication
 		}
 
-		page, err := svc.ListGroups(ctx, session, req.PageMeta)
+		var page groups.Page
+		var err error
+		switch {
+		case req.userID != "":
+			page, err = svc.ListUserGroups(ctx, session, req.userID, req.PageMeta)
+		default:
+			page, err = svc.ListGroups(ctx, session, req.PageMeta)
+		}
 		if err != nil {
 			return groupPageRes{}, err
 		}

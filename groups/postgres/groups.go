@@ -17,6 +17,7 @@ import (
 	"github.com/absmach/magistrala/pkg/postgres"
 	rolesPostgres "github.com/absmach/magistrala/pkg/roles/repo/postgres"
 	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
 )
 
 var _ mggroups.Repository = (*groupRepository)(nil)
@@ -139,7 +140,7 @@ func (repo groupRepository) ChangeStatus(ctx context.Context, group mggroups.Gro
 }
 
 func (repo groupRepository) RetrieveByID(ctx context.Context, id string) (mggroups.Group, error) {
-	q := `SELECT id, name, domain_id, COALESCE(parent_id, '') AS parent_id, description, metadata, created_at, updated_at, updated_by, status FROM groups
+	q := `SELECT id, name, domain_id, COALESCE(parent_id, '') AS parent_id, description, metadata, created_at, updated_at, updated_by, status, path FROM groups
 	    WHERE id = :id`
 
 	dbg := dbGroup{
@@ -246,6 +247,8 @@ func (repo groupRepository) RetrieveByIDs(ctx context.Context, pm mggroups.PageM
 }
 
 func (repo groupRepository) RetrieveHierarchy(ctx context.Context, id string, hm mggroups.HierarchyPageMeta) (mggroups.HierarchyPage, error) {
+	// ToDo : use the query to userGroupsBaseQuery
+	// repo.userGroupsBaseQuery(domainID, userID)
 	query := ""
 	switch {
 	// ancestors
@@ -328,6 +331,7 @@ func (repo groupRepository) AssignParentGroup(ctx context.Context, parentGroupID
 		}
 	}()
 
+	//ToDo: Move this logic to service layer
 	pq := `SELECT id, path FROM groups WHERE id = $1 LIMIT 1;`
 	rows, err := tx.Queryx(pq, parentGroupID)
 	if err != nil {
@@ -516,6 +520,238 @@ func (repo groupRepository) Delete(ctx context.Context, groupID string) error {
 	return nil
 }
 
+func (repo groupRepository) RetrieveAllParentGroups(ctx context.Context, domainID, userID, groupID string, pm mggroups.PageMeta) (mggroups.Page, error) {
+	cGroup, err := repo.RetrieveByID(ctx, groupID)
+	if err != nil {
+		return mggroups.Page{}, err
+	}
+
+	query := buildQuery(pm)
+
+	levelCondition := fmt.Sprintf(" @> '%s' ", cGroup.Path)
+
+	switch {
+	case query == "":
+		query = " WHERE " + levelCondition
+	default:
+		query = query + " AND " + levelCondition
+	}
+
+	return repo.retrieveGroups(ctx, domainID, userID, query, pm)
+}
+
+func (repo groupRepository) RetrieveChildrenGroups(ctx context.Context, domainID, userID, groupID string, startLevel, endLevel int, pm mggroups.PageMeta) (mggroups.Page, error) {
+	pGroup, err := repo.RetrieveByID(ctx, groupID)
+	if err != nil {
+		return mggroups.Page{}, err
+	}
+
+	query := buildQuery(pm)
+
+	levelCondition := ""
+	switch {
+	// Retrieve all children groups from parent group level
+	case startLevel == 0 && endLevel < 0:
+		levelCondition = fmt.Sprintf(" path ~ '%s.{*}'::lquery ", pGroup.Path)
+
+	// Retrieve specific level of children groups from parent group level
+	case (startLevel > 0) && (startLevel == endLevel || endLevel == 0):
+		levelCondition = fmt.Sprintf(" path ~ '%s.{%d}'::lquery ", pGroup.Path, startLevel)
+
+	// Retrieve all children groups from specific level from parent group level
+	case startLevel > 0 && endLevel < 0:
+		levelCondition = fmt.Sprintf(" path ~ '%s.{%d,}'::lquery ", pGroup.Path, startLevel)
+
+	// Retrieve children groups between specific level from parent group level
+	case startLevel > 0 && endLevel > 0 && startLevel < endLevel:
+		levelCondition = fmt.Sprintf(" path ~ '%s.{%d,%d}'::lquery ", pGroup.Path, startLevel, endLevel)
+	default:
+		return mggroups.Page{}, fmt.Errorf("invalid level range: start level: %d end level: %d", startLevel, endLevel)
+	}
+
+	switch {
+	case query == "":
+		query = " WHERE " + levelCondition
+	default:
+		query = query + " AND " + levelCondition
+	}
+
+	return repo.retrieveGroups(ctx, domainID, userID, query, pm)
+}
+
+func (repo groupRepository) RetrieveUserGroups(ctx context.Context, domainID, userID string, pm mggroups.PageMeta) (mggroups.Page, error) {
+	query := buildQuery(pm)
+
+	return repo.retrieveGroups(ctx, domainID, userID, query, pm)
+}
+
+func (repo groupRepository) retrieveGroups(ctx context.Context, domainID, userID, query string, pm mggroups.PageMeta) (mggroups.Page, error) {
+	baseQuery := repo.userGroupsBaseQuery(domainID, userID)
+	q := fmt.Sprintf(`%s
+					SELECT
+						g.id,
+						g.name,
+						g.domain_id,
+						COALESCE(g.parent_id, '') AS parent_id,
+						g.description,
+						g.metadata,
+						g.created_at,
+						g.updated_at,
+						g.updated_by,
+						g.status,
+						g.path as path,
+						g.access_type,
+						g.role_id,
+						g.role_name,
+						g.actions
+					FROM
+						final_groups g
+					%s
+					ORDER BY
+						g.created_at
+					LIMIT :limit
+					OFFSET :offset;
+					`,
+		baseQuery, query)
+	dbPageMeta, err := toDBGroupPageMeta(pm)
+	if err != nil {
+		return mggroups.Page{}, errors.Wrap(repoerr.ErrFailedToRetrieveAllGroups, err)
+	}
+	rows, err := repo.db.NamedQueryContext(ctx, q, dbPageMeta)
+	if err != nil {
+		return mggroups.Page{}, errors.Wrap(repoerr.ErrFailedToRetrieveAllGroups, err)
+	}
+	defer rows.Close()
+
+	items, err := repo.processRows(rows)
+	if err != nil {
+		return mggroups.Page{}, errors.Wrap(repoerr.ErrFailedToRetrieveAllGroups, err)
+	}
+
+	cq := fmt.Sprintf(`%s
+						SELECT COUNT(*) AS total_count
+						FROM (
+							SELECT
+								g.id,
+								g.name,
+								g.domain_id,
+								COALESCE(g.parent_id, '') AS parent_id,
+								g.description,
+								g.metadata,
+								g.created_at,
+								g.updated_at,
+								g.updated_by,
+								g.status,
+								g.path as path,
+								g.access_type,
+								g.role_id,
+								g.role_name,
+								g.actions
+							FROM
+								final_groups g
+							%s
+						) AS subquery;
+						`, baseQuery, query)
+
+	total, err := postgres.Total(ctx, repo.db, cq, dbPageMeta)
+	if err != nil {
+		return mggroups.Page{}, errors.Wrap(repoerr.ErrFailedToRetrieveAllGroups, err)
+	}
+
+	page := mggroups.Page{PageMeta: pm}
+	page.Total = total
+	page.Groups = items
+	return page, nil
+}
+func (repo groupRepository) userGroupsBaseQuery(domainID, userID string) string {
+	return fmt.Sprintf(`
+	WITH direct_groups AS (
+	SELECT
+		g.*,
+		gr.entity_id AS entity_id,
+		grm.member_id AS member_id,
+		gr.id AS role_id,
+		gr."name" AS role_name,
+		array_agg(gra."action") AS actions
+	FROM
+		groups_role_members grm
+	JOIN
+		groups_role_actions gra ON gra.role_id = grm.role_id
+	JOIN
+		groups_roles gr ON gr.id = grm.role_id
+	JOIN
+		"groups" g ON g.id = gr.entity_id
+	WHERE
+		grm.member_id = '%s'
+		AND g.domain_id = '%s'
+	GROUP BY
+		gr.entity_id, grm.member_id, gr.id, gr."name", g."path", g.id
+	),
+	direct_groups_with_subgroup_read AS (
+		SELECT
+			*
+		FROM direct_groups
+		WHERE 'subgroup_read' = ANY(direct_groups.actions)
+	),
+	indirect_child_groups AS (
+		SELECT
+			DISTINCT  indirect_child_groups.id as child_id,
+			indirect_child_groups.*
+		FROM
+			direct_groups_with_subgroup_read dgwsr
+		JOIN
+			groups indirect_child_groups ON indirect_child_groups.path <@ dgwsr.path  -- Finds all children of entity_id based on ltree path
+		WHERE
+			indirect_child_groups.domain_id = '%s'
+			AND
+			NOT EXISTS (  -- Ensures that the indirect_child_groups.id is not already in the direct_groups_with_subgroup_read table
+				SELECT 1
+				FROM direct_groups_with_subgroup_read dgwsr
+				WHERE dgwsr.id = indirect_child_groups.id
+			)
+	),
+	final_groups as (
+		SELECT
+			id,
+			parent_id,
+			domain_id,
+			"name",
+			description,
+			metadata,
+			created_at,
+			updated_at,
+			updated_by,
+			status,
+			"path",
+			role_id,
+			role_name,
+			actions,
+			'direct' as access_type
+		FROM
+			direct_groups
+		UNION
+		SELECT
+			id,
+			parent_id,
+			domain_id,
+			"name",
+			description,
+			metadata,
+			created_at,
+			updated_at,
+			updated_by,
+			status,
+			"path",
+			'' as role_id,
+			'' as role_name,
+			array[]::::text[] AS actions,
+			'indirect' as access_type
+		FROM
+			indirect_child_groups
+	)`, userID, domainID, domainID)
+
+}
+
 func buildQuery(gm mggroups.PageMeta, ids ...string) string {
 	queries := []string{}
 
@@ -533,6 +769,18 @@ func buildQuery(gm mggroups.PageMeta, ids ...string) string {
 	}
 	if gm.DomainID != "" {
 		queries = append(queries, "g.domain_id = :domain_id")
+	}
+	if gm.AccessType != "" {
+		queries = append(queries, "g.access_type = :access_type")
+	}
+	if gm.RoleID != "" {
+		queries = append(queries, "g.role_id = :role_id")
+	}
+	if gm.RoleName != "" {
+		queries = append(queries, "g.role_name = :role_name")
+	}
+	if len(gm.Actions) != 0 {
+		queries = append(queries, "g.actions @> :actions")
 	}
 	if len(gm.Metadata) > 0 {
 		queries = append(queries, "g.metadata @> :metadata")
@@ -557,6 +805,10 @@ type dbGroup struct {
 	UpdatedAt   sql.NullTime    `db:"updated_at,omitempty"`
 	UpdatedBy   *string         `db:"updated_by,omitempty"`
 	Status      mggroups.Status `db:"status"`
+	RoleID      string          `db:"role_id,omitempty"`
+	RoleName    string          `db:"role_name,omitempty"`
+	AccessType  string          `db:"access_type"`
+	Actions     pq.StringArray  `db:"actions"`
 }
 
 func toDBGroup(g mggroups.Group) (dbGroup, error) {
@@ -628,6 +880,10 @@ func toGroup(g dbGroup) (mggroups.Group, error) {
 		UpdatedBy:   updatedBy,
 		CreatedAt:   g.CreatedAt,
 		Status:      g.Status,
+		AccessType:  g.AccessType,
+		RoleID:      g.RoleID,
+		RoleName:    g.RoleName,
+		Actions:     g.Actions,
 	}, nil
 }
 
@@ -641,32 +897,39 @@ func toDBGroupPageMeta(pm mggroups.PageMeta) (dbGroupPageMeta, error) {
 		data = b
 	}
 	return dbGroupPageMeta{
-		ID:       pm.ID,
-		Name:     pm.Name,
-		Metadata: data,
-		Total:    pm.Total,
-		Offset:   pm.Offset,
-		Limit:    pm.Limit,
-		DomainID: pm.DomainID,
-		Status:   pm.Status,
+		ID:         pm.ID,
+		Name:       pm.Name,
+		Metadata:   data,
+		Total:      pm.Total,
+		Offset:     pm.Offset,
+		Limit:      pm.Limit,
+		DomainID:   pm.DomainID,
+		Status:     pm.Status,
+		RoleName:   pm.RoleName,
+		RoleID:     pm.RoleID,
+		Actions:    pm.Actions,
+		AccessType: pm.AccessType,
 	}, nil
 }
 
 // ToDo: check and remove field "Level" after new auth stabilize
 type dbGroupPageMeta struct {
-	ID       string          `db:"id"`
-	Name     string          `db:"name"`
-	ParentID string          `db:"parent_id"`
-	DomainID string          `db:"domain_id"`
-	Metadata []byte          `db:"metadata"`
-	Path     string          `db:"path"`
-	Level    uint64          `db:"level"`
-	Total    uint64          `db:"total"`
-	Limit    uint64          `db:"limit"`
-	Offset   uint64          `db:"offset"`
-	Subject  string          `db:"subject"`
-	Action   string          `db:"action"`
-	Status   mggroups.Status `db:"status"`
+	ID         string          `db:"id"`
+	Name       string          `db:"name"`
+	ParentID   string          `db:"parent_id"`
+	DomainID   string          `db:"domain_id"`
+	Metadata   []byte          `db:"metadata"`
+	Path       string          `db:"path"`
+	Level      uint64          `db:"level"`
+	Total      uint64          `db:"total"`
+	Limit      uint64          `db:"limit"`
+	Offset     uint64          `db:"offset"`
+	Subject    string          `db:"subject"`
+	RoleName   string          `db:"role_name"`
+	RoleID     string          `db:"role_id"`
+	Actions    pq.StringArray  `db:"actions"`
+	AccessType string          `db:"access_type"`
+	Status     mggroups.Status `db:"status"`
 }
 
 func (repo groupRepository) processRows(rows *sqlx.Rows) ([]mggroups.Group, error) {

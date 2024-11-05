@@ -16,6 +16,8 @@ type PageMeta struct {
 	Tag        string   `json:"tag,omitempty"`
 	Metadata   Metadata `json:"metadata,omitempty"`
 	Status     Status   `json:"status,omitempty"`
-	Permission string
-	ListPerms  bool
+	RoleName   string   `json:"role_name,omitempty"`
+	RoleID     string   `json:"role_id,omitempty"`
+	Actions    []string `json:"actions,omitempty"`
+	AccessType string   `json:"access_type,omitempty"`
 }

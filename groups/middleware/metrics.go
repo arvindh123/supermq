@@ -69,6 +69,14 @@ func (ms *metricsMiddleware) ListGroups(ctx context.Context, session authn.Sessi
 	return ms.svc.ListGroups(ctx, session, pm)
 }
 
+func (ms *metricsMiddleware) ListUserGroups(ctx context.Context, session authn.Session, userID string, pm groups.PageMeta) (cg groups.Page, err error) {
+	defer func(begin time.Time) {
+		ms.counter.With("method", "list_user_groups").Add(1)
+		ms.latency.With("method", "list_user_groups").Observe(time.Since(begin).Seconds())
+	}(time.Now())
+	return ms.svc.ListUserGroups(ctx, session, userID, pm)
+}
+
 // EnableGroup instruments EnableGroup method with metrics.
 func (ms *metricsMiddleware) EnableGroup(ctx context.Context, session authn.Session, id string) (g groups.Group, err error) {
 	defer func(begin time.Time) {
@@ -149,4 +157,12 @@ func (ms *metricsMiddleware) ListChildrenGroups(ctx context.Context, session aut
 		ms.latency.With("method", "list_children_groups").Observe(time.Since(begin).Seconds())
 	}(time.Now())
 	return ms.svc.ListChildrenGroups(ctx, session, id, pm)
+}
+
+func (ms *metricsMiddleware) ListAllChildrenGroups(ctx context.Context, session authn.Session, id string, pm groups.PageMeta) (groups.Page, error) {
+	defer func(begin time.Time) {
+		ms.counter.With("method", "list_all_children_groups").Add(1)
+		ms.latency.With("method", "list_all_children_groups").Observe(time.Since(begin).Seconds())
+	}(time.Now())
+	return ms.svc.ListAllChildrenGroups(ctx, session, id, pm)
 }

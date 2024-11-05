@@ -18,7 +18,6 @@ import (
 	svcerr "github.com/absmach/magistrala/pkg/errors/service"
 	"github.com/absmach/magistrala/pkg/policies"
 	"github.com/absmach/magistrala/pkg/roles"
-	"golang.org/x/sync/errgroup"
 )
 
 var errGroupIDs = errors.New("invalid group ids")
@@ -28,14 +27,14 @@ type service struct {
 	policy     policies.Service
 	idProvider magistrala.IDProvider
 	channels   grpcChannelsV1.ChannelsServiceClient
-	clients     grpcClientsV1.ClientsServiceClient
+	clients    grpcClientsV1.ClientsServiceClient
 
 	roles.ProvisionManageService
 }
 
 // NewService returns a new groups service implementation.
-func NewService(repo Repository, policy policies.Service, idp magistrala.IDProvider, channels grpcChannelsV1.ChannelsServiceClient, clients grpcClientsV1.ClientsServiceClient, sidProvider magistrala.IDProvider) (Service, error) {
-	rpms, err := roles.NewProvisionManageService(policies.GroupType, repo, policy, sidProvider, AvailableActions(), BuiltInRoles())
+func NewService(repo Repository, policy policies.Service, idp magistrala.IDProvider, channels grpcChannelsV1.ChannelsServiceClient, clients grpcClientsV1.ClientsServiceClient, sidProvider magistrala.IDProvider, availableActions []roles.Action, builtInRoles map[roles.BuiltInRoleName][]roles.Action) (Service, error) {
+	rpms, err := roles.NewProvisionManageService(policies.GroupType, repo, policy, sidProvider, availableActions, builtInRoles)
 	if err != nil {
 		return service{}, err
 	}
@@ -44,7 +43,7 @@ func NewService(repo Repository, policy policies.Service, idp magistrala.IDProvi
 		policy:                 policy,
 		idProvider:             idp,
 		channels:               channels,
-		clients:                 clients,
+		clients:                clients,
 		ProvisionManageService: rpms,
 	}, nil
 }
@@ -96,8 +95,7 @@ func (svc service) CreateGroup(ctx context.Context, session mgauthn.Session, g G
 		})
 	}
 	newBuiltInRoleMembers := map[roles.BuiltInRoleName][]roles.Member{
-		BuiltInRoleAdmin:      {roles.Member(session.UserID)},
-		BuiltInRoleMembership: {},
+		BuiltInRoleAdmin: {roles.Member(session.UserID)},
 	}
 	if _, err := svc.AddNewEntitiesRoles(ctx, session.DomainID, session.UserID, []string{saved.ID}, oprs, newBuiltInRoleMembers); err != nil {
 		return Group{}, errors.Wrap(svcerr.ErrAddPolicies, err)
@@ -120,50 +118,30 @@ func (svc service) ViewGroupPerms(ctx context.Context, session mgauthn.Session, 
 }
 
 func (svc service) ListGroups(ctx context.Context, session mgauthn.Session, gm PageMeta) (Page, error) {
-	var ids []string
-	var err error
-
 	switch session.SuperAdmin {
 	case true:
 		gm.DomainID = session.DomainID
-	default:
-		ids, err = svc.listAllGroupsOfUserID(ctx, session.DomainUserID, gm.Permission)
+		page, err := svc.repo.RetrieveAll(ctx, gm)
 		if err != nil {
-			return Page{}, err
+			return Page{}, errors.Wrap(svcerr.ErrViewEntity, err)
 		}
+		return page, nil
+	default:
+		page, err := svc.repo.RetrieveUserGroups(ctx, session.DomainID, session.UserID, gm)
+		if err != nil {
+			return Page{}, errors.Wrap(svcerr.ErrViewEntity, err)
+		}
+		return page, nil
 	}
 
-	gp, err := svc.repo.RetrieveByIDs(ctx, gm, ids...)
+}
+
+func (svc service) ListUserGroups(ctx context.Context, session mgauthn.Session, userID string, pm PageMeta) (Page, error) {
+	page, err := svc.repo.RetrieveUserGroups(ctx, session.DomainID, session.UserID, pm)
 	if err != nil {
 		return Page{}, errors.Wrap(svcerr.ErrViewEntity, err)
 	}
-
-	if gm.ListPerms && len(gp.Groups) > 0 {
-		g, ctx := errgroup.WithContext(ctx)
-
-		for i := range gp.Groups {
-			// Copying loop variable "i" to avoid "loop variable captured by func literal"
-			iter := i
-			g.Go(func() error {
-				return svc.retrievePermissions(ctx, session.DomainUserID, &gp.Groups[iter])
-			})
-		}
-
-		if err := g.Wait(); err != nil {
-			return Page{}, err
-		}
-	}
-	return gp, nil
-}
-
-// Experimental functions used for async calling of svc.listUserClientPermission. This might be helpful during listing of large number of entities.
-func (svc service) retrievePermissions(ctx context.Context, userID string, group *Group) error {
-	permissions, err := svc.listUserGroupPermission(ctx, userID, group.ID)
-	if err != nil {
-		return err
-	}
-	group.Permissions = permissions
-	return nil
+	return page, nil
 }
 
 func (svc service) listUserGroupPermission(ctx context.Context, userID, groupID string) ([]string, error) {
@@ -269,6 +247,7 @@ func (svc service) AddParentGroup(ctx context.Context, session mgauthn.Session, 
 		return errors.Wrap(svcerr.ErrViewEntity, err)
 	}
 
+	//ToDo: Move parent group check business logic from Repository.AssignParentGroup to here
 	var pols []policies.Policy
 	if group.Parent != "" {
 		return errors.Wrap(svcerr.ErrConflict, fmt.Errorf("%s group already have parent", group.ID))
@@ -431,25 +410,19 @@ func (svc service) RemoveAllChildrenGroups(ctx context.Context, session mgauthn.
 }
 
 func (svc service) ListChildrenGroups(ctx context.Context, session mgauthn.Session, id string, pm PageMeta) (Page, error) {
-	cids, err := svc.policy.ListAllObjects(ctx, policies.Policy{
-		SubjectType: policies.GroupType,
-		Subject:     id,
-		Permission:  policies.ParentGroupRelation,
-		ObjectType:  policies.GroupType,
-	})
+	page, err := svc.repo.RetrieveChildrenGroups(ctx, session.DomainID, session.UserID, id, 1, 0, pm)
 	if err != nil {
-		return Page{}, err
+		return Page{}, errors.Wrap(svcerr.ErrViewEntity, err)
 	}
+	return page, nil
+}
 
-	ids, err := svc.filterAllowedGroupIDsOfUserID(ctx, session.DomainUserID, pm.Permission, cids.Policies)
+func (svc service) ListAllChildrenGroups(ctx context.Context, session mgauthn.Session, id string, pm PageMeta) (Page, error) {
+	page, err := svc.repo.RetrieveChildrenGroups(ctx, session.DomainID, session.UserID, id, 0, -1, pm)
 	if err != nil {
 		return Page{}, errors.Wrap(svcerr.ErrViewEntity, err)
 	}
-	gp, err := svc.repo.RetrieveByIDs(ctx, pm, ids...)
-	if err != nil {
-		return Page{}, errors.Wrap(svcerr.ErrViewEntity, err)
-	}
-	return gp, nil
+	return page, nil
 }
 
 func (svc service) DeleteGroup(ctx context.Context, session mgauthn.Session, id string) error {
