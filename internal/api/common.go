@@ -36,6 +36,10 @@ const (
 	NameKey          = "name"
 	GroupKey         = "group"
 	ActionKey        = "action"
+	ActionsKey       = "actions"
+	RoleIDKey        = "role_id"
+	RoleNameKey      = "role_name"
+	AccessTypeKey    = "access_type"
 	TagKey           = "tag"
 	FirstNameKey     = "first_name"
 	LastNameKey      = "last_name"
@@ -50,6 +54,9 @@ const (
 	EmailKey         = "email"
 	SharedByKey      = "shared_by"
 	TokenKey         = "token"
+	UserKey          = "user"
+	DomainKey        = "domain"
+	ChannelKey       = "channel"
 	DefPermission    = "read_permission"
 	DefTotal         = uint64(100)
 	DefOffset        = 0

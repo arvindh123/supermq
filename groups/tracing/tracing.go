@@ -61,6 +61,24 @@ func (tm *tracingMiddleware) ListGroups(ctx context.Context, session authn.Sessi
 	return tm.svc.ListGroups(ctx, session, pm)
 }
 
+func (tm *tracingMiddleware) ListUserGroups(ctx context.Context, session authn.Session, userID string, pm groups.PageMeta) (groups.Page, error) {
+	attr := []attribute.KeyValue{
+		attribute.String("user_id", userID),
+		attribute.String("name", pm.Name),
+		attribute.String("tag", pm.Tag),
+		attribute.String("status", pm.Status.String()),
+		attribute.Int64("offset", int64(pm.Offset)),
+		attribute.Int64("limit", int64(pm.Limit)),
+	}
+	for k, v := range pm.Metadata {
+		attr = append(attr, attribute.String(k, fmt.Sprintf("%v", v)))
+	}
+	ctx, span := tm.tracer.Start(ctx, "svc_list_user_groups", trace.WithAttributes(attr...))
+	defer span.End()
+
+	return tm.svc.ListUserGroups(ctx, session, userID, pm)
+}
+
 // UpdateGroup traces the "UpdateGroup" operation of the wrapped groups.Service.
 func (tm *tracingMiddleware) UpdateGroup(ctx context.Context, session authn.Session, g groups.Group) (groups.Group, error) {
 	ctx, span := tm.tracer.Start(ctx, "svc_update_group")
@@ -156,6 +174,23 @@ func (tm *tracingMiddleware) ListChildrenGroups(ctx context.Context, session aut
 	ctx, span := tm.tracer.Start(ctx, "svc_list_children_groups", trace.WithAttributes(attr...))
 	defer span.End()
 	return tm.svc.ListChildrenGroups(ctx, session, id, pm)
+}
+
+func (tm *tracingMiddleware) ListAllChildrenGroups(ctx context.Context, session authn.Session, id string, pm groups.PageMeta) (groups.Page, error) {
+	attr := []attribute.KeyValue{
+		attribute.String("id", id),
+		attribute.String("name", pm.Name),
+		attribute.String("tag", pm.Tag),
+		attribute.String("status", pm.Status.String()),
+		attribute.Int64("offset", int64(pm.Offset)),
+		attribute.Int64("limit", int64(pm.Limit)),
+	}
+	for k, v := range pm.Metadata {
+		attr = append(attr, attribute.String(k, fmt.Sprintf("%v", v)))
+	}
+	ctx, span := tm.tracer.Start(ctx, "svc_list_all_children_groups", trace.WithAttributes(attr...))
+	defer span.End()
+	return tm.svc.ListAllChildrenGroups(ctx, session, id, pm)
 }
 
 // DeleteGroup traces the "DeleteGroup" operation of the wrapped groups.Service.

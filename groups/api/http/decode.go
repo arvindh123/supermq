@@ -37,8 +37,20 @@ func DecodeListGroupsRequest(_ context.Context, r *http.Request) (interface{}, e
 		return nil, err
 	}
 
+	userID, err := apiutil.ReadStringQuery(r, api.UserKey, "")
+	if err != nil {
+		return mggroups.PageMeta{}, errors.Wrap(apiutil.ErrValidation, err)
+	}
+
+	groupID, err := apiutil.ReadStringQuery(r, api.GroupKey, "")
+	if err != nil {
+		return mggroups.PageMeta{}, errors.Wrap(apiutil.ErrValidation, err)
+	}
+
 	req := listGroupsReq{
 		PageMeta: pm,
+		userID:   userID,
+		groupID:  groupID,
 	}
 	return req, nil
 }
@@ -200,14 +212,33 @@ func decodePageMeta(r *http.Request) (mggroups.PageMeta, error) {
 	if err != nil {
 		return mggroups.PageMeta{}, errors.Wrap(apiutil.ErrValidation, err)
 	}
-	permission, err := apiutil.ReadStringQuery(r, api.PermissionKey, api.DefPermission)
+
+	allActions, err := apiutil.ReadStringQuery(r, api.ActionsKey, "")
 	if err != nil {
 		return mggroups.PageMeta{}, errors.Wrap(apiutil.ErrValidation, err)
 	}
-	listPerms, err := apiutil.ReadBoolQuery(r, api.ListPerms, api.DefListPerms)
+
+	actions := []string{}
+
+	allActions = strings.TrimSpace(allActions)
+	if allActions != "" {
+		actions = strings.Split(allActions, ",")
+	}
+	roleID, err := apiutil.ReadStringQuery(r, api.RoleIDKey, "")
 	if err != nil {
 		return mggroups.PageMeta{}, errors.Wrap(apiutil.ErrValidation, err)
 	}
+
+	roleName, err := apiutil.ReadStringQuery(r, api.RoleNameKey, "")
+	if err != nil {
+		return mggroups.PageMeta{}, errors.Wrap(apiutil.ErrValidation, err)
+	}
+
+	accessType, err := apiutil.ReadStringQuery(r, api.AccessTypeKey, "")
+	if err != nil {
+		return mggroups.PageMeta{}, errors.Wrap(apiutil.ErrValidation, err)
+	}
+
 	ret := mggroups.PageMeta{
 		Offset:     offset,
 		Limit:      limit,
@@ -215,8 +246,10 @@ func decodePageMeta(r *http.Request) (mggroups.PageMeta, error) {
 		ID:         id,
 		Metadata:   meta,
 		Status:     st,
-		Permission: permission,
-		ListPerms:  listPerms,
+		RoleName:   roleName,
+		RoleID:     roleID,
+		Actions:    actions,
+		AccessType: accessType,
 	}
 	return ret, nil
 }

@@ -17,6 +17,7 @@ var (
 	groupChangeStatus            = groupPrefix + "change_status"
 	groupView                    = groupPrefix + "view"
 	groupList                    = groupPrefix + "list"
+	groupListUserGroups          = groupPrefix + "list_user_groups"
 	groupRemove                  = groupPrefix + "remove"
 	groupRetrieveGroupHierarchy  = groupPrefix + "retrieve_group_hierarchy"
 	groupAddParentGroup          = groupPrefix + "add_parent_group"
@@ -26,6 +27,7 @@ var (
 	groupRemoveChildrenGroups    = groupPrefix + "remove_children_groups"
 	groupRemoveAllChildrenGroups = groupPrefix + "remove_all_children_groups"
 	groupListChildrenGroups      = groupPrefix + "list_children_groups"
+	groupListAllChildrenGroups   = groupPrefix + "list_all_children_groups"
 )
 
 var (
@@ -208,6 +210,39 @@ func (lge listGroupEvent) Encode() (map[string]interface{}, error) {
 	return val, nil
 }
 
+type listUserGroupEvent struct {
+	userID string
+	groups.PageMeta
+}
+
+func (luge listUserGroupEvent) Encode() (map[string]interface{}, error) {
+	val := map[string]interface{}{
+		"operation": groupListUserGroups,
+		"user_id":   luge.userID,
+		"total":     luge.Total,
+		"offset":    luge.Offset,
+		"limit":     luge.Limit,
+	}
+
+	if luge.Name != "" {
+		val["name"] = luge.Name
+	}
+	if luge.DomainID != "" {
+		val["domain_id"] = luge.DomainID
+	}
+	if luge.Tag != "" {
+		val["tag"] = luge.Tag
+	}
+	if luge.Metadata != nil {
+		val["metadata"] = luge.Metadata
+	}
+	if luge.Status.String() != "" {
+		val["status"] = luge.Status.String()
+	}
+
+	return val, nil
+}
+
 type deleteGroupEvent struct {
 	id string
 }
@@ -315,6 +350,37 @@ type listChildrenGroupsEvent struct {
 func (vcge listChildrenGroupsEvent) Encode() (map[string]interface{}, error) {
 	val := map[string]interface{}{
 		"operation": groupListChildrenGroups,
+		"id":        vcge.id,
+		"total":     vcge.Total,
+		"offset":    vcge.Offset,
+		"limit":     vcge.Limit,
+	}
+	if vcge.Name != "" {
+		val["name"] = vcge.Name
+	}
+	if vcge.DomainID != "" {
+		val["domain_id"] = vcge.DomainID
+	}
+	if vcge.Tag != "" {
+		val["tag"] = vcge.Tag
+	}
+	if vcge.Metadata != nil {
+		val["metadata"] = vcge.Metadata
+	}
+	if vcge.Status.String() != "" {
+		val["status"] = vcge.Status.String()
+	}
+	return val, nil
+}
+
+type listAllChildrenGroupsEvent struct {
+	id string
+	groups.PageMeta
+}
+
+func (vcge listAllChildrenGroupsEvent) Encode() (map[string]interface{}, error) {
+	val := map[string]interface{}{
+		"operation": groupListAllChildrenGroups,
 		"id":        vcge.id,
 		"total":     vcge.Total,
 		"offset":    vcge.Offset,

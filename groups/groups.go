@@ -7,10 +7,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/absmach/magistrala/domains"
 	"github.com/absmach/magistrala/pkg/authn"
 	"github.com/absmach/magistrala/pkg/roles"
-	"github.com/absmach/magistrala/pkg/svcutil"
 )
 
 // MaxLevel represents the maximum group hierarchy level.
@@ -40,7 +38,10 @@ type Group struct {
 	UpdatedAt   time.Time `json:"updated_at,omitempty"`
 	UpdatedBy   string    `json:"updated_by,omitempty"`
 	Status      Status    `json:"status"`
-	Permissions []string  `json:"permissions,omitempty"`
+	RoleID      string    `json:"role_id,omitempty"`
+	RoleName    string    `json:"role_name,omitempty"`
+	AccessType  string    `json:"access_type,omitempty"`
+	Actions     []string  `json:"actions,omitempty"`
 }
 
 type Member struct {
@@ -109,6 +110,16 @@ type Repository interface {
 
 	UnassignAllChildrenGroup(ctx context.Context, id string) error
 
+	RetrieveUserGroups(ctx context.Context, domainID, userID string, pm PageMeta) (Page, error)
+
+	// RetrieveChildrenGroups at given level in ltree
+	// Condition: startLevel == 0 and endLevel < 0, Retrieve all children groups from parent group level, Example: If we pass startLevel 0 and endLevel -1, then function will return all children of parent group
+	// Condition: startLevel > 0 and endLevel == 0, Retrieve specific level of children groups from parent group level, Example: If we pass startLevel 1 and endLevel 0, then function will return children of parent group from level 1
+	// Condition: startLevel > 0 and endLevel < 0,  Retrieve all children groups from specific level from parent group level, Example: If we pass startLevel 2 and endLevel -1, then function will return all children of parent group from level 2
+	// Condition: startLevel > 0 and endLevel > 0, Retrieve children groups between specific level from parent group level, Example: If we pass startLevel 3 and endLevel 5, then function will return all children of parent group between level 3 and 5
+	RetrieveChildrenGroups(ctx context.Context, domainID, userID, groupID string, startLevel, endLevel int, pm PageMeta) (Page, error)
+
+	RetrieveAllParentGroups(ctx context.Context, domainID, userID, groupID string, pm PageMeta) (Page, error)
 	// Delete a group
 	Delete(ctx context.Context, groupID string) error
 
@@ -128,6 +139,8 @@ type Service interface {
 
 	// ListGroups retrieves
 	ListGroups(ctx context.Context, session authn.Session, pm PageMeta) (Page, error)
+
+	ListUserGroups(ctx context.Context, session authn.Session, userID string, pm PageMeta) (Page, error)
 
 	// EnableGroup logically enables the group identified with the provided ID.
 	EnableGroup(ctx context.Context, session authn.Session, id string) (Group, error)
@@ -152,151 +165,7 @@ type Service interface {
 
 	ListChildrenGroups(ctx context.Context, session authn.Session, id string, pm PageMeta) (Page, error)
 
+	ListAllChildrenGroups(ctx context.Context, session authn.Session, id string, pm PageMeta) (Page, error)
+
 	roles.RoleManager
-}
-
-const (
-	OpCreateGroup svcutil.Operation = iota
-	OpListGroups
-	OpViewGroup
-	OpUpdateGroup
-	OpEnableGroup
-	OpDisableGroup
-	OpRetrieveGroupHierarchy
-	OpAddParentGroup
-	OpRemoveParentGroup
-	OpViewParentGroup
-	OpAddChildrenGroups
-	OpRemoveChildrenGroups
-	OpRemoveAllChildrenGroups
-	OpListChildrenGroups
-	OpAddChannels
-	OpRemoveChannels
-	OpRemoveAllChannels
-	OpListChannels
-	OpAddClients
-	OpRemoveClients
-	OpRemoveAllClients
-	OpListClients
-	OpDeleteGroup
-)
-
-var expectedOperations = []svcutil.Operation{
-	OpCreateGroup,
-	OpListGroups,
-	OpViewGroup,
-	OpUpdateGroup,
-	OpEnableGroup,
-	OpDisableGroup,
-	OpRetrieveGroupHierarchy,
-	OpAddParentGroup,
-	OpRemoveParentGroup,
-	OpViewParentGroup,
-	OpAddChildrenGroups,
-	OpRemoveChildrenGroups,
-	OpRemoveAllChildrenGroups,
-	OpListChildrenGroups,
-	OpAddChannels,
-	OpRemoveChannels,
-	OpRemoveAllChannels,
-	OpListChannels,
-	OpAddClients,
-	OpRemoveClients,
-	OpRemoveAllClients,
-	OpListClients,
-	OpDeleteGroup,
-}
-
-var operationNames = []string{
-	"OpCreateGroup",
-	"OpListGroups",
-	"OpViewGroup",
-	"OpUpdateGroup",
-	"OpEnableGroup",
-	"OpDisableGroup",
-	"OpRetrieveGroupHierarchy",
-	"OpAddParentGroup",
-	"OpRemoveParentGroup",
-	"OpViewParentGroup",
-	"OpAddChildrenGroups",
-	"OpRemoveChildrenGroups",
-	"OpRemoveAllChildrenGroups",
-	"OpListChildrenGroups",
-	"OpAddChannels",
-	"OpRemoveChannels",
-	"OpRemoveAllChannels",
-	"OpListChannels",
-	"OpAddClients",
-	"OpRemoveClients",
-	"OpRemoveAllClients",
-	"OpListClients",
-	"OpDeleteGroup",
-}
-
-func NewOperationPerm() svcutil.OperationPerm {
-	return svcutil.NewOperationPerm(expectedOperations, operationNames)
-}
-
-// Below codes should moved out of service, may be can be kept in `cmd/<svc>/main.go`
-const (
-	updatePermission          = "update_permission"
-	readPermission            = "read_permission"
-	membershipPermission      = "membership_permission"
-	deletePermission          = "delete_permission"
-	setChildPermission        = "set_child_permission"
-	setParentPermission       = "set_parent_permission"
-	manageRolePermission      = "manage_role_permission"
-	addRoleUsersPermission    = "add_role_users_permission"
-	removeRoleUsersPermission = "remove_role_users_permission"
-	viewRoleUsersPermission   = "view_role_users_permission"
-)
-
-func NewOperationPermissionMap() map[svcutil.Operation]svcutil.Permission {
-	opPerm := map[svcutil.Operation]svcutil.Permission{
-		OpCreateGroup:             domains.GroupCreatePermission,
-		OpListGroups:              readPermission,
-		OpViewGroup:               readPermission,
-		OpUpdateGroup:             updatePermission,
-		OpEnableGroup:             updatePermission,
-		OpDisableGroup:            updatePermission,
-		OpRetrieveGroupHierarchy:  readPermission,
-		OpAddParentGroup:          setParentPermission,
-		OpRemoveParentGroup:       setParentPermission,
-		OpViewParentGroup:         readPermission,
-		OpAddChildrenGroups:       setChildPermission,
-		OpRemoveChildrenGroups:    setChildPermission,
-		OpRemoveAllChildrenGroups: setChildPermission,
-		OpListChildrenGroups:      readPermission,
-		OpAddChannels:             "",
-		OpRemoveChannels:          "",
-		OpRemoveAllChannels:       "",
-		OpListChannels:            "",
-		OpAddClients:               "",
-		OpRemoveClients:            "",
-		OpRemoveAllClients:         "",
-		OpListClients:              "",
-		OpDeleteGroup:             deletePermission,
-	}
-	return opPerm
-}
-
-func NewRolesOperationPermissionMap() map[svcutil.Operation]svcutil.Permission {
-	opPerm := map[svcutil.Operation]svcutil.Permission{
-		roles.OpAddRole:                manageRolePermission,
-		roles.OpRemoveRole:             manageRolePermission,
-		roles.OpUpdateRoleName:         manageRolePermission,
-		roles.OpRetrieveRole:           manageRolePermission,
-		roles.OpRetrieveAllRoles:       manageRolePermission,
-		roles.OpRoleAddActions:         manageRolePermission,
-		roles.OpRoleListActions:        manageRolePermission,
-		roles.OpRoleCheckActionsExists: manageRolePermission,
-		roles.OpRoleRemoveActions:      manageRolePermission,
-		roles.OpRoleRemoveAllActions:   manageRolePermission,
-		roles.OpRoleAddMembers:         addRoleUsersPermission,
-		roles.OpRoleListMembers:        viewRoleUsersPermission,
-		roles.OpRoleCheckMembersExists: viewRoleUsersPermission,
-		roles.OpRoleRemoveMembers:      removeRoleUsersPermission,
-		roles.OpRoleRemoveAllMembers:   manageRolePermission,
-	}
-	return opPerm
 }

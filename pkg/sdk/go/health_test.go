@@ -11,6 +11,7 @@ import (
 	"github.com/absmach/magistrala"
 	"github.com/absmach/magistrala/bootstrap/api"
 	bmocks "github.com/absmach/magistrala/bootstrap/mocks"
+	climocks "github.com/absmach/magistrala/clients/mocks"
 	mglog "github.com/absmach/magistrala/logger"
 	authnmocks "github.com/absmach/magistrala/pkg/authn/mocks"
 	authzmocks "github.com/absmach/magistrala/pkg/authz/mocks"
@@ -18,7 +19,6 @@ import (
 	sdk "github.com/absmach/magistrala/pkg/sdk/go"
 	readersapi "github.com/absmach/magistrala/readers/api"
 	readersmocks "github.com/absmach/magistrala/readers/mocks"
-	thmocks "github.com/absmach/magistrala/things/mocks"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -137,8 +137,8 @@ func setupMinimalReader() *httptest.Server {
 	repo := new(readersmocks.MessageRepository)
 	authz := new(authzmocks.Authorization)
 	authn := new(authnmocks.Authentication)
-	things := new(thmocks.ThingsServiceClient)
+	clients := new(climocks.ClientsServiceClient)
 
-	mux := readersapi.MakeHandler(repo, authn, authz, things, "test", "")
+	mux := readersapi.MakeHandler(repo, authn, authz, clients, "test", "")
 	return httptest.NewServer(mux)
 }
