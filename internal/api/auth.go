@@ -5,6 +5,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/absmach/magistrala/pkg/apiutil"
@@ -19,6 +20,7 @@ const SessionKey = sessionKeyType("session")
 func AuthenticateMiddleware(authn mgauthn.Authentication, domainCheck bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			fmt.Println(r.URL)
 			token := apiutil.ExtractBearerToken(r)
 			if token == "" {
 				EncodeError(r.Context(), apiutil.ErrBearerToken, w)
