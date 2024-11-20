@@ -177,7 +177,9 @@ func (req removeAllChildrenGroupsReq) validate() error {
 }
 
 type listChildrenGroupsReq struct {
-	id string
+	id         string
+	startLevel int64
+	endLevel   int64
 	mggroups.PageMeta
 }
 

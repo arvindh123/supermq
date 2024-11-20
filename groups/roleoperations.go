@@ -19,7 +19,6 @@ const (
 	OpRemoveChildrenGroups
 	OpRemoveAllChildrenGroups
 	OpListChildrenGroups
-	OpListAllChildrenGroups
 	OpDeleteGroup
 )
 
@@ -35,7 +34,6 @@ var expectedOperations = []svcutil.Operation{
 	OpRemoveChildrenGroups,
 	OpRemoveAllChildrenGroups,
 	OpListChildrenGroups,
-	OpListAllChildrenGroups,
 	OpDeleteGroup,
 }
 
@@ -51,7 +49,6 @@ var operationNames = []string{
 	"OpRemoveChildrenGroups",
 	"OpRemoveAllChildrenGroups",
 	"OpListChildrenGroups",
-	"OpListAllChildrenGroups",
 	"OpDeleteGroup",
 }
 
@@ -115,7 +112,6 @@ func NewOperationPermissionMap() map[svcutil.Operation]svcutil.Permission {
 		OpRemoveChildrenGroups:    setChildPermission,
 		OpRemoveAllChildrenGroups: setChildPermission,
 		OpListChildrenGroups:      readPermission,
-		OpListAllChildrenGroups:   readPermission,
 		OpDeleteGroup:             deletePermission,
 	}
 	return opPerm

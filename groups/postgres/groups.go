@@ -540,7 +540,7 @@ func (repo groupRepository) RetrieveAllParentGroups(ctx context.Context, domainI
 	return repo.retrieveGroups(ctx, domainID, userID, query, pm)
 }
 
-func (repo groupRepository) RetrieveChildrenGroups(ctx context.Context, domainID, userID, groupID string, startLevel, endLevel int, pm mggroups.PageMeta) (mggroups.Page, error) {
+func (repo groupRepository) RetrieveChildrenGroups(ctx context.Context, domainID, userID, groupID string, startLevel, endLevel int64, pm mggroups.PageMeta) (mggroups.Page, error) {
 	pGroup, err := repo.RetrieveByID(ctx, groupID)
 	if err != nil {
 		return mggroups.Page{}, err
@@ -552,19 +552,19 @@ func (repo groupRepository) RetrieveChildrenGroups(ctx context.Context, domainID
 	switch {
 	// Retrieve all children groups from parent group level
 	case startLevel == 0 && endLevel < 0:
-		levelCondition = fmt.Sprintf(" path ~ '%s.{*}'::lquery ", pGroup.Path)
+		levelCondition = fmt.Sprintf(" path ~ '%s.*'::::lquery ", pGroup.Path)
 
 	// Retrieve specific level of children groups from parent group level
 	case (startLevel > 0) && (startLevel == endLevel || endLevel == 0):
-		levelCondition = fmt.Sprintf(" path ~ '%s.{%d}'::lquery ", pGroup.Path, startLevel)
+		levelCondition = fmt.Sprintf(" path ~ '%s.*{%d}'::::lquery ", pGroup.Path, startLevel)
 
 	// Retrieve all children groups from specific level from parent group level
 	case startLevel > 0 && endLevel < 0:
-		levelCondition = fmt.Sprintf(" path ~ '%s.{%d,}'::lquery ", pGroup.Path, startLevel)
+		levelCondition = fmt.Sprintf(" path ~ '%s.*{%d,}'::::lquery ", pGroup.Path, startLevel)
 
 	// Retrieve children groups between specific level from parent group level
 	case startLevel > 0 && endLevel > 0 && startLevel < endLevel:
-		levelCondition = fmt.Sprintf(" path ~ '%s.{%d,%d}'::lquery ", pGroup.Path, startLevel, endLevel)
+		levelCondition = fmt.Sprintf(" path ~ '%s.*{%d,%d}'::::lquery ", pGroup.Path, startLevel, endLevel)
 	default:
 		return mggroups.Page{}, fmt.Errorf("invalid level range: start level: %d end level: %d", startLevel, endLevel)
 	}
@@ -576,6 +576,7 @@ func (repo groupRepository) RetrieveChildrenGroups(ctx context.Context, domainID
 		query = query + " AND " + levelCondition
 	}
 
+	fmt.Println(startLevel, endLevel)
 	return repo.retrieveGroups(ctx, domainID, userID, query, pm)
 }
 

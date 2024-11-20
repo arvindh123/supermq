@@ -319,7 +319,7 @@ func listChildrenGroupsEndpoint(svc groups.Service) endpoint.Endpoint {
 			return changeStatusRes{}, svcerr.ErrAuthentication
 		}
 
-		gp, err := svc.ListChildrenGroups(ctx, session, req.id, req.PageMeta)
+		gp, err := svc.ListChildrenGroups(ctx, session, req.id, req.startLevel, req.endLevel, req.PageMeta)
 		if err != nil {
 			return listChildrenGroupsRes{}, err
 		}

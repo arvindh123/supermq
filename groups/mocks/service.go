@@ -187,34 +187,6 @@ func (_m *Service) EnableGroup(ctx context.Context, session authn.Session, id st
 	return r0, r1
 }
 
-// ListAllChildrenGroups provides a mock function with given fields: ctx, session, id, pm
-func (_m *Service) ListAllChildrenGroups(ctx context.Context, session authn.Session, id string, pm groups.PageMeta) (groups.Page, error) {
-	ret := _m.Called(ctx, session, id, pm)
-
-	if len(ret) == 0 {
-		panic("no return value specified for ListAllChildrenGroups")
-	}
-
-	var r0 groups.Page
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, authn.Session, string, groups.PageMeta) (groups.Page, error)); ok {
-		return rf(ctx, session, id, pm)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, authn.Session, string, groups.PageMeta) groups.Page); ok {
-		r0 = rf(ctx, session, id, pm)
-	} else {
-		r0 = ret.Get(0).(groups.Page)
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, authn.Session, string, groups.PageMeta) error); ok {
-		r1 = rf(ctx, session, id, pm)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
 // ListAvailableActions provides a mock function with given fields: ctx, session
 func (_m *Service) ListAvailableActions(ctx context.Context, session authn.Session) ([]string, error) {
 	ret := _m.Called(ctx, session)
