@@ -227,23 +227,12 @@ func (es eventStore) RemoveAllChildrenGroups(ctx context.Context, session authn.
 	return nil
 }
 
-func (es eventStore) ListChildrenGroups(ctx context.Context, session authn.Session, id string, pm groups.PageMeta) (groups.Page, error) {
-	g, err := es.svc.ListChildrenGroups(ctx, session, id, pm)
+func (es eventStore) ListChildrenGroups(ctx context.Context, session authn.Session, id string, startLevel, endLevel int64, pm groups.PageMeta) (groups.Page, error) {
+	g, err := es.svc.ListChildrenGroups(ctx, session, id, startLevel, endLevel, pm)
 	if err != nil {
 		return g, err
 	}
-	if err := es.Publish(ctx, listChildrenGroupsEvent{id, pm}); err != nil {
-		return g, err
-	}
-	return g, nil
-}
-
-func (es eventStore) ListAllChildrenGroups(ctx context.Context, session authn.Session, id string, pm groups.PageMeta) (groups.Page, error) {
-	g, err := es.svc.ListAllChildrenGroups(ctx, session, id, pm)
-	if err != nil {
-		return g, err
-	}
-	if err := es.Publish(ctx, listAllChildrenGroupsEvent{id, pm}); err != nil {
+	if err := es.Publish(ctx, listChildrenGroupsEvent{id, startLevel, endLevel, pm}); err != nil {
 		return g, err
 	}
 	return g, nil

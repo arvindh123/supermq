@@ -10,7 +10,6 @@ type PageMeta struct {
 	Limit      uint64   `json:"limit"`
 	Name       string   `json:"name,omitempty"`
 	ID         string   `json:"id,omitempty"`
-	Level      int      `json:"level,omitempty"`
 	Path       string   `json:"path,omitempty"`
 	DomainID   string   `json:"domain_id,omitempty"`
 	Tag        string   `json:"tag,omitempty"`

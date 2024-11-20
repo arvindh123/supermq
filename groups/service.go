@@ -409,16 +409,8 @@ func (svc service) RemoveAllChildrenGroups(ctx context.Context, session mgauthn.
 	return svc.repo.UnassignAllChildrenGroup(ctx, id)
 }
 
-func (svc service) ListChildrenGroups(ctx context.Context, session mgauthn.Session, id string, pm PageMeta) (Page, error) {
-	page, err := svc.repo.RetrieveChildrenGroups(ctx, session.DomainID, session.UserID, id, 1, 0, pm)
-	if err != nil {
-		return Page{}, errors.Wrap(svcerr.ErrViewEntity, err)
-	}
-	return page, nil
-}
-
-func (svc service) ListAllChildrenGroups(ctx context.Context, session mgauthn.Session, id string, pm PageMeta) (Page, error) {
-	page, err := svc.repo.RetrieveChildrenGroups(ctx, session.DomainID, session.UserID, id, 0, -1, pm)
+func (svc service) ListChildrenGroups(ctx context.Context, session mgauthn.Session, id string, startLevel, endLevel int64, pm PageMeta) (Page, error) {
+	page, err := svc.repo.RetrieveChildrenGroups(ctx, session.DomainID, session.UserID, id, startLevel, endLevel, pm)
 	if err != nil {
 		return Page{}, errors.Wrap(svcerr.ErrViewEntity, err)
 	}

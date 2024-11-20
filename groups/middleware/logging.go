@@ -295,7 +295,7 @@ func (lm *loggingMiddleware) RemoveAllChildrenGroups(ctx context.Context, sessio
 	return lm.svc.RemoveAllChildrenGroups(ctx, session, id)
 }
 
-func (lm *loggingMiddleware) ListChildrenGroups(ctx context.Context, session authn.Session, id string, pm groups.PageMeta) (gp groups.Page, err error) {
+func (lm *loggingMiddleware) ListChildrenGroups(ctx context.Context, session authn.Session, id string, startLevel, endLevel int64, pm groups.PageMeta) (gp groups.Page, err error) {
 	defer func(begin time.Time) {
 		args := []any{
 			slog.String("duration", time.Since(begin).String()),
@@ -313,26 +313,5 @@ func (lm *loggingMiddleware) ListChildrenGroups(ctx context.Context, session aut
 		}
 		lm.logger.Info("List children groups completed successfully", args...)
 	}(time.Now())
-	return lm.svc.ListChildrenGroups(ctx, session, id, pm)
-}
-
-func (lm *loggingMiddleware) ListAllChildrenGroups(ctx context.Context, session authn.Session, id string, pm groups.PageMeta) (gp groups.Page, err error) {
-	defer func(begin time.Time) {
-		args := []any{
-			slog.String("duration", time.Since(begin).String()),
-			slog.String("group_id", id),
-			slog.Group("page",
-				slog.Uint64("limit", pm.Limit),
-				slog.Uint64("offset", pm.Offset),
-				slog.Uint64("total", gp.Total),
-			),
-		}
-		if err != nil {
-			args = append(args, slog.String("error", err.Error()))
-			lm.logger.Warn("List all children groups failed", args...)
-			return
-		}
-		lm.logger.Info("List all children groups completed successfully", args...)
-	}(time.Now())
-	return lm.svc.ListAllChildrenGroups(ctx, session, id, pm)
+	return lm.svc.ListChildrenGroups(ctx, session, id, startLevel, endLevel, pm)
 }

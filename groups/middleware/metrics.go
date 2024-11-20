@@ -151,18 +151,10 @@ func (ms *metricsMiddleware) RemoveAllChildrenGroups(ctx context.Context, sessio
 	return ms.svc.RemoveAllChildrenGroups(ctx, session, id)
 }
 
-func (ms *metricsMiddleware) ListChildrenGroups(ctx context.Context, session authn.Session, id string, pm groups.PageMeta) (groups.Page, error) {
+func (ms *metricsMiddleware) ListChildrenGroups(ctx context.Context, session authn.Session, id string, startLevel, endLevel int64, pm groups.PageMeta) (groups.Page, error) {
 	defer func(begin time.Time) {
 		ms.counter.With("method", "list_children_groups").Add(1)
 		ms.latency.With("method", "list_children_groups").Observe(time.Since(begin).Seconds())
 	}(time.Now())
-	return ms.svc.ListChildrenGroups(ctx, session, id, pm)
-}
-
-func (ms *metricsMiddleware) ListAllChildrenGroups(ctx context.Context, session authn.Session, id string, pm groups.PageMeta) (groups.Page, error) {
-	defer func(begin time.Time) {
-		ms.counter.With("method", "list_all_children_groups").Add(1)
-		ms.latency.With("method", "list_all_children_groups").Observe(time.Since(begin).Seconds())
-	}(time.Now())
-	return ms.svc.ListAllChildrenGroups(ctx, session, id, pm)
+	return ms.svc.ListChildrenGroups(ctx, session, id, startLevel, endLevel, pm)
 }

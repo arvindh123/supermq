@@ -155,9 +155,21 @@ func decodeListChildrenGroupsRequest(_ context.Context, r *http.Request) (interf
 		return nil, err
 	}
 
+	startLevel, err := apiutil.ReadNumQuery[int64](r, api.StartLevelKey, api.DefStartLevel)
+	if err != nil {
+		return mggroups.PageMeta{}, errors.Wrap(apiutil.ErrValidation, err)
+	}
+
+	endLevel, err := apiutil.ReadNumQuery[int64](r, api.EndLevelKey, api.DefEndLevel)
+	if err != nil {
+		return mggroups.PageMeta{}, errors.Wrap(apiutil.ErrValidation, err)
+	}
+
 	req := listChildrenGroupsReq{
-		id:       chi.URLParam(r, "groupID"),
-		PageMeta: pm,
+		id:         chi.URLParam(r, "groupID"),
+		PageMeta:   pm,
+		startLevel: startLevel,
+		endLevel:   endLevel,
 	}
 	return req, nil
 }

@@ -117,7 +117,7 @@ type Repository interface {
 	// Condition: startLevel > 0 and endLevel == 0, Retrieve specific level of children groups from parent group level, Example: If we pass startLevel 1 and endLevel 0, then function will return children of parent group from level 1
 	// Condition: startLevel > 0 and endLevel < 0,  Retrieve all children groups from specific level from parent group level, Example: If we pass startLevel 2 and endLevel -1, then function will return all children of parent group from level 2
 	// Condition: startLevel > 0 and endLevel > 0, Retrieve children groups between specific level from parent group level, Example: If we pass startLevel 3 and endLevel 5, then function will return all children of parent group between level 3 and 5
-	RetrieveChildrenGroups(ctx context.Context, domainID, userID, groupID string, startLevel, endLevel int, pm PageMeta) (Page, error)
+	RetrieveChildrenGroups(ctx context.Context, domainID, userID, groupID string, startLevel, endLevel int64, pm PageMeta) (Page, error)
 
 	RetrieveAllParentGroups(ctx context.Context, domainID, userID, groupID string, pm PageMeta) (Page, error)
 	// Delete a group
@@ -163,9 +163,7 @@ type Service interface {
 
 	RemoveAllChildrenGroups(ctx context.Context, session authn.Session, id string) error
 
-	ListChildrenGroups(ctx context.Context, session authn.Session, id string, pm PageMeta) (Page, error)
-
-	ListAllChildrenGroups(ctx context.Context, session authn.Session, id string, pm PageMeta) (Page, error)
+	ListChildrenGroups(ctx context.Context, session authn.Session, id string, startLevel, endLevel int64, pm PageMeta) (Page, error)
 
 	roles.RoleManager
 }

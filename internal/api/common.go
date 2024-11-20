@@ -47,6 +47,8 @@ const (
 	SubjectKey       = "subject"
 	ObjectKey        = "object"
 	LevelKey         = "level"
+	StartLevelKey    = "start_level"
+	EndLevelKey      = "end_level"
 	TreeKey          = "tree"
 	DirKey           = "dir"
 	ListPerms        = "list_perms"
@@ -64,6 +66,8 @@ const (
 	DefDir           = "asc"
 	DefLimit         = 10
 	DefLevel         = 0
+	DefStartLevel    = 1
+	DefEndLevel      = 0
 	DefStatus        = "enabled"
 	DefClientStatus  = clients.Enabled
 	DefUserStatus    = users.Enabled
