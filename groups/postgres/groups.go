@@ -154,12 +154,62 @@ func (repo groupRepository) RetrieveByID(ctx context.Context, id string) (mggrou
 	defer row.Close()
 
 	dbg = dbGroup{}
-	if row.Next() {
-		if err := row.StructScan(&dbg); err != nil {
-			return mggroups.Group{}, errors.Wrap(repoerr.ErrNotFound, err)
-		}
+	if ok := row.Next(); !ok {
+		return mggroups.Group{}, repoerr.ErrNotFound
 	}
+	if err := row.StructScan(&dbg); err != nil {
+		return mggroups.Group{}, errors.Wrap(repoerr.ErrViewEntity, err)
+	}
+	return toGroup(dbg)
+}
 
+func (repo groupRepository) RetrieveByIDAndUser(ctx context.Context, domainID, userID, groupID string) (mggroups.Group, error) {
+	baseQuery := repo.userGroupsBaseQuery(domainID, userID)
+
+	dbg := dbGroup{ID: groupID}
+	q := fmt.Sprintf(`%s
+					SELECT
+						g.id,
+						g.name,
+						g.domain_id,
+						COALESCE(g.parent_id, '') AS parent_id,
+						g.description,
+						g.metadata,
+						g.created_at,
+						g.updated_at,
+						g.updated_by,
+						g.status,
+						g.path as path,
+						g.role_id,
+						g.role_name,
+						g.actions,
+						g.access_type,
+						g.access_provider_id,
+						g.access_provider_role_id,
+						g.access_provider_role_name,
+						g.access_provider_role_actions
+					FROM
+						final_groups g
+					WHERE
+						g.id = :id
+					LIMIT 1
+					;
+					`,
+		baseQuery)
+
+	row, err := repo.db.NamedQueryContext(ctx, q, dbg)
+	if err != nil {
+		return mggroups.Group{}, errors.Wrap(repoerr.ErrViewEntity, err)
+	}
+	defer row.Close()
+
+	dbg = dbGroup{}
+	if ok := row.Next(); !ok {
+		return mggroups.Group{}, repoerr.ErrNotFound
+	}
+	if err := row.StructScan(&dbg); err != nil {
+		return mggroups.Group{}, errors.Wrap(repoerr.ErrViewEntity, err)
+	}
 	return toGroup(dbg)
 }
 

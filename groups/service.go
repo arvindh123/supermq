@@ -105,16 +105,12 @@ func (svc service) CreateGroup(ctx context.Context, session mgauthn.Session, g G
 }
 
 func (svc service) ViewGroup(ctx context.Context, session mgauthn.Session, id string) (Group, error) {
-	group, err := svc.repo.RetrieveByID(ctx, id)
+	group, err := svc.repo.RetrieveByIDAndUser(ctx, session.DomainID, session.UserID, id)
 	if err != nil {
 		return Group{}, errors.Wrap(svcerr.ErrViewEntity, err)
 	}
 
 	return group, nil
-}
-
-func (svc service) ViewGroupPerms(ctx context.Context, session mgauthn.Session, id string) ([]string, error) {
-	return svc.listUserGroupPermission(ctx, session.DomainUserID, id)
 }
 
 func (svc service) ListGroups(ctx context.Context, session mgauthn.Session, gm PageMeta) (Page, error) {
@@ -142,22 +138,6 @@ func (svc service) ListUserGroups(ctx context.Context, session mgauthn.Session, 
 		return Page{}, errors.Wrap(svcerr.ErrViewEntity, err)
 	}
 	return page, nil
-}
-
-func (svc service) listUserGroupPermission(ctx context.Context, userID, groupID string) ([]string, error) {
-	permissions, err := svc.policy.ListPermissions(ctx, policies.Policy{
-		SubjectType: policies.UserType,
-		Subject:     userID,
-		Object:      groupID,
-		ObjectType:  policies.GroupType,
-	}, []string{})
-	if err != nil {
-		return []string{}, err
-	}
-	if len(permissions) == 0 {
-		return []string{}, svcerr.ErrAuthorization
-	}
-	return permissions, nil
 }
 
 func (svc service) UpdateGroup(ctx context.Context, session mgauthn.Session, g Group) (Group, error) {
