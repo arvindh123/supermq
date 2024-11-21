@@ -528,7 +528,7 @@ func (repo groupRepository) RetrieveAllParentGroups(ctx context.Context, domainI
 
 	query := buildQuery(pm)
 
-	levelCondition := fmt.Sprintf(" @> '%s' ", cGroup.Path)
+	levelCondition := fmt.Sprintf("g.path @> '%s' ", cGroup.Path)
 
 	switch {
 	case query == "":
@@ -576,7 +576,6 @@ func (repo groupRepository) RetrieveChildrenGroups(ctx context.Context, domainID
 		query = query + " AND " + levelCondition
 	}
 
-	fmt.Println(startLevel, endLevel)
 	return repo.retrieveGroups(ctx, domainID, userID, query, pm)
 }
 
@@ -601,10 +600,14 @@ func (repo groupRepository) retrieveGroups(ctx context.Context, domainID, userID
 						g.updated_by,
 						g.status,
 						g.path as path,
-						g.access_type,
 						g.role_id,
 						g.role_name,
-						g.actions
+						g.actions,
+						g.access_type,
+						g.access_provider_id,
+						g.access_provider_role_id,
+						g.access_provider_role_name,
+						g.access_provider_role_actions
 					FROM
 						final_groups g
 					%s
@@ -644,10 +647,14 @@ func (repo groupRepository) retrieveGroups(ctx context.Context, domainID, userID
 								g.updated_by,
 								g.status,
 								g.path as path,
-								g.access_type,
 								g.role_id,
 								g.role_name,
-								g.actions
+								g.actions,
+								g.access_type,
+								g.access_provider_id,
+								g.access_provider_role_id,
+								g.access_provider_role_name,
+								g.access_provider_role_actions
 							FROM
 								final_groups g
 							%s
@@ -688,27 +695,35 @@ func (repo groupRepository) userGroupsBaseQuery(domainID, userID string) string 
 	GROUP BY
 		gr.entity_id, grm.member_id, gr.id, gr."name", g."path", g.id
 	),
-	direct_groups_with_subgroup_read AS (
+	direct_groups_with_subgroup AS (
 		SELECT
 			*
 		FROM direct_groups
-		WHERE 'subgroup_read' = ANY(direct_groups.actions)
+		WHERE EXISTS (
+    		SELECT 1
+    			FROM unnest(direct_groups.actions) AS action
+    		WHERE action LIKE 'subgroup_%%'
+		)
 	),
 	indirect_child_groups AS (
 		SELECT
 			DISTINCT  indirect_child_groups.id as child_id,
-			indirect_child_groups.*
+			indirect_child_groups.*,
+			dgws.id as access_provider_id,
+			dgws.role_id as access_provider_role_id,
+			dgws.role_name as access_provider_role_name,
+			dgws.actions as access_provider_role_actions
 		FROM
-			direct_groups_with_subgroup_read dgwsr
+			direct_groups_with_subgroup dgws
 		JOIN
-			groups indirect_child_groups ON indirect_child_groups.path <@ dgwsr.path  -- Finds all children of entity_id based on ltree path
+			groups indirect_child_groups ON indirect_child_groups.path <@ dgws.path  -- Finds all children of entity_id based on ltree path
 		WHERE
 			indirect_child_groups.domain_id = '%s'
 			AND
-			NOT EXISTS (  -- Ensures that the indirect_child_groups.id is not already in the direct_groups_with_subgroup_read table
+			NOT EXISTS (  -- Ensures that the indirect_child_groups.id is not already in the direct_groups_with_subgroup table
 				SELECT 1
-				FROM direct_groups_with_subgroup_read dgwsr
-				WHERE dgwsr.id = indirect_child_groups.id
+				FROM direct_groups_with_subgroup dgws
+				WHERE dgws.id = indirect_child_groups.id
 			)
 	),
 	final_groups as (
@@ -727,7 +742,11 @@ func (repo groupRepository) userGroupsBaseQuery(domainID, userID string) string 
 			role_id,
 			role_name,
 			actions,
-			'direct' as access_type
+			'direct' AS access_type,
+			'' AS access_provider_id,
+			'' AS access_provider_role_id,
+			'' AS access_provider_role_name,
+			array[]::::text[] AS access_provider_role_actions
 		FROM
 			direct_groups
 		UNION
@@ -743,10 +762,14 @@ func (repo groupRepository) userGroupsBaseQuery(domainID, userID string) string 
 			updated_by,
 			status,
 			"path",
-			'' as role_id,
-			'' as role_name,
+			'' AS role_id,
+			'' AS role_name,
 			array[]::::text[] AS actions,
-			'indirect' as access_type
+			'indirect' AS access_type,
+			access_provider_id,
+			access_provider_role_id,
+			access_provider_role_name,
+			access_provider_role_actions
 		FROM
 			indirect_child_groups
 	)`, userID, domainID, domainID)
@@ -794,22 +817,26 @@ func buildQuery(gm mggroups.PageMeta, ids ...string) string {
 }
 
 type dbGroup struct {
-	ID          string          `db:"id"`
-	ParentID    *string         `db:"parent_id,omitempty"`
-	DomainID    string          `db:"domain_id,omitempty"`
-	Name        string          `db:"name"`
-	Description string          `db:"description,omitempty"`
-	Level       int             `db:"level"`
-	Path        string          `db:"path,omitempty"`
-	Metadata    []byte          `db:"metadata,omitempty"`
-	CreatedAt   time.Time       `db:"created_at"`
-	UpdatedAt   sql.NullTime    `db:"updated_at,omitempty"`
-	UpdatedBy   *string         `db:"updated_by,omitempty"`
-	Status      mggroups.Status `db:"status"`
-	RoleID      string          `db:"role_id,omitempty"`
-	RoleName    string          `db:"role_name,omitempty"`
-	AccessType  string          `db:"access_type"`
-	Actions     pq.StringArray  `db:"actions"`
+	ID                        string          `db:"id"`
+	ParentID                  *string         `db:"parent_id,omitempty"`
+	DomainID                  string          `db:"domain_id,omitempty"`
+	Name                      string          `db:"name"`
+	Description               string          `db:"description,omitempty"`
+	Level                     int             `db:"level"`
+	Path                      string          `db:"path,omitempty"`
+	Metadata                  []byte          `db:"metadata,omitempty"`
+	CreatedAt                 time.Time       `db:"created_at"`
+	UpdatedAt                 sql.NullTime    `db:"updated_at,omitempty"`
+	UpdatedBy                 *string         `db:"updated_by,omitempty"`
+	Status                    mggroups.Status `db:"status"`
+	RoleID                    string          `db:"role_id"`
+	RoleName                  string          `db:"role_name"`
+	Actions                   pq.StringArray  `db:"actions"`
+	AccessType                string          `db:"access_type"`
+	AccessProviderId          string          `db:"access_provider_id"`
+	AccessProviderRoleId      string          `db:"access_provider_role_id"`
+	AccessProviderRoleName    string          `db:"access_provider_role_name"`
+	AccessProviderRoleActions pq.StringArray  `db:"access_provider_role_actions"`
 }
 
 func toDBGroup(g mggroups.Group) (dbGroup, error) {
@@ -869,22 +896,26 @@ func toGroup(g dbGroup) (mggroups.Group, error) {
 	}
 
 	return mggroups.Group{
-		ID:          g.ID,
-		Name:        g.Name,
-		Parent:      parentID,
-		Domain:      g.DomainID,
-		Description: g.Description,
-		Metadata:    metadata,
-		Level:       g.Level,
-		Path:        g.Path,
-		UpdatedAt:   updatedAt,
-		UpdatedBy:   updatedBy,
-		CreatedAt:   g.CreatedAt,
-		Status:      g.Status,
-		AccessType:  g.AccessType,
-		RoleID:      g.RoleID,
-		RoleName:    g.RoleName,
-		Actions:     g.Actions,
+		ID:                        g.ID,
+		Name:                      g.Name,
+		Parent:                    parentID,
+		Domain:                    g.DomainID,
+		Description:               g.Description,
+		Metadata:                  metadata,
+		Level:                     g.Level,
+		Path:                      g.Path,
+		UpdatedAt:                 updatedAt,
+		UpdatedBy:                 updatedBy,
+		CreatedAt:                 g.CreatedAt,
+		Status:                    g.Status,
+		RoleID:                    g.RoleID,
+		RoleName:                  g.RoleName,
+		Actions:                   g.Actions,
+		AccessType:                g.AccessType,
+		AccessProviderId:          g.AccessProviderId,
+		AccessProviderRoleId:      g.AccessProviderRoleId,
+		AccessProviderRoleName:    g.AccessProviderRoleName,
+		AccessProviderRoleActions: g.AccessProviderRoleActions,
 	}, nil
 }
 

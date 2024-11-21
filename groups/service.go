@@ -137,7 +137,7 @@ func (svc service) ListGroups(ctx context.Context, session mgauthn.Session, gm P
 }
 
 func (svc service) ListUserGroups(ctx context.Context, session mgauthn.Session, userID string, pm PageMeta) (Page, error) {
-	page, err := svc.repo.RetrieveUserGroups(ctx, session.DomainID, session.UserID, pm)
+	page, err := svc.repo.RetrieveUserGroups(ctx, session.DomainID, userID, pm)
 	if err != nil {
 		return Page{}, errors.Wrap(svcerr.ErrViewEntity, err)
 	}
