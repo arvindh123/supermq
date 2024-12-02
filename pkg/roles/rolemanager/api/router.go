@@ -13,7 +13,6 @@ import (
 
 func EntityRoleMangerRouter(svc roles.RoleManager, d Decoder, r chi.Router, opts []kithttp.ServerOption) chi.Router {
 	r.Route("/roles", func(r chi.Router) {
-
 		r.Post("/", otelhttp.NewHandler(kithttp.NewServer(
 			CreateRoleEndpoint(svc),
 			d.DecodeCreateRole,
@@ -110,7 +109,6 @@ func EntityRoleMangerRouter(svc roles.RoleManager, d Decoder, r chi.Router, opts
 				), "delete_all_role_members").ServeHTTP)
 			})
 		})
-
 	})
 
 	return r

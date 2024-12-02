@@ -540,8 +540,9 @@ func messaging(s sdk.SDK, conf Config, domainID, token string, clients []sdk.Cli
 	for _, c := range clients {
 		for _, channel := range channels {
 			conn := sdk.Connection{
-				ClientID:  c.ID,
-				ChannelID: channel.ID,
+				ClientIDs:  []string{c.ID},
+				ChannelIDs: []string{channel.ID},
+				Types:      []string{"publish", "subscribe"},
 			}
 			if err := s.Connect(conn, domainID, token); err != nil {
 				return fmt.Errorf("failed to connect client %s to channel %s", c.ID, channel.ID)

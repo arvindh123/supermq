@@ -333,7 +333,7 @@ func extractClientSecret(topic string) string {
 	return strings.TrimPrefix(topic, apiutil.ClientPrefix)
 }
 
-// extractBearerToken
+// extractBearerToken returns value of the bearer token. If there is no bearer token - an empty value is returned.
 func extractBearerToken(token string) string {
 	if !strings.HasPrefix(token, apiutil.BearerPrefix) {
 		return ""

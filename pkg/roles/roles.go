@@ -89,7 +89,6 @@ type Provisioner interface {
 
 //go:generate mockery --name RoleManager --output=./mocks --filename rolemanager.go --quiet --note "Copyright (c) Abstract Machines"
 type RoleManager interface {
-
 	// Add New role to entity
 	AddRole(ctx context.Context, session authn.Session, entityID, roleName string, optionalActions []string, optionalMembers []string) (Role, error)
 
@@ -151,7 +150,6 @@ type Repository interface {
 }
 
 type Roles interface {
-
 	// Add New role to entity
 	AddRole(ctx context.Context, session authn.Session, entityID, roleName string, optionalActions []string, optionalMembers []string) (Role, error)
 

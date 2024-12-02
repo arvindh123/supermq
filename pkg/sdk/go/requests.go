@@ -37,10 +37,11 @@ type UserPasswordReq struct {
 	Password    string `json:"password,omitempty"`
 }
 
-// Connection contains client and channel ID that are connected.
+// Connection contains clients and channel IDs that are connected.
 type Connection struct {
-	ClientID  string `json:"client_id,omitempty"`
-	ChannelID string `json:"channel_id,omitempty"`
+	ClientIDs  []string `json:"client_ids,omitempty"`
+	ChannelIDs []string `json:"channel_ids,omitempty"`
+	Types      []string `json:"types,omitempty"`
 }
 
 type UsersRelationRequest struct {

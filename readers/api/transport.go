@@ -45,16 +45,7 @@ const (
 	defLimit       = 10
 	defOffset      = 0
 	defFormat      = "messages"
-
-	tokenKind           = "token"
-	clientType          = "client"
-	userType            = "user"
-	subscribePermission = "subscribe"
-	viewPermission      = "view"
-	groupType           = "group"
 )
-
-var errUserAccess = errors.New("user has no permission")
 
 // MakeHandler returns a HTTP handler for API endpoints.
 func MakeHandler(svc readers.MessageRepository, authn mgauthn.Authentication, clients grpcClientsV1.ClientsServiceClient, channels grpcChannelsV1.ChannelsServiceClient, svcName, instanceID string) http.Handler {

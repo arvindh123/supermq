@@ -11,16 +11,16 @@ import (
 const maxLimitSize = 100
 
 type addReq struct {
-	token          string
-	ClientID       string   `json:"client_id"`
-	ExternalID     string   `json:"external_id"`
-	ExternalSecret string   `json:"external_secret"`
-	Channels       []string `json:"channels"`
-	Name           string   `json:"name"`
-	Content        string   `json:"content"`
-	ClientCert     string   `json:"client_cert"`
-	ClientKey      string   `json:"client_key"`
-	CACert         string   `json:"ca_cert"`
+	token       string
+	ClientID    string   `json:"client_id"`
+	ExternalID  string   `json:"external_id"`
+	ExternalKey string   `json:"external_key"`
+	Channels    []string `json:"channels"`
+	Name        string   `json:"name"`
+	Content     string   `json:"content"`
+	ClientCert  string   `json:"client_cert"`
+	ClientKey   string   `json:"client_key"`
+	CACert      string   `json:"ca_cert"`
 }
 
 func (req addReq) validate() error {
@@ -32,7 +32,7 @@ func (req addReq) validate() error {
 		return apiutil.ErrMissingID
 	}
 
-	if req.ExternalSecret == "" {
+	if req.ExternalKey == "" {
 		return apiutil.ErrBearerKey
 	}
 
@@ -76,7 +76,7 @@ func (req updateReq) validate() error {
 }
 
 type updateCertReq struct {
-	clientID    string
+	clientID   string
 	ClientCert string `json:"client_cert"`
 	ClientKey  string `json:"client_key"`
 	CACert     string `json:"ca_cert"`

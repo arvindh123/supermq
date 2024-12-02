@@ -13,6 +13,7 @@ import (
 	climocks "github.com/absmach/magistrala/clients/mocks"
 	adapter "github.com/absmach/magistrala/http"
 	"github.com/absmach/magistrala/http/api"
+	grpcChannelsV1 "github.com/absmach/magistrala/internal/grpc/channels/v1"
 	grpcClientsV1 "github.com/absmach/magistrala/internal/grpc/clients/v1"
 	mglog "github.com/absmach/magistrala/logger"
 	"github.com/absmach/magistrala/pkg/apiutil"
@@ -32,12 +33,17 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-func setupMessages() (*httptest.Server, *climocks.ClientsServiceClient, *pubsub.PubSub) {
-	clients := new(climocks.ClientsServiceClient)
-	channels := new(chmocks.ChannelsServiceClient)
+var (
+	channelsGRPCClient *chmocks.ChannelsServiceClient
+	clientsGRPCClient  *climocks.ClientsServiceClient
+)
+
+func setupMessages() (*httptest.Server, *pubsub.PubSub) {
+	clientsGRPCClient = new(climocks.ClientsServiceClient)
+	channelsGRPCClient = new(chmocks.ChannelsServiceClient)
 	pub := new(pubsub.PubSub)
 	authn := new(authnmocks.Authentication)
-	handler := adapter.NewHandler(pub, authn, clients, channels, mglog.NewMock())
+	handler := adapter.NewHandler(pub, authn, clientsGRPCClient, channelsGRPCClient, mglog.NewMock())
 
 	mux := api.MakeHandler(mglog.NewMock(), "")
 	target := httptest.NewServer(mux)
@@ -48,24 +54,24 @@ func setupMessages() (*httptest.Server, *climocks.ClientsServiceClient, *pubsub.
 	}
 	mp, err := proxy.NewProxy(config, handler, mglog.NewMock())
 	if err != nil {
-		return nil, nil, nil
+		return nil, nil
 	}
 
-	return httptest.NewServer(http.HandlerFunc(mp.ServeHTTP)), clients, pub
+	return httptest.NewServer(http.HandlerFunc(mp.ServeHTTP)), pub
 }
 
-func setupReader() (*httptest.Server, *authnmocks.Authentication, *readersmocks.MessageRepository) {
+func setupReaders() (*httptest.Server, *authnmocks.Authentication, *readersmocks.MessageRepository) {
 	repo := new(readersmocks.MessageRepository)
 	authn := new(authnmocks.Authentication)
-	clients := new(climocks.ClientsServiceClient)
-	channels := new(chmocks.ChannelsServiceClient)
+	clientsGRPCClient = new(climocks.ClientsServiceClient)
+	channelsGRPCClient = new(chmocks.ChannelsServiceClient)
 
-	mux := readersapi.MakeHandler(repo, authn, clients, channels, "test", "")
+	mux := readersapi.MakeHandler(repo, authn, clientsGRPCClient, channelsGRPCClient, "test", "")
 	return httptest.NewServer(mux), authn, repo
 }
 
 func TestSendMessage(t *testing.T) {
-	ts, clients, pub := setupMessages()
+	ts, pub := setupMessages()
 	defer ts.Close()
 
 	msg := `[{"n":"current","t":-1,"v":1.6}]`
@@ -106,9 +112,9 @@ func TestSendMessage(t *testing.T) {
 			msg:       msg,
 			clientKey: "",
 			authRes:   &grpcClientsV1.AuthnRes{Authenticated: false, Id: ""},
-			authErr:   svcerr.ErrAuthorization,
+			authErr:   svcerr.ErrAuthentication,
 			svcErr:    nil,
-			err:       errors.NewSDKErrorWithStatus(svcerr.ErrAuthorization, http.StatusBadRequest),
+			err:       errors.NewSDKErrorWithStatus(svcerr.ErrAuthentication, http.StatusUnauthorized),
 		},
 		{
 			desc:      "publish message with invalid client key",
@@ -116,9 +122,9 @@ func TestSendMessage(t *testing.T) {
 			msg:       msg,
 			clientKey: "invalid",
 			authRes:   &grpcClientsV1.AuthnRes{Authenticated: false, Id: ""},
-			authErr:   svcerr.ErrAuthorization,
-			svcErr:    svcerr.ErrAuthorization,
-			err:       errors.NewSDKErrorWithStatus(svcerr.ErrAuthorization, http.StatusBadRequest),
+			authErr:   svcerr.ErrAuthentication,
+			svcErr:    svcerr.ErrAuthentication,
+			err:       errors.NewSDKErrorWithStatus(svcerr.ErrAuthentication, http.StatusUnauthorized),
 		},
 		{
 			desc:      "publish message with invalid channel ID",
@@ -126,9 +132,9 @@ func TestSendMessage(t *testing.T) {
 			msg:       msg,
 			clientKey: clientKey,
 			authRes:   &grpcClientsV1.AuthnRes{Authenticated: false, Id: ""},
-			authErr:   svcerr.ErrAuthorization,
-			svcErr:    svcerr.ErrAuthorization,
-			err:       errors.NewSDKErrorWithStatus(svcerr.ErrAuthorization, http.StatusBadRequest),
+			authErr:   svcerr.ErrAuthentication,
+			svcErr:    svcerr.ErrAuthentication,
+			err:       errors.NewSDKErrorWithStatus(svcerr.ErrAuthentication, http.StatusUnauthorized),
 		},
 		{
 			desc:      "publish message with empty message body",
@@ -153,7 +159,8 @@ func TestSendMessage(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.desc, func(t *testing.T) {
-			authCall := clients.On("Authorize", mock.Anything, mock.Anything).Return(tc.authRes, tc.authErr)
+			authzCall := clientsGRPCClient.On("Authenticate", mock.Anything, mock.Anything).Return(tc.authRes, tc.authErr)
+			authnCall := channelsGRPCClient.On("Authorize", mock.Anything, mock.Anything).Return(&grpcChannelsV1.AuthzRes{Authorized: true}, nil)
 			svcCall := pub.On("Publish", mock.Anything, channelID, mock.Anything).Return(tc.svcErr)
 			err := mgsdk.SendMessage(tc.chanName, tc.msg, tc.clientKey)
 			assert.Equal(t, tc.err, err)
@@ -162,13 +169,14 @@ func TestSendMessage(t *testing.T) {
 				assert.True(t, ok)
 			}
 			svcCall.Unset()
-			authCall.Unset()
+			authzCall.Unset()
+			authnCall.Unset()
 		})
 	}
 }
 
 func TestSetContentType(t *testing.T) {
-	ts, _, _ := setupMessages()
+	ts, _ := setupMessages()
 	defer ts.Close()
 
 	sdkConf := sdk.Config{
@@ -201,7 +209,7 @@ func TestSetContentType(t *testing.T) {
 }
 
 func TestReadMessages(t *testing.T) {
-	ts, authz, authn, repo := setupReader()
+	ts, authn, repo := setupReaders()
 	defer ts.Close()
 
 	channelID := "channelID"
@@ -385,8 +393,8 @@ func TestReadMessages(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.desc, func(t *testing.T) {
-			authCall := authz.On("Authorize", mock.Anything, mock.Anything).Return(tc.authzErr)
 			authCall1 := authn.On("Authenticate", mock.Anything, tc.token).Return(mgauthn.Session{UserID: validID}, tc.authnErr)
+			authzCall := channelsGRPCClient.On("Authorize", mock.Anything, mock.Anything).Return(&grpcChannelsV1.AuthzRes{Authorized: true}, tc.authzErr)
 			repoCall := repo.On("ReadAll", channelID, mock.Anything).Return(tc.repoRes, tc.repoErr)
 			response, err := mgsdk.ReadMessages(tc.messagePageMeta, tc.chanName, tc.domainID, tc.token)
 			fmt.Println(err)
@@ -396,8 +404,8 @@ func TestReadMessages(t *testing.T) {
 				ok := repoCall.Parent.AssertCalled(t, "ReadAll", channelID, mock.Anything)
 				assert.True(t, ok)
 			}
-			authCall.Unset()
 			authCall1.Unset()
+			authzCall.Unset()
 			repoCall.Unset()
 		})
 	}

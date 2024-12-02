@@ -32,6 +32,7 @@ const (
 	contentType     = "application/senml+json"
 	invalid         = "invalid"
 	wrongID         = "wrongID"
+	defPermission   = "read_permission"
 )
 
 var (
@@ -195,7 +196,7 @@ func convertChannel(g sdk.Channel) mgchannels.Channel {
 	return mgchannels.Channel{
 		ID:          g.ID,
 		Domain:      g.DomainID,
-		ParentGroup: g.ParentID,
+		ParentGroup: g.ParentGroup,
 		Name:        g.Name,
 		Metadata:    clients.Metadata(g.Metadata),
 		CreatedAt:   g.CreatedAt,

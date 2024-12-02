@@ -34,7 +34,7 @@ const (
 	svcName           = "coap_adapter"
 	envPrefix         = "MG_COAP_ADAPTER_"
 	envPrefixHTTP     = "MG_COAP_ADAPTER_HTTP_"
-	envPrefixClients   = "MG_CLIENTS_AUTH_GRPC_"
+	envPrefixClients  = "MG_CLIENTS_AUTH_GRPC_"
 	envPrefixChannels = "MG_CHANNELS_GRPC_"
 	defSvcHTTPPort    = "5683"
 	defSvcCoAPPort    = "5683"

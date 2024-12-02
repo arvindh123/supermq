@@ -258,8 +258,8 @@ var cmdClients = []cobra.Command{
 			}
 
 			connIDs := mgxsdk.Connection{
-				ChannelID: args[1],
-				ClientID:  args[0],
+				ChannelIDs: []string{args[1]},
+				ClientIDs:  []string{args[0]},
 			}
 			if err := sdk.Connect(connIDs, args[2], args[3]); err != nil {
 				logErrorCmd(*cmd, err)
@@ -282,8 +282,8 @@ var cmdClients = []cobra.Command{
 			}
 
 			connIDs := mgxsdk.Connection{
-				ClientID:  args[0],
-				ChannelID: args[1],
+				ClientIDs:  []string{args[0]},
+				ChannelIDs: []string{args[1]},
 			}
 			if err := sdk.Disconnect(connIDs, args[2], args[3]); err != nil {
 				logErrorCmd(*cmd, err)

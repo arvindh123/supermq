@@ -856,18 +856,18 @@ type SDK interface {
 	// The `ConnectClient` method calls the `CreateClientPolicy` method under the hood.
 	//
 	// example:
-	//  err := sdk.ConnectClient("clientID", "channelID", "token")
+	//  err := sdk.ConnectClient("clientID", "channelID",[]string{"Publish", "Subscribe"} "token")
 	//  fmt.Println(err)
-	ConnectClient(clientID, chanID, domainID, token string) errors.SDKError
+	ConnectClient(clientID, chanID string, connTypes []string, domainID, token string) errors.SDKError
 
 	// DisconnectClient disconnect client from specified channel by id.
 	//
 	// The `DisconnectClient` method calls the `DeleteClientPolicy` method under the hood.
 	//
 	// example:
-	//  err := sdk.DisconnectClient("clientID", "channelID", "token")
+	//  err := sdk.DisconnectClient("clientID", "channelID",[]string{"Publish", "Subscribe"} "token")
 	//  fmt.Println(err)
-	DisconnectClient(clientID, chanID, domainID, token string) errors.SDKError
+	DisconnectClient(clientID, chanID string, connTypes []string, domainID, token string) errors.SDKError
 
 	// SendMessage send message to specified channel.
 	//
@@ -1222,6 +1222,8 @@ type mgSDK struct {
 	readerURL      string
 	clientsURL     string
 	usersURL       string
+	groupsURL      string
+	channelsURL    string
 	domainsURL     string
 	invitationsURL string
 	journalURL     string
@@ -1240,6 +1242,8 @@ type Config struct {
 	ReaderURL      string
 	ClientsURL     string
 	UsersURL       string
+	GroupsURL      string
+	ChannelsURL    string
 	DomainsURL     string
 	InvitationsURL string
 	JournalURL     string
@@ -1259,6 +1263,8 @@ func NewSDK(conf Config) SDK {
 		readerURL:      conf.ReaderURL,
 		clientsURL:     conf.ClientsURL,
 		usersURL:       conf.UsersURL,
+		groupsURL:      conf.GroupsURL,
+		channelsURL:    conf.ChannelsURL,
 		domainsURL:     conf.DomainsURL,
 		invitationsURL: conf.InvitationsURL,
 		journalURL:     conf.JournalURL,

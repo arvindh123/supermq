@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	port            = 8081
+	port            = 8082
 	secret          = "secret"
 	email           = "test@example.com"
 	id              = "testID"
@@ -63,6 +63,7 @@ func startGRPCServer(svc auth.Service, port int) *grpc.Server {
 
 func TestIssue(t *testing.T) {
 	conn, err := grpc.NewClient(authAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	defer conn.Close()
 	assert.Nil(t, err, fmt.Sprintf("Unexpected error creating client connection %s", err))
 	grpcClient := grpcapi.NewTokenClient(conn, time.Second)
 
@@ -126,6 +127,7 @@ func TestIssue(t *testing.T) {
 
 func TestRefresh(t *testing.T) {
 	conn, err := grpc.NewClient(authAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	defer conn.Close()
 	assert.Nil(t, err, fmt.Sprintf("Unexpected error creating client connection %s", err))
 	grpcClient := grpcapi.NewTokenClient(conn, time.Second)
 

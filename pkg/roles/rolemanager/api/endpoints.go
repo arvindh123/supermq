@@ -94,6 +94,7 @@ func UpdateRoleEndpoint(svc roles.RoleManager) endpoint.Endpoint {
 		return updateRoleRes{Role: ro}, nil
 	}
 }
+
 func DeleteRoleEndpoint(svc roles.RoleManager) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(deleteRoleReq)
@@ -112,6 +113,7 @@ func DeleteRoleEndpoint(svc roles.RoleManager) endpoint.Endpoint {
 		return deleteRoleRes{}, nil
 	}
 }
+
 func ListAvailableActionsEndpoint(svc roles.RoleManager) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(listAvailableActionsReq)
@@ -131,6 +133,7 @@ func ListAvailableActionsEndpoint(svc roles.RoleManager) endpoint.Endpoint {
 		return listAvailableActionsRes{acts}, nil
 	}
 }
+
 func AddRoleActionsEndpoint(svc roles.RoleManager) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(addRoleActionsReq)
@@ -150,6 +153,7 @@ func AddRoleActionsEndpoint(svc roles.RoleManager) endpoint.Endpoint {
 		return addRoleActionsRes{Actions: caps}, nil
 	}
 }
+
 func ListRoleActionsEndpoint(svc roles.RoleManager) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(listRoleActionsReq)
@@ -169,6 +173,7 @@ func ListRoleActionsEndpoint(svc roles.RoleManager) endpoint.Endpoint {
 		return listRoleActionsRes{Actions: caps}, nil
 	}
 }
+
 func DeleteRoleActionsEndpoint(svc roles.RoleManager) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(deleteRoleActionsReq)
@@ -187,6 +192,7 @@ func DeleteRoleActionsEndpoint(svc roles.RoleManager) endpoint.Endpoint {
 		return deleteRoleActionsRes{}, nil
 	}
 }
+
 func DeleteAllRoleActionsEndpoint(svc roles.RoleManager) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(deleteAllRoleActionsReq)
@@ -205,6 +211,7 @@ func DeleteAllRoleActionsEndpoint(svc roles.RoleManager) endpoint.Endpoint {
 		return deleteAllRoleActionsRes{}, nil
 	}
 }
+
 func AddRoleMembersEndpoint(svc roles.RoleManager) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(addRoleMembersReq)
@@ -224,6 +231,7 @@ func AddRoleMembersEndpoint(svc roles.RoleManager) endpoint.Endpoint {
 		return addRoleMembersRes{members}, nil
 	}
 }
+
 func ListRoleMembersEndpoint(svc roles.RoleManager) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(listRoleMembersReq)
@@ -243,6 +251,7 @@ func ListRoleMembersEndpoint(svc roles.RoleManager) endpoint.Endpoint {
 		return listRoleMembersRes{mp}, nil
 	}
 }
+
 func DeleteRoleMembersEndpoint(svc roles.RoleManager) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(deleteRoleMembersReq)
@@ -261,6 +270,7 @@ func DeleteRoleMembersEndpoint(svc roles.RoleManager) endpoint.Endpoint {
 		return deleteRoleMembersRes{}, nil
 	}
 }
+
 func DeleteAllRoleMembersEndpoint(svc roles.RoleManager) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(deleteAllRoleMembersReq)

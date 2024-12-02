@@ -12,10 +12,6 @@ import (
 
 // Migration of Auth service.
 func Migration(rolesTableNamePrefix, entityTableName, entityIDColumnName string) (*migrate.MemoryMigrationSource, error) {
-
-	// ToDo: need to add check in database to check table exists and column exits as primary key. For this Migration function need database.
-	// ToDo: Add entity name in all table prefix. This helps when all entities uses same database
-	// ToDo: Add table name prefix option in service and repo. So each entity can have its own tables in same database
 	if entityTableName == "" || entityIDColumnName == "" {
 		return nil, fmt.Errorf("invalid entity Table Name or column name")
 	}

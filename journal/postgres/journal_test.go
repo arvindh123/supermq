@@ -42,7 +42,7 @@ var (
 		},
 	}
 
-	entityID          = testsutil.GenerateUUID(&testing.T{})
+	entityID           = testsutil.GenerateUUID(&testing.T{})
 	clientOperation    = "client.create"
 	clientAttributesV1 = map[string]interface{}{
 		"id":         entityID,

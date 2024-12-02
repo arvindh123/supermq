@@ -18,12 +18,12 @@ const (
 	RemoveRoleUsers roles.Action = "remove_role_users"
 	ViewRoleUsers   roles.Action = "view_role_users"
 
-	// Domain Roles : Actions related to entity creation and entity listing within domain
+	// Domain Roles : Actions related to entity creation and entity listing within domain.
 	ClientCreate  roles.Action = "client_create"
 	ChannelCreate roles.Action = "channel_create"
 	GroupCreate   roles.Action = "group_create"
 
-	// Domain Clients Roles: Actions related to clients present within the Domain
+	// Domain Clients Roles: Actions related to clients present within the Domain.
 	ClientUpdate           roles.Action = "client_update"
 	ClientRead             roles.Action = "client_read"
 	ClientDelete           roles.Action = "client_delete"

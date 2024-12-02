@@ -23,7 +23,6 @@ import (
 const defRetrieveAllLimit = 1000
 
 var (
-	errInvalidSubject   = errors.New("invalid subject kind")
 	errAddPolicies      = errors.New("failed to add policies")
 	errRetrievePolicies = errors.New("failed to retrieve policies")
 	errRemovePolicies   = errors.New("failed to remove the policies")
@@ -844,50 +843,6 @@ func groupPreConditions(pr policies.Policy) ([]*v1.Precondition, error) {
 				},
 			},
 		)
-	}
-	return precond, nil
-}
-
-func channelClientPreCondition(pr policies.Policy) ([]*v1.Precondition, error) {
-	if pr.SubjectKind != policies.ChannelsKind {
-		return nil, errors.Wrap(errors.ErrMalformedEntity, errInvalidSubject)
-	}
-	precond := []*v1.Precondition{
-		{
-			Operation: v1.Precondition_OPERATION_MUST_MATCH,
-			Filter: &v1.RelationshipFilter{
-				ResourceType:       policies.GroupType,
-				OptionalResourceId: pr.Subject,
-				OptionalRelation:   policies.DomainRelation,
-				OptionalSubjectFilter: &v1.SubjectFilter{
-					SubjectType:       policies.DomainType,
-					OptionalSubjectId: pr.Domain,
-				},
-			},
-		},
-		{
-			Operation: v1.Precondition_OPERATION_MUST_NOT_MATCH,
-			Filter: &v1.RelationshipFilter{
-				ResourceType:     policies.GroupType,
-				OptionalRelation: policies.ParentGroupRelation,
-				OptionalSubjectFilter: &v1.SubjectFilter{
-					SubjectType:       policies.GroupType,
-					OptionalSubjectId: pr.Subject,
-				},
-			},
-		},
-		{
-			Operation: v1.Precondition_OPERATION_MUST_MATCH,
-			Filter: &v1.RelationshipFilter{
-				ResourceType:       policies.ClientType,
-				OptionalResourceId: pr.Object,
-				OptionalRelation:   policies.DomainRelation,
-				OptionalSubjectFilter: &v1.SubjectFilter{
-					SubjectType:       policies.DomainType,
-					OptionalSubjectId: pr.Domain,
-				},
-			},
-		},
 	}
 	return precond, nil
 }

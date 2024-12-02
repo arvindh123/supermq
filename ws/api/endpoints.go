@@ -57,7 +57,7 @@ func decodeRequest(r *http.Request) (connReq, error) {
 
 	req := connReq{
 		clientKey: authKey,
-		chanID:   chanID,
+		chanID:    chanID,
 	}
 
 	channelParts := channelPartRegExp.FindStringSubmatch(r.RequestURI)

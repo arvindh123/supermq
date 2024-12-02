@@ -57,7 +57,7 @@ var (
 	addClientSecret = testsutil.GenerateUUID(&testing.T{})
 	addReq          = struct {
 		ClientID     string   `json:"client_id"`
-		ClinetSecret string   `json:"client_secret"`
+		ClientSecret string   `json:"client_secret"`
 		ExternalID   string   `json:"external_id"`
 		ExternalKey  string   `json:"external_key"`
 		Channels     []string `json:"channels"`
@@ -65,7 +65,7 @@ var (
 		Content      string   `json:"content"`
 	}{
 		ClientID:     addClientID,
-		ClinetSecret: addClientSecret,
+		ClientSecret: addClientSecret,
 		ExternalID:   addExternalID,
 		ExternalKey:  addExternalKey,
 		Channels:     []string{"1"},
@@ -74,19 +74,19 @@ var (
 	}
 
 	updateReq = struct {
-		Channels   []string        `json:"channels,omitempty"`
-		Content    string          `json:"content,omitempty"`
-		State      bootstrap.State `json:"state,omitempty"`
-		ClientCert string          `json:"client_cert,omitempty"`
-		ClientKey  string          `json:"client_secret,omitempty"`
-		CACert     string          `json:"ca_cert,omitempty"`
+		Channels     []string        `json:"channels,omitempty"`
+		Content      string          `json:"content,omitempty"`
+		State        bootstrap.State `json:"state,omitempty"`
+		ClientCert   string          `json:"client_cert,omitempty"`
+		ClientSecret string          `json:"client_secret,omitempty"`
+		CACert       string          `json:"ca_cert,omitempty"`
 	}{
-		Channels:   []string{"1"},
-		Content:    "config update",
-		State:      1,
-		ClientCert: "newcert",
-		ClientKey:  "newkey",
-		CACert:     "newca",
+		Channels:     []string{"1"},
+		Content:      "config update",
+		State:        1,
+		ClientCert:   "newcert",
+		ClientSecret: "newkey",
+		CACert:       "newca",
 	}
 
 	missingIDRes  = toJSON(apiutil.ErrorRes{Err: apiutil.ErrMissingID.Error(), Msg: apiutil.ErrValidation.Error()})

@@ -21,7 +21,6 @@ import (
 	authnmocks "github.com/absmach/magistrala/pkg/authn/mocks"
 	"github.com/absmach/magistrala/pkg/errors"
 	svcerr "github.com/absmach/magistrala/pkg/errors/service"
-	policies "github.com/absmach/magistrala/pkg/policies"
 	sdk "github.com/absmach/magistrala/pkg/sdk/go"
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
@@ -359,7 +358,7 @@ func TestListClients(t *testing.T) {
 			svcReq: clients.Page{
 				Offset:     0,
 				Limit:      100,
-				Permission: policies.ViewPermission,
+				Permission: defPermission,
 			},
 			svcRes: clients.ClientsPage{
 				Page: clients.Page{
@@ -389,7 +388,7 @@ func TestListClients(t *testing.T) {
 			svcReq: clients.Page{
 				Offset:     0,
 				Limit:      100,
-				Permission: policies.ViewPermission,
+				Permission: defPermission,
 			},
 			svcRes:          clients.ClientsPage{},
 			authenticateErr: svcerr.ErrAuthentication,
@@ -437,7 +436,7 @@ func TestListClients(t *testing.T) {
 			svcReq: clients.Page{
 				Offset:     0,
 				Limit:      100,
-				Permission: policies.ViewPermission,
+				Permission: defPermission,
 				Status:     clients.DisabledStatus,
 			},
 			svcRes: clients.ClientsPage{
@@ -470,7 +469,7 @@ func TestListClients(t *testing.T) {
 			svcReq: clients.Page{
 				Offset:     0,
 				Limit:      100,
-				Permission: policies.ViewPermission,
+				Permission: defPermission,
 				Tag:        "tag1",
 			},
 			svcRes: clients.ClientsPage{
@@ -519,7 +518,7 @@ func TestListClients(t *testing.T) {
 			svcReq: clients.Page{
 				Offset:     0,
 				Limit:      100,
-				Permission: policies.ViewPermission,
+				Permission: defPermission,
 			},
 			svcRes: clients.ClientsPage{
 				Page: clients.Page{
@@ -553,224 +552,6 @@ func TestListClients(t *testing.T) {
 			assert.Equal(t, tc.response, resp)
 			if tc.err == nil {
 				ok := svcCall.Parent.AssertCalled(t, "ListClients", mock.Anything, tc.session, mock.Anything, tc.svcReq)
-				assert.True(t, ok)
-			}
-			svcCall.Unset()
-			authCall.Unset()
-		})
-	}
-}
-
-func TestListClientsByChannel(t *testing.T) {
-	ts, tsvc, auth := setupClients()
-	defer ts.Close()
-
-	var sdkClients []sdk.Client
-	for i := 10; i < 100; i++ {
-		c := generateTestClient(t)
-		if i == 50 {
-			c.Status = clients.DisabledStatus.String()
-		}
-		sdkClients = append(sdkClients, c)
-	}
-
-	conf := sdk.Config{
-		ClientsURL: ts.URL,
-	}
-	mgsdk := sdk.NewSDK(conf)
-
-	cases := []struct {
-		desc            string
-		token           string
-		domainID        string
-		session         mgauthn.Session
-		channelID       string
-		pageMeta        sdk.PageMetadata
-		svcReq          clients.Page
-		svcRes          clients.MembersPage
-		svcErr          error
-		authenticateErr error
-		response        sdk.ClientsPage
-		err             errors.SDKError
-	}{
-		{
-			desc:      "list clients successfully",
-			domainID:  domainID,
-			token:     validToken,
-			channelID: validID,
-			pageMeta: sdk.PageMetadata{
-				Offset: 0,
-				Limit:  100,
-			},
-			svcReq: clients.Page{
-				Offset:     0,
-				Limit:      100,
-				Permission: policies.ViewPermission,
-			},
-			svcRes: clients.MembersPage{
-				Page: clients.Page{
-					Offset: 0,
-					Limit:  100,
-					Total:  uint64(len(sdkClients)),
-				},
-				Members: convertClients(sdkClients...),
-			},
-			svcErr: nil,
-			response: sdk.ClientsPage{
-				PageRes: sdk.PageRes{
-					Limit: 100,
-					Total: uint64(len(sdkClients)),
-				},
-				Clients: sdkClients,
-			},
-		},
-		{
-			desc:      "list clients with an invalid token",
-			domainID:  domainID,
-			token:     invalidToken,
-			channelID: validID,
-			pageMeta: sdk.PageMetadata{
-				Offset: 0,
-				Limit:  100,
-			},
-			svcReq: clients.Page{
-				Offset:     0,
-				Limit:      100,
-				Permission: policies.ViewPermission,
-			},
-			svcRes:          clients.MembersPage{},
-			authenticateErr: svcerr.ErrAuthentication,
-			response:        sdk.ClientsPage{},
-			err:             errors.NewSDKErrorWithStatus(svcerr.ErrAuthentication, http.StatusUnauthorized),
-		},
-		{
-			desc:      "list clients with empty token",
-			domainID:  domainID,
-			token:     "",
-			channelID: validID,
-			pageMeta: sdk.PageMetadata{
-				Offset: 0,
-				Limit:  100,
-			},
-			svcReq:   clients.Page{},
-			svcRes:   clients.MembersPage{},
-			svcErr:   nil,
-			response: sdk.ClientsPage{},
-			err:      errors.NewSDKErrorWithStatus(apiutil.ErrBearerToken, http.StatusUnauthorized),
-		},
-		{
-			desc:      "list clients with status",
-			domainID:  domainID,
-			token:     validToken,
-			channelID: validID,
-			pageMeta: sdk.PageMetadata{
-				Offset: 0,
-				Limit:  100,
-				Status: clients.DisabledStatus.String(),
-			},
-			svcReq: clients.Page{
-				Offset:     0,
-				Limit:      100,
-				Permission: policies.ViewPermission,
-				Status:     clients.DisabledStatus,
-			},
-			svcRes: clients.MembersPage{
-				Page: clients.Page{
-					Offset: 0,
-					Limit:  100,
-					Total:  1,
-				},
-				Members: convertClients(sdkClients[50]),
-			},
-			svcErr: nil,
-			response: sdk.ClientsPage{
-				PageRes: sdk.PageRes{
-					Limit: 100,
-					Total: 1,
-				},
-				Clients: []sdk.Client{sdkClients[50]},
-			},
-			err: nil,
-		},
-		{
-			desc:      "list clients with empty channel id",
-			domainID:  domainID,
-			token:     validToken,
-			channelID: "",
-			pageMeta: sdk.PageMetadata{
-				Offset: 0,
-				Limit:  100,
-			},
-			svcReq:   clients.Page{},
-			svcRes:   clients.MembersPage{},
-			svcErr:   nil,
-			response: sdk.ClientsPage{},
-			err:      errors.NewSDKErrorWithStatus(errors.Wrap(apiutil.ErrValidation, apiutil.ErrMissingID), http.StatusBadRequest),
-		},
-		{
-			desc:      "list clients with invalid metadata",
-			domainID:  domainID,
-			token:     validToken,
-			channelID: validID,
-			pageMeta: sdk.PageMetadata{
-				Offset: 0,
-				Limit:  100,
-				Metadata: map[string]interface{}{
-					"test": make(chan int),
-				},
-			},
-			svcReq:   clients.Page{},
-			svcRes:   clients.MembersPage{},
-			svcErr:   nil,
-			response: sdk.ClientsPage{},
-			err:      errors.NewSDKError(errors.New("json: unsupported type: chan int")),
-		},
-		{
-			desc:      "list clients with response that can't be unmarshalled",
-			domainID:  domainID,
-			token:     validToken,
-			channelID: validID,
-			pageMeta: sdk.PageMetadata{
-				Offset: 0,
-				Limit:  100,
-			},
-			svcReq: clients.Page{
-				Offset:     0,
-				Limit:      100,
-				Permission: policies.ViewPermission,
-			},
-			svcRes: clients.MembersPage{
-				Page: clients.Page{
-					Offset: 0,
-					Limit:  100,
-					Total:  1,
-				},
-				Members: []clients.Client{{
-					Name:        sdkClients[0].Name,
-					Tags:        sdkClients[0].Tags,
-					Credentials: clients.Credentials(sdkClients[0].Credentials),
-					Metadata: clients.Metadata{
-						"test": make(chan int),
-					},
-				}},
-			},
-			svcErr:   nil,
-			response: sdk.ClientsPage{},
-			err:      errors.NewSDKError(errors.New("unexpected end of JSON input")),
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.desc, func(t *testing.T) {
-			if tc.token == validToken {
-				tc.session = mgauthn.Session{DomainUserID: domainID + "_" + validID, UserID: validID, DomainID: domainID}
-			}
-			authCall := auth.On("Authenticate", mock.Anything, mock.Anything).Return(tc.session, tc.authenticateErr)
-			svcCall := tsvc.On("ListClientsByGroup", mock.Anything, tc.session, tc.channelID, tc.svcReq).Return(tc.svcRes, tc.svcErr)
-			resp, err := mgsdk.ClientsByChannel(tc.channelID, tc.pageMeta, tc.domainID, tc.token)
-			assert.Equal(t, tc.err, err)
-			assert.Equal(t, tc.response, resp)
-			if tc.err == nil {
-				ok := svcCall.Parent.AssertCalled(t, "ListClientsByGroup", mock.Anything, tc.session, tc.channelID, tc.svcReq)
 				assert.True(t, ok)
 			}
 			svcCall.Unset()
@@ -881,101 +662,6 @@ func TestViewClient(t *testing.T) {
 			assert.Equal(t, tc.response, resp)
 			if tc.err == nil {
 				ok := svcCall.Parent.AssertCalled(t, "View", mock.Anything, tc.session, tc.clientID)
-				assert.True(t, ok)
-			}
-			svcCall.Unset()
-			authCall.Unset()
-		})
-	}
-}
-
-func TestViewClientPermissions(t *testing.T) {
-	ts, tsvc, auth := setupClients()
-	defer ts.Close()
-
-	client := sdk.Client{
-		Permissions: []string{policies.ViewPermission},
-	}
-	conf := sdk.Config{
-		ClientsURL: ts.URL,
-	}
-	mgsdk := sdk.NewSDK(conf)
-
-	cases := []struct {
-		desc            string
-		domainID        string
-		token           string
-		session         mgauthn.Session
-		clientID        string
-		svcRes          []string
-		svcErr          error
-		authenticateErr error
-		response        sdk.Client
-		err             errors.SDKError
-	}{
-		{
-			desc:     "view client permissions successfully",
-			domainID: domainID,
-			token:    validToken,
-			clientID: validID,
-			svcRes:   []string{policies.ViewPermission},
-			svcErr:   nil,
-			response: client,
-			err:      nil,
-		},
-		{
-			desc:            "view client permissions with an invalid token",
-			domainID:        domainID,
-			token:           invalidToken,
-			clientID:        validID,
-			svcRes:          []string{},
-			authenticateErr: svcerr.ErrAuthorization,
-			response:        sdk.Client{},
-			err:             errors.NewSDKErrorWithStatus(svcerr.ErrAuthorization, http.StatusForbidden),
-		},
-		{
-			desc:     "view client permissions with empty token",
-			domainID: domainID,
-			token:    "",
-			clientID: client.ID,
-			svcRes:   []string{},
-			svcErr:   nil,
-			response: sdk.Client{},
-			err:      errors.NewSDKErrorWithStatus(apiutil.ErrBearerToken, http.StatusUnauthorized),
-		},
-		{
-			desc:     "view client permissions with an invalid client id",
-			domainID: domainID,
-			token:    validToken,
-			clientID: wrongID,
-			svcRes:   []string{},
-			svcErr:   svcerr.ErrViewEntity,
-			response: sdk.Client{},
-			err:      errors.NewSDKErrorWithStatus(svcerr.ErrViewEntity, http.StatusBadRequest),
-		},
-		{
-			desc:     "view client permissions with empty client id",
-			domainID: domainID,
-			token:    validToken,
-			clientID: "",
-			svcRes:   []string{},
-			svcErr:   nil,
-			response: sdk.Client{},
-			err:      errors.NewSDKErrorWithStatus(errors.Wrap(apiutil.ErrValidation, apiutil.ErrMissingID), http.StatusBadRequest),
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.desc, func(t *testing.T) {
-			if tc.token == validToken {
-				tc.session = mgauthn.Session{DomainUserID: domainID + "_" + validID, UserID: validID, DomainID: domainID}
-			}
-			authCall := auth.On("Authenticate", mock.Anything, mock.Anything).Return(tc.session, tc.authenticateErr)
-			svcCall := tsvc.On("ViewPerms", mock.Anything, tc.session, tc.clientID).Return(tc.svcRes, tc.svcErr)
-			resp, err := mgsdk.ClientPermissions(tc.clientID, tc.domainID, tc.token)
-			assert.Equal(t, tc.err, err)
-			assert.Equal(t, tc.response, resp)
-			if tc.err == nil {
-				ok := svcCall.Parent.AssertCalled(t, "ViewPerms", mock.Anything, tc.session, tc.clientID)
 				assert.True(t, ok)
 			}
 			svcCall.Unset()
@@ -1632,221 +1318,6 @@ func TestDisableClient(t *testing.T) {
 	}
 }
 
-func TestShareClient(t *testing.T) {
-	ts, tsvc, auth := setupClients()
-	defer ts.Close()
-
-	client := generateTestClient(t)
-
-	conf := sdk.Config{
-		ClientsURL: ts.URL,
-	}
-	mgsdk := sdk.NewSDK(conf)
-
-	cases := []struct {
-		desc            string
-		domainID        string
-		token           string
-		session         mgauthn.Session
-		clientID        string
-		shareReq        sdk.UsersRelationRequest
-		authenticateErr error
-		svcErr          error
-		err             errors.SDKError
-	}{
-		{
-			desc:     "share client successfully",
-			domainID: domainID,
-			token:    validToken,
-			clientID: client.ID,
-			shareReq: sdk.UsersRelationRequest{
-				UserIDs:  []string{validID},
-				Relation: policies.EditorRelation,
-			},
-			svcErr: nil,
-			err:    nil,
-		},
-		{
-			desc:     "share client with an invalid token",
-			domainID: domainID,
-			token:    invalidToken,
-			clientID: client.ID,
-			shareReq: sdk.UsersRelationRequest{
-				UserIDs:  []string{validID},
-				Relation: policies.EditorRelation,
-			},
-			authenticateErr: svcerr.ErrAuthorization,
-			err:             errors.NewSDKErrorWithStatus(svcerr.ErrAuthorization, http.StatusForbidden),
-		},
-		{
-			desc:     "share client with empty token",
-			domainID: domainID,
-			token:    "",
-			clientID: client.ID,
-			shareReq: sdk.UsersRelationRequest{
-				UserIDs:  []string{validID},
-				Relation: policies.EditorRelation,
-			},
-			svcErr: svcerr.ErrAuthentication,
-			err:    errors.NewSDKErrorWithStatus(apiutil.ErrBearerToken, http.StatusUnauthorized),
-		},
-		{
-			desc:     "share client with an invalid client id",
-			domainID: domainID,
-			token:    validToken,
-			clientID: wrongID,
-			shareReq: sdk.UsersRelationRequest{
-				UserIDs:  []string{validID},
-				Relation: policies.EditorRelation,
-			},
-			svcErr: svcerr.ErrUpdateEntity,
-			err:    errors.NewSDKErrorWithStatus(svcerr.ErrUpdateEntity, http.StatusUnprocessableEntity),
-		},
-		{
-			desc:     "share client with empty client id",
-			domainID: domainID,
-			token:    validToken,
-			clientID: "",
-			shareReq: sdk.UsersRelationRequest{
-				UserIDs:  []string{validID},
-				Relation: policies.EditorRelation,
-			},
-			svcErr: nil,
-			err:    errors.NewSDKErrorWithStatus(errors.Wrap(apiutil.ErrValidation, apiutil.ErrMissingID), http.StatusBadRequest),
-		},
-		{
-			desc:     "share client with empty relation",
-			domainID: domainID,
-			token:    validToken,
-			clientID: client.ID,
-			shareReq: sdk.UsersRelationRequest{
-				UserIDs:  []string{validID},
-				Relation: "",
-			},
-			svcErr: nil,
-			err:    errors.NewSDKErrorWithStatus(errors.Wrap(apiutil.ErrValidation, apiutil.ErrMalformedPolicy), http.StatusBadRequest),
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.desc, func(t *testing.T) {
-			if tc.token == validToken {
-				tc.session = mgauthn.Session{DomainUserID: domainID + "_" + validID, UserID: validID, DomainID: domainID}
-			}
-			authCall := auth.On("Authenticate", mock.Anything, mock.Anything).Return(tc.session, tc.authenticateErr)
-			svcCall := tsvc.On("Share", mock.Anything, tc.session, tc.clientID, tc.shareReq.Relation, tc.shareReq.UserIDs[0]).Return(tc.svcErr)
-			err := mgsdk.ShareClient(tc.clientID, tc.shareReq, tc.domainID, tc.token)
-			assert.Equal(t, tc.err, err)
-			if tc.err == nil {
-				ok := svcCall.Parent.AssertCalled(t, "Share", mock.Anything, tc.session, tc.clientID, tc.shareReq.Relation, tc.shareReq.UserIDs[0])
-				assert.True(t, ok)
-			}
-			svcCall.Unset()
-			authCall.Unset()
-		})
-	}
-}
-
-func TestUnshareClient(t *testing.T) {
-	ts, tsvc, auth := setupClients()
-	defer ts.Close()
-
-	client := generateTestClient(t)
-
-	conf := sdk.Config{
-		ClientsURL: ts.URL,
-	}
-	mgsdk := sdk.NewSDK(conf)
-
-	cases := []struct {
-		desc            string
-		domainID        string
-		token           string
-		session         mgauthn.Session
-		clientID        string
-		shareReq        sdk.UsersRelationRequest
-		authenticateErr error
-		svcErr          error
-		err             errors.SDKError
-	}{
-		{
-			desc:     "unshare client successfully",
-			domainID: domainID,
-			token:    validToken,
-			clientID: client.ID,
-			shareReq: sdk.UsersRelationRequest{
-				UserIDs:  []string{validID},
-				Relation: policies.EditorRelation,
-			},
-			svcErr: nil,
-			err:    nil,
-		},
-		{
-			desc:     "unshare client with an invalid token",
-			domainID: domainID,
-			token:    invalidToken,
-			clientID: client.ID,
-			shareReq: sdk.UsersRelationRequest{
-				UserIDs:  []string{validID},
-				Relation: policies.EditorRelation,
-			},
-			authenticateErr: svcerr.ErrAuthorization,
-			err:             errors.NewSDKErrorWithStatus(svcerr.ErrAuthorization, http.StatusForbidden),
-		},
-		{
-			desc:     "unshare client with empty token",
-			domainID: domainID,
-			token:    "",
-			clientID: client.ID,
-			shareReq: sdk.UsersRelationRequest{
-				UserIDs:  []string{validID},
-				Relation: policies.EditorRelation,
-			},
-			err: errors.NewSDKErrorWithStatus(apiutil.ErrBearerToken, http.StatusUnauthorized),
-		},
-		{
-			desc:     "unshare client with an invalid client id",
-			domainID: domainID,
-			token:    validToken,
-			clientID: wrongID,
-			shareReq: sdk.UsersRelationRequest{
-				UserIDs:  []string{validID},
-				Relation: policies.EditorRelation,
-			},
-			svcErr: svcerr.ErrUpdateEntity,
-			err:    errors.NewSDKErrorWithStatus(svcerr.ErrUpdateEntity, http.StatusUnprocessableEntity),
-		},
-		{
-			desc:     "unshare client with empty client id",
-			domainID: domainID,
-			token:    validToken,
-			clientID: "",
-			shareReq: sdk.UsersRelationRequest{
-				UserIDs:  []string{validID},
-				Relation: policies.EditorRelation,
-			},
-			svcErr: nil,
-			err:    errors.NewSDKErrorWithStatus(errors.Wrap(apiutil.ErrValidation, apiutil.ErrMissingID), http.StatusBadRequest),
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.desc, func(t *testing.T) {
-			if tc.token == validToken {
-				tc.session = mgauthn.Session{DomainUserID: domainID + "_" + validID, UserID: validID, DomainID: domainID}
-			}
-			authCall := auth.On("Authenticate", mock.Anything, mock.Anything).Return(tc.session, tc.authenticateErr)
-			svcCall := tsvc.On("Unshare", mock.Anything, tc.session, tc.clientID, tc.shareReq.Relation, tc.shareReq.UserIDs[0]).Return(tc.svcErr)
-			err := mgsdk.UnshareClient(tc.clientID, tc.shareReq, tc.domainID, tc.token)
-			assert.Equal(t, tc.err, err)
-			if tc.err == nil {
-				ok := svcCall.Parent.AssertCalled(t, "Unshare", mock.Anything, tc.session, tc.clientID, tc.shareReq.Relation, tc.shareReq.UserIDs[0])
-				assert.True(t, ok)
-			}
-			svcCall.Unset()
-			authCall.Unset()
-		})
-	}
-}
-
 func TestDeleteClient(t *testing.T) {
 	ts, tsvc, auth := setupClients()
 	defer ts.Close()
@@ -1972,7 +1443,7 @@ func TestListUserClients(t *testing.T) {
 			svcReq: clients.Page{
 				Offset:     0,
 				Limit:      100,
-				Permission: policies.ViewPermission,
+				Permission: defPermission,
 			},
 			svcRes: clients.ClientsPage{
 				Page: clients.Page{
@@ -2003,7 +1474,7 @@ func TestListUserClients(t *testing.T) {
 			svcReq: clients.Page{
 				Offset:     0,
 				Limit:      100,
-				Permission: policies.ViewPermission,
+				Permission: defPermission,
 			},
 			svcRes:          clients.ClientsPage{},
 			authenticateErr: svcerr.ErrAuthentication,
@@ -2054,7 +1525,7 @@ func TestListUserClients(t *testing.T) {
 			svcReq: clients.Page{
 				Offset:     0,
 				Limit:      100,
-				Permission: policies.ViewPermission,
+				Permission: defPermission,
 				Status:     clients.DisabledStatus,
 			},
 			svcRes: clients.ClientsPage{
@@ -2088,7 +1559,7 @@ func TestListUserClients(t *testing.T) {
 			svcReq: clients.Page{
 				Offset:     0,
 				Limit:      100,
-				Permission: policies.ViewPermission,
+				Permission: defPermission,
 				Tag:        "tag1",
 			},
 			svcRes: clients.ClientsPage{
@@ -2138,7 +1609,7 @@ func TestListUserClients(t *testing.T) {
 			svcReq: clients.Page{
 				Offset:     0,
 				Limit:      100,
-				Permission: policies.ViewPermission,
+				Permission: defPermission,
 			},
 			svcRes: clients.ClientsPage{
 				Page: clients.Page{

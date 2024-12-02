@@ -87,10 +87,10 @@ func TestAddReqValidation(t *testing.T) {
 
 	for _, tc := range cases {
 		req := addReq{
-			token:          tc.token,
-			ExternalID:     tc.externalID,
-			ExternalSecret: tc.externalKey,
-			Channels:       tc.channels,
+			token:       tc.token,
+			ExternalID:  tc.externalID,
+			ExternalKey: tc.externalKey,
+			Channels:    tc.channels,
 		}
 
 		err := req.validate()
@@ -151,14 +151,14 @@ func TestUpdateReqValidation(t *testing.T) {
 
 func TestUpdateCertReqValidation(t *testing.T) {
 	cases := []struct {
-		desc    string
+		desc     string
 		clientID string
-		err     error
+		err      error
 	}{
 		{
-			desc:    "empty client id",
+			desc:     "empty client id",
 			clientID: "",
-			err:     apiutil.ErrMissingID,
+			err:      apiutil.ErrMissingID,
 		},
 	}
 

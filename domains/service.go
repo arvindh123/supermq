@@ -141,7 +141,6 @@ func (svc service) FreezeDomain(ctx context.Context, session authn.Session, id s
 
 func (svc service) ListDomains(ctx context.Context, session authn.Session, p Page) (DomainsPage, error) {
 	p.SubjectID = session.UserID
-	//ToDo : Check list without below function and confirm and decide to remove or not.
 	if session.SuperAdmin {
 		p.SubjectID = ""
 	}

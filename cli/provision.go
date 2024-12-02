@@ -20,8 +20,10 @@ import (
 )
 
 const (
-	jsonExt = ".json"
-	csvExt  = ".csv"
+	jsonExt       = ".json"
+	csvExt        = ".csv"
+	PublishType   = "publish"
+	SubscribeType = "subscribe"
 )
 
 var (
@@ -204,8 +206,9 @@ var cmdProvision = []cobra.Command{
 
 			// Connect clients to channels - first client to both channels, second only to first
 			conIDs := mgxsdk.Connection{
-				ChannelID: channels[0].ID,
-				ClientID:  clients[0].ID,
+				ChannelIDs: []string{channels[0].ID},
+				ClientIDs:  []string{clients[0].ID},
+				Types:      []string{PublishType, SubscribeType},
 			}
 			if err := sdk.Connect(conIDs, domain.ID, ut.AccessToken); err != nil {
 				logErrorCmd(*cmd, err)
@@ -213,8 +216,9 @@ var cmdProvision = []cobra.Command{
 			}
 
 			conIDs = mgxsdk.Connection{
-				ChannelID: channels[1].ID,
-				ClientID:  clients[0].ID,
+				ChannelIDs: []string{channels[1].ID},
+				ClientIDs:  []string{clients[0].ID},
+				Types:      []string{PublishType, SubscribeType},
 			}
 			if err := sdk.Connect(conIDs, domain.ID, ut.AccessToken); err != nil {
 				logErrorCmd(*cmd, err)
@@ -222,8 +226,9 @@ var cmdProvision = []cobra.Command{
 			}
 
 			conIDs = mgxsdk.Connection{
-				ChannelID: channels[0].ID,
-				ClientID:  clients[1].ID,
+				ChannelIDs: []string{channels[0].ID},
+				ClientIDs:  []string{clients[1].ID},
+				Types:      []string{PublishType, SubscribeType},
 			}
 			if err := sdk.Connect(conIDs, domain.ID, ut.AccessToken); err != nil {
 				logErrorCmd(*cmd, err)
@@ -387,8 +392,9 @@ func connectionsFromFile(path string) ([]mgxsdk.Connection, error) {
 				return []mgxsdk.Connection{}, errors.New("empty line found in file")
 			}
 			connections = append(connections, mgxsdk.Connection{
-				ClientID:  l[0],
-				ChannelID: l[1],
+				ClientIDs:  []string{l[0]},
+				ChannelIDs: []string{l[1]},
+				Types:      []string{PublishType, SubscribeType},
 			})
 		}
 	case jsonExt:

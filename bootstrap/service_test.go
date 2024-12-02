@@ -106,12 +106,12 @@ func TestAdd(t *testing.T) {
 		session         mgauthn.Session
 		userID          string
 		domainID        string
-		clientErr        error
-		createClientErr  error
+		clientErr       error
+		createClientErr error
 		channelErr      error
 		listExistingErr error
 		saveErr         error
-		deleteClientErr  error
+		deleteClientErr error
 		err             error
 	}{
 		{
@@ -123,13 +123,13 @@ func TestAdd(t *testing.T) {
 			err:      nil,
 		},
 		{
-			desc:     "add a config with an invalid ID",
-			config:   neID,
-			token:    validToken,
-			userID:   validID,
-			domainID: domainID,
+			desc:      "add a config with an invalid ID",
+			config:    neID,
+			token:     validToken,
+			userID:    validID,
+			domainID:  domainID,
 			clientErr: errors.NewSDKError(svcerr.ErrNotFound),
-			err:      svcerr.ErrNotFound,
+			err:       svcerr.ErrNotFound,
 		},
 		{
 			desc:            "add a config with invalid list of channels",
@@ -172,46 +172,46 @@ func TestView(t *testing.T) {
 	svc := newService()
 
 	cases := []struct {
-		desc        string
-		configID    string
-		userID      string
-		domain      string
+		desc         string
+		configID     string
+		userID       string
+		domain       string
 		clientDomain string
-		token       string
-		session     mgauthn.Session
-		retrieveErr error
+		token        string
+		session      mgauthn.Session
+		retrieveErr  error
 		clientErr    error
-		channelErr  error
-		err         error
+		channelErr   error
+		err          error
 	}{
 		{
-			desc:        "view an existing config",
-			configID:    config.ClientID,
-			userID:      validID,
+			desc:         "view an existing config",
+			configID:     config.ClientID,
+			userID:       validID,
 			clientDomain: domainID,
-			domain:      domainID,
-			token:       validToken,
-			err:         nil,
+			domain:       domainID,
+			token:        validToken,
+			err:          nil,
 		},
 		{
-			desc:        "view a non-existing config",
-			configID:    unknown,
-			userID:      validID,
+			desc:         "view a non-existing config",
+			configID:     unknown,
+			userID:       validID,
 			clientDomain: domainID,
-			domain:      domainID,
-			token:       validToken,
-			retrieveErr: svcerr.ErrNotFound,
-			err:         svcerr.ErrNotFound,
+			domain:       domainID,
+			token:        validToken,
+			retrieveErr:  svcerr.ErrNotFound,
+			err:          svcerr.ErrNotFound,
 		},
 		{
-			desc:        "view a config with invalid domain",
-			configID:    config.ClientID,
-			userID:      validID,
+			desc:         "view a config with invalid domain",
+			configID:     config.ClientID,
+			userID:       validID,
 			clientDomain: invalidDomainID,
-			domain:      invalidDomainID,
-			token:       validToken,
-			retrieveErr: svcerr.ErrNotFound,
-			err:         svcerr.ErrNotFound,
+			domain:       invalidDomainID,
+			token:        validToken,
+			retrieveErr:  svcerr.ErrNotFound,
+			err:          svcerr.ErrNotFound,
 		},
 	}
 
@@ -304,7 +304,7 @@ func TestUpdateCert(t *testing.T) {
 		session         mgauthn.Session
 		userID          string
 		domainID        string
-		clientID         string
+		clientID        string
 		clientCert      string
 		clientKey       string
 		caCert          string
@@ -318,7 +318,7 @@ func TestUpdateCert(t *testing.T) {
 			desc:       "update certs for the valid config",
 			userID:     validID,
 			domainID:   domainID,
-			clientID:    c.ClientID,
+			clientID:   c.ClientID,
 			clientCert: "newCert",
 			clientKey:  "newKey",
 			caCert:     "newCert",
@@ -343,7 +343,7 @@ func TestUpdateCert(t *testing.T) {
 			desc:           "update cert for a non-existing config",
 			userID:         validID,
 			domainID:       domainID,
-			clientID:        "empty",
+			clientID:       "empty",
 			clientCert:     "newCert",
 			clientKey:      "newKey",
 			caCert:         "newCert",
@@ -393,7 +393,7 @@ func TestUpdateConnections(t *testing.T) {
 		domainID    string
 		connections []string
 		updateErr   error
-		clientErr    error
+		clientErr   error
 		channelErr  error
 		retrieveErr error
 		listErr     error
@@ -939,7 +939,7 @@ func TestChangeState(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			tc.session = mgauthn.Session{UserID: tc.userID, DomainID: tc.domainID, DomainUserID: validID}
 			repoCall := boot.On("RetrieveByID", context.Background(), tc.domainID, tc.id).Return(c, tc.retrieveErr)
-			sdkCall := sdk.On("Connect", mock.Anything, mock.Anything, mock.Anything).Return(tc.connectErr)
+			sdkCall := sdk.On("ConnectClient", mock.Anything, mock.Anything, []string{"Publish", "Subscribe"}, mock.Anything, tc.token).Return(tc.connectErr)
 			repoCall1 := boot.On("ChangeState", context.Background(), mock.Anything, mock.Anything, mock.Anything).Return(tc.stateErr)
 			err := svc.ChangeState(context.Background(), tc.session, tc.token, tc.id, tc.state)
 			assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s: expected %s got %s\n", tc.desc, tc.err, err))
@@ -1051,20 +1051,20 @@ func TestConnectClientHandler(t *testing.T) {
 
 	cases := []struct {
 		desc      string
-		clientID   string
+		clientID  string
 		channelID string
 		err       error
 	}{
 		{
 			desc:      "connect",
 			channelID: channel.ID,
-			clientID:   config.ClientID,
+			clientID:  config.ClientID,
 			err:       nil,
 		},
 		{
 			desc:      "connect connected",
 			channelID: channel.ID,
-			clientID:   config.ClientID,
+			clientID:  config.ClientID,
 			err:       svcerr.ErrAddPolicies,
 		},
 	}
@@ -1084,20 +1084,20 @@ func TestDisconnectClientsHandler(t *testing.T) {
 
 	cases := []struct {
 		desc      string
-		clientID   string
+		clientID  string
 		channelID string
 		err       error
 	}{
 		{
 			desc:      "disconnect",
 			channelID: channel.ID,
-			clientID:   config.ClientID,
+			clientID:  config.ClientID,
 			err:       nil,
 		},
 		{
 			desc:      "disconnect disconnected",
 			channelID: channel.ID,
-			clientID:   config.ClientID,
+			clientID:  config.ClientID,
 			err:       nil,
 		},
 	}

@@ -131,7 +131,6 @@ func toDBRoles(role roles.Role) dbRole {
 }
 
 func toRole(r dbRole) roles.Role {
-
 	var createdBy string
 	if r.CreatedBy != nil {
 		createdBy = *r.CreatedBy
@@ -159,10 +158,9 @@ func toRole(r dbRole) roles.Role {
 		UpdatedBy: updatedBy,
 		UpdatedAt: updatedAt,
 	}
-
 }
-func (repo *Repository) AddRoles(ctx context.Context, rps []roles.RoleProvision) ([]roles.Role, error) {
 
+func (repo *Repository) AddRoles(ctx context.Context, rps []roles.RoleProvision) ([]roles.Role, error) {
 	tx, err := repo.db.BeginTxx(ctx, nil)
 	if err != nil {
 		return []roles.Role{}, errors.Wrap(repoerr.ErrCreateEntity, err)
@@ -178,7 +176,6 @@ func (repo *Repository) AddRoles(ctx context.Context, rps []roles.RoleProvision)
 	var retRoles []roles.Role
 
 	for _, rp := range rps {
-
 		q := fmt.Sprintf(`INSERT INTO %s_roles (id, name, entity_id, created_by, created_at, updated_by, updated_at)
         VALUES (:id, :name, :entity_id, :created_by, :created_at, :updated_by, :updated_at);`, repo.tableNamePrefix)
 
@@ -247,7 +244,7 @@ func (repo *Repository) RemoveRoles(ctx context.Context, roleIDs []string) error
 	return nil
 }
 
-// Update only role name, don't update ID
+// Update only role name, don't update ID.
 func (repo *Repository) UpdateRole(ctx context.Context, role roles.Role) (roles.Role, error) {
 	var query []string
 	var upq string
@@ -265,7 +262,6 @@ func (repo *Repository) UpdateRole(ctx context.Context, role roles.Role) (roles.
 		repo.tableNamePrefix, upq)
 
 	row, err := repo.db.NamedQueryContext(ctx, q, toDBRoles(role))
-
 	if err != nil {
 		return roles.Role{}, postgres.HandleError(repoerr.ErrUpdateEntity, err)
 	}
@@ -334,9 +330,10 @@ func (repo *Repository) RetrieveRoleByEntityIDAndName(ctx context.Context, entit
 
 	return roles.Role{}, repoerr.ErrNotFound
 }
+
 func (repo *Repository) RetrieveAllRoles(ctx context.Context, entityID string, limit, offset uint64) (roles.RolePage, error) {
 	q := fmt.Sprintf(`SELECT id, name, entity_id, created_by, created_at, updated_by, updated_at
-        FROM %s_roles WHERE entity_id = :entity_id ORDER BY created_at LIMIT :limit OFFSET :offset;`, repo.tableNamePrefix)
+    	FROM %s_roles WHERE entity_id = :entity_id ORDER BY created_at LIMIT :limit OFFSET :offset;`, repo.tableNamePrefix)
 
 	dbp := dbPage{
 		EntityID: entityID,
@@ -377,7 +374,6 @@ func (repo *Repository) RetrieveAllRoles(ctx context.Context, entityID string, l
 }
 
 func (repo *Repository) RoleAddActions(ctx context.Context, role roles.Role, actions []string) (caps []string, err error) {
-
 	tx, err := repo.db.BeginTxx(ctx, nil)
 	if err != nil {
 		return []string{}, errors.Wrap(repoerr.ErrCreateEntity, err)
@@ -472,7 +468,6 @@ func (repo *Repository) RoleCheckActionsExists(ctx context.Context, roleID strin
 }
 
 func (repo *Repository) RoleRemoveActions(ctx context.Context, role roles.Role, actions []string) (err error) {
-
 	tx, err := repo.db.BeginTxx(ctx, nil)
 	if err != nil {
 		return errors.Wrap(repoerr.ErrRemoveEntity, err)
@@ -619,7 +614,6 @@ func (repo *Repository) RoleListMembers(ctx context.Context, roleID string, limi
 		Offset:  offset,
 		Limit:   limit,
 	}, nil
-
 }
 
 func (repo *Repository) RoleCheckMembersExists(ctx context.Context, roleID string, members []string) (bool, error) {
@@ -768,6 +762,5 @@ func (repo *Repository) RetrieveEntitiesRolesActionsMembers(ctx context.Context,
 }
 
 func (repo *Repository) RemoveMemberFromAllRoles(ctx context.Context, memberID string) (err error) {
-
 	return nil
 }

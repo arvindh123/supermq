@@ -81,6 +81,7 @@ func (r ProvisionManageService) isActionAllowed(action Action) bool {
 	}
 	return false
 }
+
 func (r ProvisionManageService) validateActions(actions []Action) error {
 	for _, ac := range actions {
 		action := Action(ac)
@@ -218,8 +219,6 @@ func (r ProvisionManageService) AddNewEntitiesRoles(ctx context.Context, domainI
 }
 
 func (r ProvisionManageService) AddRole(ctx context.Context, session authn.Session, entityID string, roleName string, optionalActions []string, optionalMembers []string) (retRole Role, retErr error) {
-
-	// ToDo: Research: Discuss: There an option to have id as eentityType_entityID_roleName where in roleName all space are removed with _ and starts with letter and supports only alphanumeric, space and hyphen
 	sid, err := r.sidProvider.ID()
 	if err != nil {
 		return Role{}, errors.Wrap(svcerr.ErrCreateEntity, err)
@@ -281,7 +280,7 @@ func (r ProvisionManageService) AddRole(ctx context.Context, session authn.Sessi
 		}()
 	}
 
-	newRoles, err := r.repo.AddRoles(context.Background(), newRoleProvisions)
+	newRoles, err := r.repo.AddRoles(ctx, newRoleProvisions)
 	if err != nil {
 		return Role{}, errors.Wrap(svcerr.ErrCreateEntity, err)
 	}
@@ -302,7 +301,6 @@ func (r ProvisionManageService) RemoveRole(ctx context.Context, session authn.Se
 		SubjectType: policies.RoleType,
 		Subject:     ro.ID,
 	}
-	// ToDo: Add Role as Object in DeletePolicyFilter
 	if err := r.policy.DeletePolicyFilter(ctx, req); err != nil {
 		return errors.Wrap(svcerr.ErrRemoveEntity, err)
 	}
@@ -414,7 +412,6 @@ func (r ProvisionManageService) RoleListActions(ctx context.Context, session aut
 		return []string{}, errors.Wrap(svcerr.ErrViewEntity, err)
 	}
 	return acts, nil
-
 }
 
 func (r ProvisionManageService) RoleCheckActionsExists(ctx context.Context, session authn.Session, entityID, roleName string, actions []string) (bool, error) {

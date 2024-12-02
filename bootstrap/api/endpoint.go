@@ -35,7 +35,7 @@ func addEndpoint(svc bootstrap.Service) endpoint.Endpoint {
 		config := bootstrap.Config{
 			ClientID:    req.ClientID,
 			ExternalID:  req.ExternalID,
-			ExternalKey: req.ExternalSecret,
+			ExternalKey: req.ExternalKey,
 			Channels:    channels,
 			Name:        req.Name,
 			ClientCert:  req.ClientCert,

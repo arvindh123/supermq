@@ -23,18 +23,12 @@ var (
 	// ErrExpiry indicates that the token is expired.
 	ErrExpiry = errors.New("token is expired")
 
-	errIssueUser          = errors.New("failed to issue new login key")
-	errIssueTmp           = errors.New("failed to issue new temporary key")
-	errRevoke             = errors.New("failed to remove key")
-	errRetrieve           = errors.New("failed to retrieve key data")
-	errIdentify           = errors.New("failed to validate token")
-	errPlatform           = errors.New("invalid platform id")
-	errCreateDomainPolicy = errors.New("failed to create domain policy")
-	errAddPolicies        = errors.New("failed to add policies")
-	errRemovePolicies     = errors.New("failed to remove the policies")
-	errRollbackPolicy     = errors.New("failed to rollback policy")
-	errRemoveLocalPolicy  = errors.New("failed to remove from local policy copy")
-	errRemovePolicyEngine = errors.New("failed to remove from policy engine")
+	errIssueUser = errors.New("failed to issue new login key")
+	errIssueTmp  = errors.New("failed to issue new temporary key")
+	errRevoke    = errors.New("failed to remove key")
+	errRetrieve  = errors.New("failed to retrieve key data")
+	errIdentify  = errors.New("failed to validate token")
+	errPlatform  = errors.New("invalid platform id")
 )
 
 // Authz represents a authorization service. It exposes
@@ -228,13 +222,6 @@ func (svc service) checkDomain(ctx context.Context, subjectType, subject, domain
 	}); err != nil {
 		return svcerr.ErrDomainAuthorization
 	}
-
-	// ToDo: Add domain status in spiceDB like with new relation called status
-
-	// d, err := svc.domains.RetrieveByID(ctx, domainID)
-	// if err != nil {
-	// 	return errors.Wrap(svcerr.ErrViewEntity, err)
-	// }
 
 	return nil
 }

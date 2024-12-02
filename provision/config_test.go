@@ -46,6 +46,7 @@ var (
 			{
 				ID:   "1234567890",
 				Name: "test",
+				Tags: []string{"test"},
 				Metadata: map[string]interface{}{
 					"test": "test",
 				},

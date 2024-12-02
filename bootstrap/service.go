@@ -238,7 +238,7 @@ func (bs bootstrapService) UpdateConnections(ctx context.Context, session mgauth
 	}
 
 	for _, c := range disconnect {
-		if err := bs.sdk.DisconnectClient(id, c, session.DomainID, token); err != nil {
+		if err := bs.sdk.DisconnectClient(id, c, []string{"Publish", "Subscribe"}, session.DomainID, token); err != nil {
 			if errors.Contains(err, repoerr.ErrNotFound) {
 				continue
 			}
@@ -248,8 +248,9 @@ func (bs bootstrapService) UpdateConnections(ctx context.Context, session mgauth
 
 	for _, c := range connect {
 		conIDs := mgsdk.Connection{
-			ChannelID: c,
-			ClientID:  id,
+			ChannelIDs: []string{c},
+			ClientIDs:  []string{id},
+			Types:      []string{"Publish", "Subscribe"},
 		}
 		if err := bs.sdk.Connect(conIDs, session.DomainID, token); err != nil {
 			return ErrClients
@@ -336,11 +337,7 @@ func (bs bootstrapService) ChangeState(ctx context.Context, session mgauthn.Sess
 	switch state {
 	case Active:
 		for _, c := range cfg.Channels {
-			conIDs := mgsdk.Connection{
-				ChannelID: c.ID,
-				ClientID:  cfg.ClientID,
-			}
-			if err := bs.sdk.Connect(conIDs, session.DomainID, token); err != nil {
+			if err := bs.sdk.ConnectClient(cfg.ClientID, c.ID, []string{"Publish", "Subscribe"}, session.DomainID, token); err != nil {
 				// Ignore conflict errors as they indicate the connection already exists.
 				if errors.Contains(err, svcerr.ErrConflict) {
 					continue
@@ -350,7 +347,7 @@ func (bs bootstrapService) ChangeState(ctx context.Context, session mgauthn.Sess
 		}
 	case Inactive:
 		for _, c := range cfg.Channels {
-			if err := bs.sdk.DisconnectClient(cfg.ClientID, c.ID, session.DomainID, token); err != nil {
+			if err := bs.sdk.DisconnectClient(cfg.ClientID, c.ID, []string{"Publish", "Subscribe"}, session.DomainID, token); err != nil {
 				if errors.Contains(err, repoerr.ErrNotFound) {
 					continue
 				}

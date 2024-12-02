@@ -38,18 +38,11 @@ const (
 )
 
 var (
-	errIssueUser          = errors.New("failed to issue new login key")
-	errCreateDomainPolicy = errors.New("failed to create domain policy")
-	errRetrieve           = errors.New("failed to retrieve key data")
-	ErrExpiry             = errors.New("token is expired")
-	errRollbackPolicy     = errors.New("failed to rollback policy")
-	errAddPolicies        = errors.New("failed to add policies")
-	errPlatform           = errors.New("invalid platform id")
-	inValidToken          = "invalid"
-	inValid               = "invalid"
-	valid                 = "valid"
-	userID                = testsutil.GenerateUUID(&testing.T{})
-	domainID              = testsutil.GenerateUUID(&testing.T{})
+	errIssueUser = errors.New("failed to issue new login key")
+	ErrExpiry    = errors.New("token is expired")
+	inValidToken = "invalid"
+	userID       = testsutil.GenerateUUID(&testing.T{})
+	domainID     = testsutil.GenerateUUID(&testing.T{})
 )
 
 var (

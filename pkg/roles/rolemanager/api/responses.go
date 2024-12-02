@@ -91,8 +91,7 @@ func (res updateRoleRes) Empty() bool {
 	return false
 }
 
-type deleteRoleRes struct {
-}
+type deleteRoleRes struct{}
 
 func (res deleteRoleRes) Code() int {
 	return http.StatusNoContent

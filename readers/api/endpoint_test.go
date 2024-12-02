@@ -50,7 +50,6 @@ var (
 	vb                   = true
 	vd                   = "dataValue"
 	sum          float64 = 42
-	domainID             = testsutil.GenerateUUID(&testing.T{})
 	validSession         = mgauthn.Session{UserID: testsutil.GenerateUUID(&testing.T{})}
 )
 

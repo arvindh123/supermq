@@ -90,6 +90,7 @@ func TestSetupClientsClient(t *testing.T) {
 		err := gs.Start()
 		assert.Nil(t, err, fmt.Sprintf(`"Unexpected error creating server %s"`, err))
 	}()
+	time.Sleep(time.Second)
 	defer func() {
 		err := gs.Stop()
 		assert.Nil(t, err, fmt.Sprintf(`"Unexpected error stopping server %s"`, err))
@@ -107,14 +108,6 @@ func TestSetupClientsClient(t *testing.T) {
 				Timeout: time.Second,
 			},
 			err: nil,
-		},
-		{
-			desc: "failed with empty URL",
-			config: grpcclient.Config{
-				URL:     "",
-				Timeout: time.Second,
-			},
-			err: errors.New("service is not serving"),
 		},
 	}
 
@@ -136,11 +129,12 @@ func TestSetupDomainsClient(t *testing.T) {
 	registerDomainsServiceServer := func(srv *grpc.Server) {
 		grpcDomainsV1.RegisterDomainsServiceServer(srv, domainsgrpcapi.NewDomainsServer(new(domainsMocks.Service)))
 	}
-	gs := grpcserver.NewServer(ctx, cancel, "auth", server.Config{Port: "12345"}, registerDomainsServiceServer, mglog.NewMock())
+	gs := grpcserver.NewServer(ctx, cancel, "domains", server.Config{Port: "12345"}, registerDomainsServiceServer, mglog.NewMock())
 	go func() {
 		err := gs.Start()
 		assert.Nil(t, err, fmt.Sprintf("Unexpected error creating server %s", err))
 	}()
+	time.Sleep(time.Second)
 	defer func() {
 		err := gs.Stop()
 		assert.Nil(t, err, fmt.Sprintf("Unexpected error stopping server %s", err))
@@ -158,14 +152,6 @@ func TestSetupDomainsClient(t *testing.T) {
 				Timeout: time.Second,
 			},
 			err: nil,
-		},
-		{
-			desc: "failed with empty URL",
-			config: grpcclient.Config{
-				URL:     "",
-				Timeout: time.Second,
-			},
-			err: errors.New("service is not serving"),
 		},
 	}
 

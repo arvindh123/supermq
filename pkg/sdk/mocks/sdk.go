@@ -526,17 +526,17 @@ func (_m *SDK) Connect(conns sdk.Connection, domainID string, token string) erro
 	return r0
 }
 
-// ConnectClient provides a mock function with given fields: clientID, chanID, domainID, token
-func (_m *SDK) ConnectClient(clientID string, chanID string, domainID string, token string) errors.SDKError {
-	ret := _m.Called(clientID, chanID, domainID, token)
+// ConnectClient provides a mock function with given fields: clientID, chanID, connTypes, domainID, token
+func (_m *SDK) ConnectClient(clientID string, chanID string, connTypes []string, domainID string, token string) errors.SDKError {
+	ret := _m.Called(clientID, chanID, connTypes, domainID, token)
 
 	if len(ret) == 0 {
 		panic("no return value specified for ConnectClient")
 	}
 
 	var r0 errors.SDKError
-	if rf, ok := ret.Get(0).(func(string, string, string, string) errors.SDKError); ok {
-		r0 = rf(clientID, chanID, domainID, token)
+	if rf, ok := ret.Get(0).(func(string, string, []string, string, string) errors.SDKError); ok {
+		r0 = rf(clientID, chanID, connTypes, domainID, token)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(errors.SDKError)
@@ -1066,17 +1066,17 @@ func (_m *SDK) Disconnect(connIDs sdk.Connection, domainID string, token string)
 	return r0
 }
 
-// DisconnectClient provides a mock function with given fields: clientID, chanID, domainID, token
-func (_m *SDK) DisconnectClient(clientID string, chanID string, domainID string, token string) errors.SDKError {
-	ret := _m.Called(clientID, chanID, domainID, token)
+// DisconnectClient provides a mock function with given fields: clientID, chanID, connTypes, domainID, token
+func (_m *SDK) DisconnectClient(clientID string, chanID string, connTypes []string, domainID string, token string) errors.SDKError {
+	ret := _m.Called(clientID, chanID, connTypes, domainID, token)
 
 	if len(ret) == 0 {
 		panic("no return value specified for DisconnectClient")
 	}
 
 	var r0 errors.SDKError
-	if rf, ok := ret.Get(0).(func(string, string, string, string) errors.SDKError); ok {
-		r0 = rf(clientID, chanID, domainID, token)
+	if rf, ok := ret.Get(0).(func(string, string, []string, string, string) errors.SDKError); ok {
+		r0 = rf(clientID, chanID, connTypes, domainID, token)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(errors.SDKError)

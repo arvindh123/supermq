@@ -3896,9 +3896,3 @@ type respBody struct {
 	Role    users.Role   `json:"role"`
 	Status  users.Status `json:"status"`
 }
-
-type groupReqBody struct {
-	Relation string   `json:"relation"`
-	UserIDs  []string `json:"user_ids"`
-	GroupIDs []string `json:"group_ids"`
-}

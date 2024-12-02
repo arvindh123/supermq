@@ -68,7 +68,7 @@ type channelRes struct {
 
 type viewRes struct {
 	ClientID     string          `json:"client_id,omitempty"`
-	CLientSecret string          `json:"client,_secretomitempty"`
+	CLientSecret string          `json:"client_secret,omitempty"`
 	Channels     []channelRes    `json:"channels,omitempty"`
 	ExternalID   string          `json:"external_id"`
 	ExternalKey  string          `json:"external_key,omitempty"`

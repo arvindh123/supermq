@@ -258,8 +258,9 @@ func Provision(conf Config) error {
 	for _, cID := range cIDs {
 		for _, tID := range tIDs {
 			conIDs := sdk.Connection{
-				ClientID:  tID,
-				ChannelID: cID,
+				ClientIDs:  []string{tID},
+				ChannelIDs: []string{cID},
+				Types:      []string{"publish", "subscribe"},
 			}
 			if err := s.Connect(conIDs, domain.ID, token.AccessToken); err != nil {
 				log.Fatalf("Failed to connect clients %s to channels %s: %s", tID, cID, err)
