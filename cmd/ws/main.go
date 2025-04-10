@@ -158,7 +158,7 @@ func main() {
 	}()
 	tracer := tp.Tracer(svcName)
 
-	nps, err := brokers.NewPubSub(ctx, cfg.BrokerURL, logger)
+	nps, err := brokers.NewPubSub(ctx, messaging.Msg, cfg.BrokerURL, logger)
 	if err != nil {
 		logger.Error(fmt.Sprintf("Failed to connect to message broker: %s", err))
 		exitCode = 1

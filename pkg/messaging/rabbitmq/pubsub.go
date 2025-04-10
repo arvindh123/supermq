@@ -15,14 +15,6 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-const (
-	// SubjectAllChannels represents subject to subscribe for all the channels.
-	SubjectAllChannels = "channels.#"
-
-	exchangeName = "messages"
-	chansPrefix  = "channels"
-)
-
 var (
 	// ErrNotSubscribed indicates that the topic is not subscribed to.
 	ErrNotSubscribed = errors.New("not subscribed")
@@ -40,6 +32,7 @@ type subscription struct {
 }
 type pubsub struct {
 	publisher
+	exchangeName  string
 	logger        *slog.Logger
 	subscriptions map[string]map[string]subscription
 	mu            sync.Mutex
@@ -51,37 +44,50 @@ func NewPubSub(typ messaging.PubSubType, url string, logger *slog.Logger, opts .
 	if err != nil {
 		return nil, err
 	}
-	ch, err := conn.Channel()
-	if err != nil {
-		return nil, err
-	}
 
-	conf, err := typ.Conf()
-	if err != nil {
-		return nil, err
-	}
-	if err := ch.ExchangeDeclare(conf.Rabbit.ExchangeName, amqp.ExchangeTopic, true, false, false, false, nil); err != nil {
-		return nil, err
-	}
-
-	ret := &pubsub{
-		publisher: publisher{
-			conn:     conn,
-			channel:  ch,
-			exchange: exchangeName,
-			prefix:   conf.PubTopicPrefix,
-		},
-		logger:        logger,
-		subscriptions: make(map[string]map[string]subscription),
-	}
-
-	for _, opt := range opts {
-		if err := opt(ret); err != nil {
+	switch typ {
+	case messaging.Self:
+		if len(opts) == 0 {
+			return nil, messaging.ErrSelfPubSubType
+		}
+		ret := &pubsub{
+			publisher: publisher{
+				conn: conn,
+			},
+			logger:        logger,
+			subscriptions: make(map[string]map[string]subscription),
+		}
+		for _, opt := range opts {
+			if err := opt(ret); err != nil {
+				return nil, err
+			}
+		}
+		return ret, nil
+	default:
+		conf, err := typ.Conf()
+		if err != nil {
 			return nil, err
 		}
+		ch, err := conn.Channel()
+		if err != nil {
+			return nil, err
+		}
+		if err := ch.ExchangeDeclare(conf.Rabbit.ExchangeName, amqp.ExchangeTopic, true, false, false, false, nil); err != nil {
+			return nil, err
+		}
+		ret := &pubsub{
+			publisher: publisher{
+				conn:     conn,
+				channel:  ch,
+				exchange: conf.Rabbit.ExchangeName,
+				prefix:   conf.PubTopicPrefix,
+			},
+			logger:        logger,
+			subscriptions: make(map[string]map[string]subscription),
+		}
+		return ret, nil
 	}
 
-	return ret, nil
 }
 
 func (ps *pubsub) Subscribe(ctx context.Context, cfg messaging.SubscriberConfig) error {
@@ -170,7 +176,7 @@ func (ps *pubsub) Unsubscribe(ctx context.Context, id, topic string) error {
 			return err
 		}
 	}
-	if err := ps.channel.QueueUnbind(topic, topic, exchangeName, nil); err != nil {
+	if err := ps.channel.QueueUnbind(topic, topic, ps.publisher.exchange, nil); err != nil {
 		return err
 	}
 

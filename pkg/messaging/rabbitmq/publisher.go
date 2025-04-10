@@ -28,33 +28,42 @@ func NewPublisher(typ messaging.PubSubType, url string, opts ...messaging.Option
 	if err != nil {
 		return nil, err
 	}
-	ch, err := conn.Channel()
-	if err != nil {
-		return nil, err
-	}
 
-	conf, err := typ.Conf()
-	if err != nil {
-		return nil, err
-	}
-	if err := ch.ExchangeDeclare(conf.Rabbit.ExchangeName, amqp.ExchangeTopic, true, false, false, false, nil); err != nil {
-		return nil, err
-	}
-
-	ret := &publisher{
-		conn:     conn,
-		channel:  ch,
-		prefix:   conf.PubTopicPrefix,
-		exchange: exchangeName,
-	}
-
-	for _, opt := range opts {
-		if err := opt(ret); err != nil {
+	switch typ {
+	case messaging.Self:
+		if len(opts) == 0 {
+			return nil, messaging.ErrSelfPubSubType
+		}
+		ret := &publisher{
+			conn: conn,
+		}
+		for _, opt := range opts {
+			if err := opt(ret); err != nil {
+				return nil, err
+			}
+		}
+		return ret, nil
+	default:
+		conf, err := typ.Conf()
+		if err != nil {
 			return nil, err
 		}
+		ch, err := conn.Channel()
+		if err != nil {
+			return nil, err
+		}
+		if err := ch.ExchangeDeclare(conf.Rabbit.ExchangeName, amqp.ExchangeTopic, true, false, false, false, nil); err != nil {
+			return nil, err
+		}
+		ret := &publisher{
+			conn:     conn,
+			channel:  ch,
+			prefix:   conf.PubTopicPrefix,
+			exchange: conf.Rabbit.ExchangeName,
+		}
+		return ret, nil
 	}
 
-	return ret, nil
 }
 
 func (pub *publisher) Publish(ctx context.Context, topic string, msg *messaging.Message) error {

@@ -30,6 +30,7 @@ import (
 	"github.com/absmach/supermq/pkg/errors"
 	"github.com/absmach/supermq/pkg/grpcclient"
 	jaegerclient "github.com/absmach/supermq/pkg/jaeger"
+	"github.com/absmach/supermq/pkg/messaging"
 	"github.com/absmach/supermq/pkg/messaging/brokers"
 	brokerstracing "github.com/absmach/supermq/pkg/messaging/brokers/tracing"
 	msgevents "github.com/absmach/supermq/pkg/messaging/events"
@@ -129,7 +130,7 @@ func main() {
 	}()
 	tracer := tp.Tracer(svcName)
 
-	bsub, err := brokers.NewPubSub(ctx, cfg.BrokerURL, logger)
+	bsub, err := brokers.NewPubSub(ctx, messaging.Msg, cfg.BrokerURL, logger)
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to connect to message broker: %s", err))
 		exitCode = 1
@@ -153,15 +154,21 @@ func main() {
 		return
 	}
 
-	fwd := mqtt.NewForwarder(brokers.SubjectAllChannels, logger)
-	fwd = mqtttracing.New(serverConfig, tracer, fwd, brokers.SubjectAllChannels)
+	allSubjects, err := brokers.AllSubjects(messaging.Msg)
+	if err != nil {
+		logger.Error(fmt.Sprintf("failed to get all subjects topic from broker: %s", err))
+		exitCode = 1
+		return
+	}
+	fwd := mqtt.NewForwarder(allSubjects, logger)
+	fwd = mqtttracing.New(serverConfig, tracer, fwd, allSubjects)
 	if err := fwd.Forward(ctx, svcName, bsub, mpub); err != nil {
 		logger.Error(fmt.Sprintf("failed to forward message broker messages: %s", err))
 		exitCode = 1
 		return
 	}
 
-	np, err := brokers.NewPublisher(ctx, cfg.BrokerURL)
+	np, err := brokers.NewPublisher(ctx, messaging.Msg, cfg.BrokerURL)
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to connect to message broker: %s", err))
 		exitCode = 1

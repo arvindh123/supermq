@@ -15,9 +15,6 @@ import (
 	"github.com/absmach/supermq/pkg/messaging/rabbitmq"
 )
 
-// SubjectAllChannels represents subject to subscribe for all the channels.
-const SubjectAllChannels = "channels.#"
-
 func init() {
 	log.Println("The binary was build using RabbitMQ as the message broker")
 }
@@ -38,4 +35,13 @@ func NewPubSub(_ context.Context, typ messaging.PubSubType, url string, logger *
 	}
 
 	return pb, nil
+}
+
+// AllSubjects represents subject to subscribe for all the Rabbit subject of given pubsub type.
+func AllSubjects(typ messaging.PubSubType) (string, error) {
+	conf, err := typ.Conf()
+	if err != nil {
+		return "", err
+	}
+	return conf.Rabbit.AllSubjects, nil
 }

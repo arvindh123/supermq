@@ -39,27 +39,41 @@ func NewPublisher(ctx context.Context, typ messaging.PubSubType, url string, opt
 	if err != nil {
 		return nil, err
 	}
-	js, err := jetstream.New(conn)
-	if err != nil {
-		return nil, err
-	}
-	if _, err := js.CreateStream(ctx, jsStreamConfig); err != nil {
-		return nil, err
-	}
 
-	ret := &publisher{
-		js:     js,
-		conn:   conn,
-		prefix: chansPrefix,
-	}
-
-	for _, opt := range opts {
-		if err := opt(ret); err != nil {
+	switch typ {
+	case messaging.Self:
+		if len(opts) == 0 {
+			return nil, messaging.ErrSelfPubSubType
+		}
+		ret := &publisher{
+			conn: conn,
+		}
+		for _, opt := range opts {
+			if err := opt(ret); err != nil {
+				return nil, err
+			}
+		}
+		return ret, nil
+	default:
+		conf, err := typ.Conf()
+		if err != nil {
 			return nil, err
 		}
+		js, err := jetstream.New(conn)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := js.CreateStream(ctx, conf.Nats.JsConf); err != nil {
+			return nil, err
+		}
+		ret := &publisher{
+			js:     js,
+			conn:   conn,
+			prefix: conf.PubTopicPrefix,
+		}
+		return ret, nil
 	}
 
-	return ret, nil
 }
 
 func (pub *publisher) Publish(ctx context.Context, topic string, msg *messaging.Message) error {

@@ -64,7 +64,7 @@ func NewSubscriber(ctx context.Context, url string, logger *slog.Logger) (events
 		return nil, err
 	}
 
-	pubsub, err := broker.NewPubSub(ctx, url, logger, broker.Stream(jsStream))
+	pubsub, err := broker.NewPubSub(ctx, messaging.Self, url, logger, broker.Stream(jsStream))
 	if err != nil {
 		return nil, err
 	}

@@ -15,9 +15,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// SubjectAllChannels represents subject to subscribe for all the channels.
-const SubjectAllChannels = "channels.>"
-
 func init() {
 	log.Println("The binary was build using Nats as the message broker")
 }
@@ -28,4 +25,13 @@ func NewPublisher(cfg server.Config, tracer trace.Tracer, publisher messaging.Pu
 
 func NewPubSub(cfg server.Config, tracer trace.Tracer, pubsub messaging.PubSub) messaging.PubSub {
 	return tracing.NewPubSub(cfg, tracer, pubsub)
+}
+
+// AllSubjects represents subject to subscribe for all the NATS subject of given pubsub type.
+func AllSubjects(typ messaging.PubSubType) (string, error) {
+	conf, err := typ.Conf()
+	if err != nil {
+		return "", err
+	}
+	return conf.Nats.AllSubjects, nil
 }

@@ -19,11 +19,13 @@ var (
 type PubSubType uint8
 
 type NatsConf struct {
-	JsConf jetstream.StreamConfig
+	JsConf      jetstream.StreamConfig
+	AllSubjects string
 }
 
 type RabbitConf struct {
 	ExchangeName string
+	AllSubjects  string
 }
 type PubSubConf struct {
 	PubTopicPrefix string
@@ -39,64 +41,9 @@ const (
 )
 
 var pubSubConfMap = map[PubSubType]PubSubConf{
-	Msg: {
-
-		PubTopicPrefix: "m",
-		Rabbit: RabbitConf{
-			ExchangeName: "messaging",
-		},
-		Nats: NatsConf{
-			JsConf: jetstream.StreamConfig{
-				Name:              "messaging",
-				Description:       "SuperMQ stream for sending and receiving messaging",
-				Subjects:          []string{"m.>"},
-				Retention:         jetstream.LimitsPolicy,
-				MaxMsgsPerSubject: 1e6,
-				MaxAge:            time.Hour * 24,
-				MaxMsgSize:        1024 * 1024,
-				Discard:           jetstream.DiscardOld,
-				Storage:           jetstream.FileStorage,
-			},
-		},
-	},
-	Alarms: {
-		PubTopicPrefix: "a",
-		Rabbit: RabbitConf{
-			ExchangeName: "alarms",
-		},
-		Nats: NatsConf{
-			JsConf: jetstream.StreamConfig{
-				Name:              "alarms",
-				Description:       "SuperMQ stream for sending and receiving alarms",
-				Subjects:          []string{"a.>"},
-				Retention:         jetstream.LimitsPolicy,
-				MaxMsgsPerSubject: 1e6,
-				MaxAge:            time.Hour * 24,
-				MaxMsgSize:        1024 * 1024,
-				Discard:           jetstream.DiscardOld,
-				Storage:           jetstream.FileStorage,
-			},
-		},
-	},
-	Writer: {
-		PubTopicPrefix: "w",
-		Rabbit: RabbitConf{
-			ExchangeName: "writer",
-		},
-		Nats: NatsConf{
-			JsConf: jetstream.StreamConfig{
-				Name:              "writer",
-				Description:       "SuperMQ stream for sending to writer",
-				Subjects:          []string{"w.>"},
-				Retention:         jetstream.LimitsPolicy,
-				MaxMsgsPerSubject: 1e6,
-				MaxAge:            time.Hour * 24,
-				MaxMsgSize:        1024 * 1024,
-				Discard:           jetstream.DiscardOld,
-				Storage:           jetstream.FileStorage,
-			},
-		},
-	},
+	Msg:    msgPubSubConf,
+	Alarms: alarmsPubSubConf,
+	Writer: writerPubSubConf,
 }
 
 func (t PubSubType) Conf() (PubSubConf, error) {
@@ -108,4 +55,70 @@ func (t PubSubType) Conf() (PubSubConf, error) {
 		return PubSubConf{}, fmt.Errorf("%w : %d", ErrUnknownPubSubType, t)
 	}
 	return conf, nil
+}
+
+var msgPubSubConf = PubSubConf{
+	PubTopicPrefix: "m",
+	Rabbit: RabbitConf{
+		ExchangeName: "messaging",
+		AllSubjects:  "m.#",
+	},
+	Nats: NatsConf{
+		JsConf: jetstream.StreamConfig{
+			Name:              "messaging",
+			Description:       "SuperMQ stream for sending and receiving messaging",
+			Subjects:          []string{"m.>"},
+			Retention:         jetstream.LimitsPolicy,
+			MaxMsgsPerSubject: 1e6,
+			MaxAge:            time.Hour * 24,
+			MaxMsgSize:        1024 * 1024,
+			Discard:           jetstream.DiscardOld,
+			Storage:           jetstream.FileStorage,
+		},
+		AllSubjects: "m.>",
+	},
+}
+
+var alarmsPubSubConf = PubSubConf{
+	PubTopicPrefix: "a",
+	Rabbit: RabbitConf{
+		ExchangeName: "alarms",
+		AllSubjects:  "a.#",
+	},
+	Nats: NatsConf{
+		JsConf: jetstream.StreamConfig{
+			Name:              "alarms",
+			Description:       "SuperMQ stream for sending and receiving alarms",
+			Subjects:          []string{"a.>"},
+			Retention:         jetstream.LimitsPolicy,
+			MaxMsgsPerSubject: 1e6,
+			MaxAge:            time.Hour * 24,
+			MaxMsgSize:        1024 * 1024,
+			Discard:           jetstream.DiscardOld,
+			Storage:           jetstream.FileStorage,
+		},
+		AllSubjects: "a.>",
+	},
+}
+
+var writerPubSubConf = PubSubConf{
+	PubTopicPrefix: "w",
+	Rabbit: RabbitConf{
+		ExchangeName: "writer",
+		AllSubjects:  "w.#",
+	},
+	Nats: NatsConf{
+		JsConf: jetstream.StreamConfig{
+			Name:              "writer",
+			Description:       "SuperMQ stream for sending to writer",
+			Subjects:          []string{"w.>"},
+			Retention:         jetstream.LimitsPolicy,
+			MaxMsgsPerSubject: 1e6,
+			MaxAge:            time.Hour * 24,
+			MaxMsgSize:        1024 * 1024,
+			Discard:           jetstream.DiscardOld,
+			Storage:           jetstream.FileStorage,
+		},
+		AllSubjects: "w.>",
+	},
 }

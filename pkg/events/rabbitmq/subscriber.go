@@ -48,7 +48,7 @@ func NewSubscriber(url string, logger *slog.Logger) (events.Subscriber, error) {
 		return nil, err
 	}
 
-	pubsub, err := broker.NewPubSub(url, logger, broker.Channel(ch), broker.Exchange(exchangeName))
+	pubsub, err := broker.NewPubSub(messaging.Self, url, logger, broker.Channel(ch), broker.Exchange(exchangeName))
 	if err != nil {
 		return nil, err
 	}

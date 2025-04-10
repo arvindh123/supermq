@@ -121,9 +121,13 @@ type config struct {
 }
 
 func loadConfig(configPath string) (config, error) {
+	allSubjects, err := brokers.AllSubjects(messaging.Msg)
+	if err != nil {
+		return config{}, err
+	}
 	cfg := config{
 		SubscriberCfg: subscriberConfig{
-			Subjects: []string{brokers.SubjectAllChannels},
+			Subjects: []string{allSubjects},
 		},
 		TransformerCfg: transformerConfig{
 			Format:      defFormat,

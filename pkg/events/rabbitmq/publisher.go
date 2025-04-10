@@ -32,7 +32,7 @@ func NewPublisher(ctx context.Context, url string) (events.Publisher, error) {
 		return nil, err
 	}
 
-	publisher, err := broker.NewPublisher(url, broker.Prefix(eventsPrefix), broker.Exchange(exchangeName), broker.Channel(ch))
+	publisher, err := broker.NewPublisher(messaging.Self, url, broker.Prefix(eventsPrefix), broker.Exchange(exchangeName), broker.Channel(ch))
 	if err != nil {
 		return nil, err
 	}
