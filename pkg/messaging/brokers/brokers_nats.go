@@ -22,8 +22,8 @@ func init() {
 	log.Println("The binary was build using Nats as the message broker")
 }
 
-func NewPublisher(ctx context.Context, url string, opts ...messaging.Option) (messaging.Publisher, error) {
-	pb, err := nats.NewPublisher(ctx, url, opts...)
+func NewPublisher(ctx context.Context, typ messaging.PubSubType, url string, opts ...messaging.Option) (messaging.Publisher, error) {
+	pb, err := nats.NewPublisher(ctx, typ, url, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -31,8 +31,8 @@ func NewPublisher(ctx context.Context, url string, opts ...messaging.Option) (me
 	return pb, nil
 }
 
-func NewPubSub(ctx context.Context, url string, logger *slog.Logger, opts ...messaging.Option) (messaging.PubSub, error) {
-	pb, err := nats.NewPubSub(ctx, url, logger, opts...)
+func NewPubSub(ctx context.Context, typ messaging.PubSubType, url string, logger *slog.Logger, opts ...messaging.Option) (messaging.PubSub, error) {
+	pb, err := nats.NewPubSub(ctx, typ, url, logger, opts...)
 	if err != nil {
 		return nil, err
 	}

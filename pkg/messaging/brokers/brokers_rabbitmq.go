@@ -22,8 +22,8 @@ func init() {
 	log.Println("The binary was build using RabbitMQ as the message broker")
 }
 
-func NewPublisher(_ context.Context, url string, opts ...messaging.Option) (messaging.Publisher, error) {
-	pb, err := rabbitmq.NewPublisher(url, opts...)
+func NewPublisher(_ context.Context, typ messaging.PubSubType, url string, opts ...messaging.Option) (messaging.Publisher, error) {
+	pb, err := rabbitmq.NewPublisher(typ, url, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -31,8 +31,8 @@ func NewPublisher(_ context.Context, url string, opts ...messaging.Option) (mess
 	return pb, nil
 }
 
-func NewPubSub(_ context.Context, url string, logger *slog.Logger, opts ...messaging.Option) (messaging.PubSub, error) {
-	pb, err := rabbitmq.NewPubSub(url, logger, opts...)
+func NewPubSub(_ context.Context, typ messaging.PubSubType, url string, logger *slog.Logger, opts ...messaging.Option) (messaging.PubSub, error) {
+	pb, err := rabbitmq.NewPubSub(typ, url, logger, opts...)
 	if err != nil {
 		return nil, err
 	}

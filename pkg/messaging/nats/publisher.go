@@ -34,7 +34,7 @@ type publisher struct {
 }
 
 // NewPublisher returns NATS message Publisher.
-func NewPublisher(ctx context.Context, url string, opts ...messaging.Option) (messaging.Publisher, error) {
+func NewPublisher(ctx context.Context, typ messaging.PubSubType, url string, opts ...messaging.Option) (messaging.Publisher, error) {
 	conn, err := broker.Connect(url, broker.MaxReconnects(maxReconnects), broker.ReconnectBufSize(int(reconnectBufSize)))
 	if err != nil {
 		return nil, err

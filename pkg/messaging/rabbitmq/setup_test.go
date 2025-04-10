@@ -48,7 +48,7 @@ func TestMain(m *testing.M) {
 
 	address = fmt.Sprintf("amqp://%s:%s", "localhost", container.GetPort(port))
 	if err := pool.Retry(func() error {
-		publisher, err = rabbitmq.NewPublisher(address)
+		publisher, err = rabbitmq.NewPublisher(messaging.Msg, address)
 		return err
 	}); err != nil {
 		log.Fatalf("Could not connect to docker: %s", err)
@@ -59,7 +59,7 @@ func TestMain(m *testing.M) {
 		log.Fatal(err.Error())
 	}
 	if err := pool.Retry(func() error {
-		pubsub, err = rabbitmq.NewPubSub(address, logger)
+		pubsub, err = rabbitmq.NewPubSub(messaging.Msg, address, logger)
 		return err
 	}); err != nil {
 		log.Fatalf("Could not connect to docker: %s", err)

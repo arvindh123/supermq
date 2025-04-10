@@ -23,7 +23,7 @@ type publisher struct {
 }
 
 // NewPublisher returns RabbitMQ message Publisher.
-func NewPublisher(url string, opts ...messaging.Option) (messaging.Publisher, error) {
+func NewPublisher(typ messaging.PubSubType, url string, opts ...messaging.Option) (messaging.Publisher, error) {
 	conn, err := amqp.Dial(url)
 	if err != nil {
 		return nil, err
@@ -32,14 +32,19 @@ func NewPublisher(url string, opts ...messaging.Option) (messaging.Publisher, er
 	if err != nil {
 		return nil, err
 	}
-	if err := ch.ExchangeDeclare(exchangeName, amqp.ExchangeTopic, true, false, false, false, nil); err != nil {
+
+	conf, err := typ.Conf()
+	if err != nil {
+		return nil, err
+	}
+	if err := ch.ExchangeDeclare(conf.Rabbit.ExchangeName, amqp.ExchangeTopic, true, false, false, false, nil); err != nil {
 		return nil, err
 	}
 
 	ret := &publisher{
 		conn:     conn,
 		channel:  ch,
-		prefix:   chansPrefix,
+		prefix:   conf.PubTopicPrefix,
 		exchange: exchangeName,
 	}
 
