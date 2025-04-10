@@ -17,13 +17,25 @@ import (
 )
 
 const (
-	topic        = "topic"
-	chansPrefix  = "channels"
-	channel      = "9b7b1b3f-b1b0-46a8-a717-b8213f9eda3b"
-	subtopic     = "engine"
-	clientID     = "9b7b1b3f-b1b0-46a8-a717-b8213f9eda3b"
-	exchangeName = "messages"
+	topic    = "topic"
+	channel  = "9b7b1b3f-b1b0-46a8-a717-b8213f9eda3b"
+	subtopic = "engine"
+	clientID = "9b7b1b3f-b1b0-46a8-a717-b8213f9eda3b"
 )
+
+var (
+	pubTopicPrefix string
+	exchangeName   string
+)
+
+func init() {
+	conf, err := messaging.Msg.Conf()
+	if err != nil {
+		panic(fmt.Sprintf("failed to initialize pubsub config for Msg: %v", err))
+	}
+	pubTopicPrefix = conf.PubTopicPrefix
+	exchangeName = conf.Rabbit.ExchangeName
+}
 
 var (
 	msgChan = make(chan *messaging.Message)
@@ -37,8 +49,8 @@ func TestPublisher(t *testing.T) {
 	conn, ch, err := newConn()
 	assert.Nil(t, err, fmt.Sprintf("got unexpected error: %s", err))
 
-	topicChan := subscribe(t, ch, fmt.Sprintf("%s.%s", chansPrefix, topic))
-	subtopicChan := subscribe(t, ch, fmt.Sprintf("%s.%s.%s", chansPrefix, topic, subtopic))
+	topicChan := subscribe(t, ch, fmt.Sprintf("%s.%s", pubTopicPrefix, topic))
+	subtopicChan := subscribe(t, ch, fmt.Sprintf("%s.%s.%s", pubTopicPrefix, topic, subtopic))
 
 	go rabbitHandler(topicChan, handler{})
 	go rabbitHandler(subtopicChan, handler{})
@@ -224,7 +236,7 @@ func TestUnsubscribe(t *testing.T) {
 	}{
 		{
 			desc:      "Subscribe to a topic with an ID",
-			topic:     fmt.Sprintf("%s.%s", chansPrefix, topic),
+			topic:     fmt.Sprintf("%s.%s", pubTopicPrefix, topic),
 			clientID:  "clientid4",
 			err:       nil,
 			subscribe: true,
@@ -232,7 +244,7 @@ func TestUnsubscribe(t *testing.T) {
 		},
 		{
 			desc:      "Subscribe to the same topic with a different ID",
-			topic:     fmt.Sprintf("%s.%s", chansPrefix, topic),
+			topic:     fmt.Sprintf("%s.%s", pubTopicPrefix, topic),
 			clientID:  "clientid9",
 			err:       nil,
 			subscribe: true,
@@ -240,7 +252,7 @@ func TestUnsubscribe(t *testing.T) {
 		},
 		{
 			desc:      "Unsubscribe from a topic with an ID",
-			topic:     fmt.Sprintf("%s.%s", chansPrefix, topic),
+			topic:     fmt.Sprintf("%s.%s", pubTopicPrefix, topic),
 			clientID:  "clientid4",
 			err:       nil,
 			subscribe: false,
@@ -248,7 +260,7 @@ func TestUnsubscribe(t *testing.T) {
 		},
 		{
 			desc:      "Unsubscribe from same topic with different ID",
-			topic:     fmt.Sprintf("%s.%s", chansPrefix, topic),
+			topic:     fmt.Sprintf("%s.%s", pubTopicPrefix, topic),
 			clientID:  "clientid9",
 			err:       nil,
 			subscribe: false,
@@ -264,7 +276,7 @@ func TestUnsubscribe(t *testing.T) {
 		},
 		{
 			desc:      "Unsubscribe from an already unsubscribed topic with an ID",
-			topic:     fmt.Sprintf("%s.%s", chansPrefix, topic),
+			topic:     fmt.Sprintf("%s.%s", pubTopicPrefix, topic),
 			clientID:  "clientid4",
 			err:       rabbitmq.ErrNotSubscribed,
 			subscribe: false,
@@ -272,7 +284,7 @@ func TestUnsubscribe(t *testing.T) {
 		},
 		{
 			desc:      "Subscribe to a topic with a subtopic with an ID",
-			topic:     fmt.Sprintf("%s.%s.%s", chansPrefix, topic, subtopic),
+			topic:     fmt.Sprintf("%s.%s.%s", pubTopicPrefix, topic, subtopic),
 			clientID:  "clientidd4",
 			err:       nil,
 			subscribe: true,
@@ -280,7 +292,7 @@ func TestUnsubscribe(t *testing.T) {
 		},
 		{
 			desc:      "Unsubscribe from a topic with a subtopic with an ID",
-			topic:     fmt.Sprintf("%s.%s.%s", chansPrefix, topic, subtopic),
+			topic:     fmt.Sprintf("%s.%s.%s", pubTopicPrefix, topic, subtopic),
 			clientID:  "clientidd4",
 			err:       nil,
 			subscribe: false,
@@ -288,7 +300,7 @@ func TestUnsubscribe(t *testing.T) {
 		},
 		{
 			desc:      "Unsubscribe from an already unsubscribed topic with a subtopic with an ID",
-			topic:     fmt.Sprintf("%s.%s.%s", chansPrefix, topic, subtopic),
+			topic:     fmt.Sprintf("%s.%s.%s", pubTopicPrefix, topic, subtopic),
 			clientID:  "clientid4",
 			err:       rabbitmq.ErrNotSubscribed,
 			subscribe: false,
@@ -304,7 +316,7 @@ func TestUnsubscribe(t *testing.T) {
 		},
 		{
 			desc:      "Unsubscribe from a topic with empty ID",
-			topic:     fmt.Sprintf("%s.%s", chansPrefix, topic),
+			topic:     fmt.Sprintf("%s.%s", pubTopicPrefix, topic),
 			clientID:  "",
 			err:       rabbitmq.ErrEmptyID,
 			subscribe: false,
@@ -312,7 +324,7 @@ func TestUnsubscribe(t *testing.T) {
 		},
 		{
 			desc:      "Subscribe to a new topic with an ID",
-			topic:     fmt.Sprintf("%s.%s", chansPrefix, topic+"2"),
+			topic:     fmt.Sprintf("%s.%s", pubTopicPrefix, topic+"2"),
 			clientID:  "clientid55",
 			err:       nil,
 			subscribe: true,
@@ -320,7 +332,7 @@ func TestUnsubscribe(t *testing.T) {
 		},
 		{
 			desc:      "Unsubscribe from a topic with an ID with failing handler",
-			topic:     fmt.Sprintf("%s.%s", chansPrefix, topic+"2"),
+			topic:     fmt.Sprintf("%s.%s", pubTopicPrefix, topic+"2"),
 			clientID:  "clientid55",
 			err:       errFailedHandleMessage,
 			subscribe: false,
@@ -328,7 +340,7 @@ func TestUnsubscribe(t *testing.T) {
 		},
 		{
 			desc:      "Subscribe to a new topic with subtopic with an ID",
-			topic:     fmt.Sprintf("%s.%s.%s", chansPrefix, topic+"2", subtopic),
+			topic:     fmt.Sprintf("%s.%s.%s", pubTopicPrefix, topic+"2", subtopic),
 			clientID:  "clientid55",
 			err:       nil,
 			subscribe: true,
@@ -336,7 +348,7 @@ func TestUnsubscribe(t *testing.T) {
 		},
 		{
 			desc:      "Unsubscribe from a topic with subtopic with an ID with failing handler",
-			topic:     fmt.Sprintf("%s.%s.%s", chansPrefix, topic+"2", subtopic),
+			topic:     fmt.Sprintf("%s.%s.%s", pubTopicPrefix, topic+"2", subtopic),
 			clientID:  "clientid55",
 			err:       errFailedHandleMessage,
 			subscribe: false,
@@ -408,7 +420,7 @@ func TestPubSub(t *testing.T) {
 	for _, tc := range cases {
 		subject := ""
 		if tc.topic != "" {
-			subject = fmt.Sprintf("%s.%s", chansPrefix, tc.topic)
+			subject = fmt.Sprintf("%s.%s", pubTopicPrefix, tc.topic)
 		}
 		subCfg := messaging.SubscriberConfig{
 			ID:      tc.clientID,
@@ -432,7 +444,7 @@ func TestPubSub(t *testing.T) {
 			assert.Equal(t, expectedMsg.Channel, receivedMsg.Channel, fmt.Sprintf("%s: expected %+v got %+v\n", tc.desc, &expectedMsg, receivedMsg))
 			assert.Equal(t, expectedMsg.Payload, receivedMsg.Payload, fmt.Sprintf("%s: expected %+v got %+v\n", tc.desc, &expectedMsg, receivedMsg))
 
-			err = pubsub.Unsubscribe(context.TODO(), tc.clientID, fmt.Sprintf("%s.%s", chansPrefix, tc.topic))
+			err = pubsub.Unsubscribe(context.TODO(), tc.clientID, fmt.Sprintf("%s.%s", pubTopicPrefix, tc.topic))
 			assert.Nil(t, err, fmt.Sprintf("%s got unexpected error: %s", tc.desc, err))
 		default:
 			assert.Equal(t, tc.err, err, fmt.Sprintf("%s: expected: %s, but got: %s", tc.desc, err, tc.err))
