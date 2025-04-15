@@ -17,7 +17,7 @@ import (
 	"github.com/absmach/supermq/pkg/policies"
 )
 
-const chansPrefix = "channels"
+const msgPrefix = "m"
 
 var (
 	// errFailedMessagePublish indicates that message publishing failed.
@@ -71,7 +71,7 @@ func (svc *adapterService) Subscribe(ctx context.Context, clientKey, domainID, c
 
 	c.id = clientID
 
-	subject := fmt.Sprintf("%s.%s", chansPrefix, chanID)
+	subject := fmt.Sprintf("%s.%s.c.%s", msgPrefix, domainID, chanID)
 	if subtopic != "" {
 		subject = fmt.Sprintf("%s.%s", subject, subtopic)
 	}
