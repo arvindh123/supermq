@@ -4,7 +4,9 @@
 package ws_test
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -17,7 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-const expectedCount = uint64(1)
+const expectedCount = uint64(2)
 
 var (
 	msgChan = make(chan []byte)
@@ -61,7 +63,7 @@ func TestHandle(t *testing.T) {
 	}
 	defer wsConn.Close()
 
-	c = ws.NewClient(wsConn)
+	c = ws.NewClient(slog.Default(), wsConn, "sessionID")
 
 	cases := []struct {
 		desc            string
@@ -86,6 +88,7 @@ func TestHandle(t *testing.T) {
 	for _, tc := range cases {
 		msg.Publisher = tc.publisher
 		err = c.Handle(&msg)
+		go c.Start(context.Background())
 		assert.Nil(t, err, fmt.Sprintf("expected nil error from handle, got: %s", err))
 		receivedMsg := []byte{}
 		switch tc.expectMsg {

@@ -46,8 +46,9 @@ const (
 	envPrefixChannels = "SMQ_CHANNELS_GRPC_"
 	envPrefixAuth     = "SMQ_AUTH_GRPC_"
 	defSvcHTTPPort    = "8190"
-	targetWSPort      = "8191"
+	targetWSProtocol  = "http"
 	targetWSHost      = "localhost"
+	targetWSPort      = "8191"
 )
 
 type config struct {
@@ -185,9 +186,10 @@ func main() {
 	}
 
 	g.Go(func() error {
-		g.Go(func() error {
-			return hs.Start()
-		})
+		return hs.Start()
+	})
+
+	g.Go(func() error {
 		handler := ws.NewHandler(nps, logger, authn, clientsClient, channelsClient)
 		return proxyWS(ctx, httpServerConfig, targetServerConfig, logger, handler)
 	})
@@ -212,8 +214,11 @@ func newService(clientsClient grpcClientsV1.ClientsServiceClient, channels grpcC
 
 func proxyWS(ctx context.Context, hostConfig, targetConfig server.Config, logger *slog.Logger, handler session.Handler) error {
 	config := mgate.Config{
-		Address: fmt.Sprintf("%s:%s", hostConfig.Host, hostConfig.Port),
-		Target:  fmt.Sprintf("%s:%s", targetConfig.Host, targetConfig.Port),
+		Host:           hostConfig.Host,
+		Port:           hostConfig.Port,
+		TargetProtocol: targetWSProtocol,
+		TargetHost:     targetWSHost,
+		TargetPort:     targetWSPort,
 	}
 	wp, err := http.NewProxy(config, handler, logger, []string{}, []string{"/health", "/metrics"})
 	if err != nil {

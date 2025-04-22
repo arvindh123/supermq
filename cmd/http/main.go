@@ -43,15 +43,16 @@ import (
 )
 
 const (
-	svcName           = "http_adapter"
-	envPrefix         = "SMQ_HTTP_ADAPTER_"
-	envPrefixClients  = "SMQ_CLIENTS_GRPC_"
-	envPrefixChannels = "SMQ_CHANNELS_GRPC_"
-	envPrefixAuth     = "SMQ_AUTH_GRPC_"
-	defSvcHTTPPort    = "80"
-	targetHTTPPort    = "81"
-	targetHTTPHost    = "localhost"
-	targetHTTPPath    = ""
+	svcName            = "http_adapter"
+	envPrefix          = "SMQ_HTTP_ADAPTER_"
+	envPrefixClients   = "SMQ_CLIENTS_GRPC_"
+	envPrefixChannels  = "SMQ_CHANNELS_GRPC_"
+	envPrefixAuth      = "SMQ_AUTH_GRPC_"
+	defSvcHTTPPort     = "80"
+	targetHTTPProtocol = "http"
+	targetHTTPHost     = "localhost"
+	targetHTTPPort     = "81"
+	targetHTTPPath     = ""
 )
 
 type config struct {
@@ -211,9 +212,11 @@ func newService(pub messaging.Publisher, authn smqauthn.Authentication, clients 
 
 func proxyHTTP(ctx context.Context, cfg server.Config, logger *slog.Logger, sessionHandler session.Handler) error {
 	config := mgate.Config{
-		Address:    fmt.Sprintf("%s:%s", "", cfg.Port),
-		Target:     fmt.Sprintf("%s:%s", targetHTTPHost, targetHTTPPort),
-		PathPrefix: targetHTTPPath,
+		Port:           cfg.Port,
+		TargetProtocol: targetHTTPProtocol,
+		TargetHost:     targetHTTPHost,
+		TargetPort:     targetHTTPPort,
+		TargetPath:     targetHTTPPath,
 	}
 	if cfg.CertFile != "" || cfg.KeyFile != "" {
 		tlsCert, err := tls.LoadX509KeyPair(cfg.CertFile, cfg.KeyFile)
@@ -246,7 +249,7 @@ func proxyHTTP(ctx context.Context, cfg server.Config, logger *slog.Logger, sess
 
 	select {
 	case <-ctx.Done():
-		logger.Info(fmt.Sprintf("proxy HTTP shutdown at %s", config.Target))
+		logger.Info(fmt.Sprintf("proxy HTTP shutdown at %s:%s", config.Host, config.Port))
 		return nil
 	case err := <-errCh:
 		return err
