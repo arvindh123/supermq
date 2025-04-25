@@ -48,10 +48,7 @@ func handshake(ctx context.Context, svc ws.Service, logger *slog.Logger) http.Ha
 			return
 		}
 
-		responseHeader := http.Header{}
-		responseHeader.Set("X-SMQ-WS-Session-ID", sessionID)
-
-		conn, err := upgrader.Upgrade(w, r, responseHeader)
+		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			logger.Warn(fmt.Sprintf("Failed to upgrade connection to websocket: %s", err.Error()))
 			return

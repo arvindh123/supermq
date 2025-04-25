@@ -131,10 +131,12 @@ func (h *handler) Publish(ctx context.Context, topic *string, payload *[]byte) e
 	if !ok {
 		return errClientNotInitialized
 	}
+
 	if len(*payload) == 0 {
 		h.logger.Warn("Empty payload, not publishing to broker", slog.String("client_id", s.Username))
 		return nil
 	}
+
 	// Topics are in the format:
 	// m/<domain_id>/c/<channel_id>/<subtopic>/.../ct/<content_type>
 	channelParts := channelRegExp.FindStringSubmatch(*topic)
