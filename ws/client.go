@@ -70,8 +70,9 @@ func (c *Client) Handle(msg *messaging.Message) error {
 	}
 }
 
-// `CloseHandler will work only if messages are read.
-func (c *Client) readPump(ctx context.Context) error {
+// CloseHandler will work only if messages are read.
+func (c *Client) readPump(ctx context.Context, cancel context.CancelFunc) error {
+	defer cancel()
 	c.conn.SetPongHandler(func(string) error {
 		if err := c.conn.SetReadDeadline(time.Now().Add(pongWait)); err != nil {
 			return err
@@ -81,13 +82,13 @@ func (c *Client) readPump(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			c.logger.Debug("write_pump: received context Done ")
+			c.logger.Debug("read_pump: received context Done")
 			return nil
 		default:
 			msgType, msg, err := c.conn.ReadMessage()
 			if err != nil {
 				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-					c.logger.Debug("read_pump: connection close error:", slog.String("error", err.Error()))
+					c.logger.Debug("read_pump: unexpected close error", slog.String("error", err.Error()))
 					return nil
 				}
 				return errors.Wrap(errReadMsg, err)
@@ -97,7 +98,8 @@ func (c *Client) readPump(ctx context.Context) error {
 	}
 }
 
-func (c *Client) writePump(ctx context.Context) error {
+func (c *Client) writePump(ctx context.Context, cancel context.CancelFunc) error {
+	defer cancel()
 	ticker := time.NewTicker(pingPeriod)
 	defer ticker.Stop()
 	if err := c.conn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
@@ -142,16 +144,15 @@ func (c *Client) Start(ctx context.Context) {
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		return c.readPump(ctx)
+		return c.readPump(ctx, cancel)
 	})
 
 	g.Go(func() error {
-		return c.writePump(ctx)
+		return c.writePump(ctx, cancel)
 	})
 
 	err := g.Wait()
-	cancel()
 	if err != nil {
-		c.logger.Error("websocket client error", slog.String("session_id", c.id), slog.String("error", err.Error()))
+		c.logger.Warn("websocket client error", slog.String("session_id", c.id), slog.String("error", err.Error()))
 	}
 }

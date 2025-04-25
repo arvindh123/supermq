@@ -64,6 +64,7 @@ func TestHandle(t *testing.T) {
 	defer wsConn.Close()
 
 	c = ws.NewClient(slog.Default(), wsConn, "sessionID")
+	go c.Start(context.Background())
 
 	cases := []struct {
 		desc            string
@@ -88,7 +89,6 @@ func TestHandle(t *testing.T) {
 	for _, tc := range cases {
 		msg.Publisher = tc.publisher
 		err = c.Handle(&msg)
-		go c.Start(context.Background())
 		assert.Nil(t, err, fmt.Sprintf("expected nil error from handle, got: %s", err))
 		receivedMsg := []byte{}
 		switch tc.expectMsg {
