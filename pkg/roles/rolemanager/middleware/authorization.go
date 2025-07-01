@@ -22,7 +22,7 @@ type RoleManagerAuthorizationMiddleware struct {
 	svc        roles.RoleManager
 	authz      smqauthz.Authorization
 	callout    callout.Callout
-	opp        svcutil.OperationPerm
+	opp        svcutil.Operations[svcutil.RoleOperation]
 }
 
 // NewAuthorization adds authorization for role related methods to the core service.
