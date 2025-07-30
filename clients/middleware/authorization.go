@@ -9,6 +9,8 @@ import (
 
 	"github.com/absmach/supermq/auth"
 	"github.com/absmach/supermq/clients"
+	"github.com/absmach/supermq/domains"
+	"github.com/absmach/supermq/groups"
 	"github.com/absmach/supermq/pkg/authn"
 	smqauthz "github.com/absmach/supermq/pkg/authz"
 	"github.com/absmach/supermq/pkg/callout"
@@ -38,13 +40,12 @@ var (
 var _ clients.Service = (*authorizationMiddleware)(nil)
 
 type authorizationMiddleware struct {
-	svc     clients.Service
-	repo    clients.Repository
-	authz   smqauthz.Authorization
-	opp     svcutil.OperationPerm
-	extOpp  svcutil.ExternalOperationPerm
-	callout callout.Callout
-	rolemw.RoleManagerAuthorizationMiddleware
+	svc         clients.Service
+	repo        clients.Repository
+	authz       smqauthz.Authorization
+	entitiesOps svcutil.EntitiesOperations[svcutil.Operation]
+	callout     callout.Callout
+	rmMW.RoleManagerAuthorizationMiddleware
 }
 
 // NewAuthorization adds authorization to the clients service.
@@ -53,26 +54,16 @@ func NewAuthorization(
 	svc clients.Service,
 	authz smqauthz.Authorization,
 	repo clients.Repository,
-	clientsOpPerm, rolesOpPerm map[svcutil.Operation]svcutil.Permission,
-	extOpPerm map[svcutil.ExternalOperation]svcutil.Permission,
+	entitiesOps svcutil.EntitiesOperations[svcutil.Operation],
+	roleOps svcutil.Operations[svcutil.RoleOperation],
 	callout callout.Callout,
 ) (clients.Service, error) {
-	opp := clients.NewOperationPerm()
-	if err := opp.AddOperationPermissionMap(clientsOpPerm); err != nil {
+	if err := entitiesOps.Validate(); err != nil {
 		return nil, err
 	}
-	if err := opp.Validate(); err != nil {
-		return nil, err
-	}
-	ram, err := rolemw.NewAuthorization(policies.ClientType, svc, authz, rolesOpPerm, callout)
+
+	ram, err := rmMW.NewRoleManagerAuthorizationMiddleware(policies.ClientType, svc, authz, roleOps, callout)
 	if err != nil {
-		return nil, err
-	}
-	extOpp := clients.NewExternalOperationPerm()
-	if err := extOpp.AddOperationPermissionMap(extOpPerm); err != nil {
-		return nil, err
-	}
-	if err := extOpp.Validate(); err != nil {
 		return nil, err
 	}
 
@@ -80,8 +71,7 @@ func NewAuthorization(
 		svc:                                svc,
 		authz:                              authz,
 		repo:                               repo,
-		opp:                                opp,
-		extOpp:                             extOpp,
+		entitiesOps:                        entitiesOps,
 		RoleManagerAuthorizationMiddleware: ram,
 		callout:                            callout,
 	}, nil
@@ -100,7 +90,7 @@ func (am *authorizationMiddleware) CreateClients(ctx context.Context, session au
 			return []clients.Client{}, []roles.RoleProvision{}, errors.Wrap(svcerr.ErrUnauthorizedPAT, err)
 		}
 	}
-	if err := am.extAuthorize(ctx, clients.DomainOpCreateClient, smqauthz.PolicyReq{
+	if err := am.authorize(ctx, policies.DomainType, domains.OpCreateDomainClients, smqauthz.PolicyReq{
 		Domain:      session.DomainID,
 		SubjectType: policies.UserType,
 		Subject:     session.DomainUserID,
@@ -115,7 +105,7 @@ func (am *authorizationMiddleware) CreateClients(ctx context.Context, session au
 		"count":    len(client),
 	}
 
-	if err := am.callOut(ctx, session, clients.OpCreateClient.String(clients.OperationNames), "", params); err != nil {
+	if err := am.callOut(ctx, session, policies.DomainType, domains.OpCreateDomainClients, params); err != nil {
 		return []clients.Client{}, []roles.RoleProvision{}, err
 	}
 
@@ -136,7 +126,7 @@ func (am *authorizationMiddleware) View(ctx context.Context, session authn.Sessi
 		}
 	}
 
-	if err := am.authorize(ctx, clients.OpViewClient, smqauthz.PolicyReq{
+	if err := am.authorize(ctx, policies.ClientType, clients.OpViewClient, smqauthz.PolicyReq{
 		Domain:      session.DomainID,
 		SubjectType: policies.UserType,
 		Subject:     session.DomainUserID,
@@ -146,7 +136,11 @@ func (am *authorizationMiddleware) View(ctx context.Context, session authn.Sessi
 		return clients.Client{}, errors.Wrap(err, errView)
 	}
 
-	if err := am.callOut(ctx, session, clients.OpViewClient.String(clients.OperationNames), id, nil); err != nil {
+	params := map[string]any{
+		"entity_id": id,
+	}
+
+	if err := am.callOut(ctx, session, policies.ClientType, clients.OpViewClient, params); err != nil {
 		return clients.Client{}, err
 	}
 
@@ -167,15 +161,22 @@ func (am *authorizationMiddleware) ListClients(ctx context.Context, session auth
 		}
 	}
 
-	if err := am.checkSuperAdmin(ctx, session); err == nil {
-		session.SuperAdmin = true
+	if session.Role == authn.UserRole {
+		if err := am.authorize(ctx, policies.DomainType, domains.OpListDomainClients, smqauthz.PolicyReq{
+			Domain:      session.DomainID,
+			SubjectType: policies.UserType,
+			Subject:     session.DomainUserID,
+			ObjectType:  policies.DomainType,
+			Object:      session.DomainID,
+		}); err != nil {
+			return clients.ClientsPage{}, errors.Wrap(err, errDomainCreateClients)
+		}
 	}
 
 	params := map[string]any{
 		"pagemeta": pm,
 	}
-
-	if err := am.callOut(ctx, session, clients.OpListClients.String(clients.OperationNames), "", params); err != nil {
+	if err := am.callOut(ctx, session, policies.DomainType, domains.OpListDomainClients, params); err != nil {
 		return clients.ClientsPage{}, err
 	}
 
@@ -204,8 +205,7 @@ func (am *authorizationMiddleware) ListUserClients(ctx context.Context, session 
 		"user_id":  userID,
 		"pagemeta": pm,
 	}
-
-	if err := am.callOut(ctx, session, clients.OpListUserClients.String(clients.OperationNames), "", params); err != nil {
+	if err := am.callOut(ctx, session, policies.ClientType, clients.OpListUserClients, params); err != nil {
 		return clients.ClientsPage{}, err
 	}
 
@@ -226,7 +226,7 @@ func (am *authorizationMiddleware) Update(ctx context.Context, session authn.Ses
 		}
 	}
 
-	if err := am.authorize(ctx, clients.OpUpdateClient, smqauthz.PolicyReq{
+	if err := am.authorize(ctx, policies.ClientType, clients.OpUpdateClient, smqauthz.PolicyReq{
 		Domain:      session.DomainID,
 		SubjectType: policies.UserType,
 		Subject:     session.DomainUserID,
@@ -236,7 +236,11 @@ func (am *authorizationMiddleware) Update(ctx context.Context, session authn.Ses
 		return clients.Client{}, errors.Wrap(err, errUpdate)
 	}
 
-	if err := am.callOut(ctx, session, clients.OpUpdateClient.String(clients.OperationNames), client.ID, nil); err != nil {
+	params := map[string]any{
+		"entity_id": client.ID,
+	}
+
+	if err := am.callOut(ctx, session, policies.ClientType, clients.OpUpdateClient, params); err != nil {
 		return clients.Client{}, err
 	}
 
@@ -257,7 +261,7 @@ func (am *authorizationMiddleware) UpdateTags(ctx context.Context, session authn
 		}
 	}
 
-	if err := am.authorize(ctx, clients.OpUpdateClientTags, smqauthz.PolicyReq{
+	if err := am.authorize(ctx, policies.ClientType, clients.OpUpdateClientTags, smqauthz.PolicyReq{
 		Domain:      session.DomainID,
 		SubjectType: policies.UserType,
 		Subject:     session.DomainUserID,
@@ -267,7 +271,11 @@ func (am *authorizationMiddleware) UpdateTags(ctx context.Context, session authn
 		return clients.Client{}, errors.Wrap(err, errUpdateTags)
 	}
 
-	if err := am.callOut(ctx, session, clients.OpUpdateClientTags.String(clients.OperationNames), client.ID, nil); err != nil {
+	params := map[string]any{
+		"entity_id": client.ID,
+	}
+
+	if err := am.callOut(ctx, session, policies.ClientType, clients.OpUpdateClientTags, params); err != nil {
 		return clients.Client{}, err
 	}
 
@@ -288,7 +296,7 @@ func (am *authorizationMiddleware) UpdateSecret(ctx context.Context, session aut
 		}
 	}
 
-	if err := am.authorize(ctx, clients.OpUpdateClientSecret, smqauthz.PolicyReq{
+	if err := am.authorize(ctx, policies.ClientType, clients.OpUpdateClientSecret, smqauthz.PolicyReq{
 		Domain:      session.DomainID,
 		SubjectType: policies.UserType,
 		Subject:     session.DomainUserID,
@@ -298,7 +306,11 @@ func (am *authorizationMiddleware) UpdateSecret(ctx context.Context, session aut
 		return clients.Client{}, errors.Wrap(err, errUpdateSecret)
 	}
 
-	if err := am.callOut(ctx, session, clients.OpUpdateClientSecret.String(clients.OperationNames), id, nil); err != nil {
+	params := map[string]any{
+		"entity_id": id,
+	}
+
+	if err := am.callOut(ctx, session, policies.ClientType, clients.OpUpdateClientSecret, params); err != nil {
 		return clients.Client{}, err
 	}
 
@@ -319,7 +331,7 @@ func (am *authorizationMiddleware) Enable(ctx context.Context, session authn.Ses
 		}
 	}
 
-	if err := am.authorize(ctx, clients.OpEnableClient, smqauthz.PolicyReq{
+	if err := am.authorize(ctx, policies.ClientType, clients.OpEnableClient, smqauthz.PolicyReq{
 		Domain:      session.DomainID,
 		SubjectType: policies.UserType,
 		Subject:     session.DomainUserID,
@@ -329,7 +341,11 @@ func (am *authorizationMiddleware) Enable(ctx context.Context, session authn.Ses
 		return clients.Client{}, errors.Wrap(err, errEnable)
 	}
 
-	if err := am.callOut(ctx, session, clients.OpEnableClient.String(clients.OperationNames), id, nil); err != nil {
+	params := map[string]any{
+		"entity_id": id,
+	}
+
+	if err := am.callOut(ctx, session, policies.ClientType, clients.OpEnableClient, params); err != nil {
 		return clients.Client{}, err
 	}
 
@@ -350,7 +366,7 @@ func (am *authorizationMiddleware) Disable(ctx context.Context, session authn.Se
 		}
 	}
 
-	if err := am.authorize(ctx, clients.OpDisableClient, smqauthz.PolicyReq{
+	if err := am.authorize(ctx, policies.ClientType, clients.OpDisableClient, smqauthz.PolicyReq{
 		Domain:      session.DomainID,
 		SubjectType: policies.UserType,
 		Subject:     session.DomainUserID,
@@ -360,7 +376,11 @@ func (am *authorizationMiddleware) Disable(ctx context.Context, session authn.Se
 		return clients.Client{}, errors.Wrap(err, errDisable)
 	}
 
-	if err := am.callOut(ctx, session, clients.OpDisableClient.String(clients.OperationNames), id, nil); err != nil {
+	params := map[string]any{
+		"entity_id": id,
+	}
+
+	if err := am.callOut(ctx, session, policies.ClientType, clients.OpDisableClient, params); err != nil {
 		return clients.Client{}, err
 	}
 
@@ -380,7 +400,7 @@ func (am *authorizationMiddleware) Delete(ctx context.Context, session authn.Ses
 			return errors.Wrap(svcerr.ErrUnauthorizedPAT, err)
 		}
 	}
-	if err := am.authorize(ctx, clients.OpDeleteClient, smqauthz.PolicyReq{
+	if err := am.authorize(ctx, policies.ClientType, clients.OpDeleteClient, smqauthz.PolicyReq{
 		Domain:      session.DomainID,
 		SubjectType: policies.UserType,
 		Subject:     session.DomainUserID,
@@ -390,7 +410,11 @@ func (am *authorizationMiddleware) Delete(ctx context.Context, session authn.Ses
 		return errors.Wrap(err, errDelete)
 	}
 
-	if err := am.callOut(ctx, session, clients.OpDeleteClient.String(clients.OperationNames), id, nil); err != nil {
+	params := map[string]any{
+		"entity_id": id,
+	}
+
+	if err := am.callOut(ctx, session, policies.ClientType, clients.OpDeleteClient, params); err != nil {
 		return err
 	}
 
@@ -411,7 +435,7 @@ func (am *authorizationMiddleware) SetParentGroup(ctx context.Context, session a
 		}
 	}
 
-	if err := am.authorize(ctx, clients.OpSetParentGroup, smqauthz.PolicyReq{
+	if err := am.authorize(ctx, policies.ClientType, clients.OpSetParentGroup, smqauthz.PolicyReq{
 		Domain:      session.DomainID,
 		SubjectType: policies.UserType,
 		Subject:     session.DomainUserID,
@@ -421,7 +445,7 @@ func (am *authorizationMiddleware) SetParentGroup(ctx context.Context, session a
 		return errors.Wrap(err, errSetParentGroup)
 	}
 
-	if err := am.extAuthorize(ctx, clients.GroupOpSetChildClient, smqauthz.PolicyReq{
+	if err := am.authorize(ctx, policies.GroupType, groups.OpGroupSetChildClient, smqauthz.PolicyReq{
 		Domain:      session.DomainID,
 		SubjectType: policies.UserType,
 		Subject:     session.DomainUserID,
@@ -435,7 +459,7 @@ func (am *authorizationMiddleware) SetParentGroup(ctx context.Context, session a
 		"parent_id": parentGroupID,
 	}
 
-	if err := am.callOut(ctx, session, clients.OpSetParentGroup.String(clients.OperationNames), id, params); err != nil {
+	if err := am.callOut(ctx, session, policies.ClientType, clients.OpSetParentGroup, params); err != nil {
 		return err
 	}
 
@@ -456,7 +480,7 @@ func (am *authorizationMiddleware) RemoveParentGroup(ctx context.Context, sessio
 		}
 	}
 
-	if err := am.authorize(ctx, clients.OpRemoveParentGroup, smqauthz.PolicyReq{
+	if err := am.authorize(ctx, policies.ClientType, clients.OpRemoveParentGroup, smqauthz.PolicyReq{
 		Domain:      session.DomainID,
 		SubjectType: policies.UserType,
 		Subject:     session.DomainUserID,
@@ -472,7 +496,7 @@ func (am *authorizationMiddleware) RemoveParentGroup(ctx context.Context, sessio
 	}
 
 	if th.ParentGroup != "" {
-		if err := am.extAuthorize(ctx, clients.GroupOpSetChildClient, smqauthz.PolicyReq{
+		if err := am.authorize(ctx, policies.GroupType, groups.OpGroupRemoveChildClient, smqauthz.PolicyReq{
 			Domain:      session.DomainID,
 			SubjectType: policies.UserType,
 			Subject:     session.DomainUserID,
@@ -486,7 +510,7 @@ func (am *authorizationMiddleware) RemoveParentGroup(ctx context.Context, sessio
 			"parent_id": th.ParentGroup,
 		}
 
-		if err := am.callOut(ctx, session, clients.OpRemoveParentGroup.String(clients.OperationNames), id, params); err != nil {
+		if err := am.callOut(ctx, session, policies.ClientType, clients.OpRemoveParentGroup, params); err != nil {
 			return err
 		}
 
@@ -495,8 +519,9 @@ func (am *authorizationMiddleware) RemoveParentGroup(ctx context.Context, sessio
 	return nil
 }
 
-func (am *authorizationMiddleware) authorize(ctx context.Context, op svcutil.Operation, req smqauthz.PolicyReq) error {
-	perm, err := am.opp.GetPermission(op)
+func (am *authorizationMiddleware) authorize(ctx context.Context, entityType string, op svcutil.Operation, req smqauthz.PolicyReq) error {
+	perm, err := am.entitiesOps.GetPermission(entityType, op)
+
 	if err != nil {
 		return err
 	}
@@ -510,25 +535,7 @@ func (am *authorizationMiddleware) authorize(ctx context.Context, op svcutil.Ope
 	return nil
 }
 
-func (am *authorizationMiddleware) extAuthorize(ctx context.Context, extOp svcutil.ExternalOperation, req smqauthz.PolicyReq) error {
-	perm, err := am.extOpp.GetPermission(extOp)
-	if err != nil {
-		return err
-	}
-
-	req.Permission = perm.String()
-
-	if err := am.authz.Authorize(ctx, req); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (am *authorizationMiddleware) checkSuperAdmin(ctx context.Context, session authn.Session) error {
-	if session.Role != authn.AdminRole {
-		return svcerr.ErrSuperAdminAction
-	}
+func (am *authorizationMiddleware) checkSuperAdmin(ctx context.Context, userID string) error {
 	if err := am.authz.Authorize(ctx, smqauthz.PolicyReq{
 		SubjectType: policies.UserType,
 		Subject:     session.UserID,
@@ -541,21 +548,18 @@ func (am *authorizationMiddleware) checkSuperAdmin(ctx context.Context, session 
 	return nil
 }
 
-func (am *authorizationMiddleware) callOut(ctx context.Context, session authn.Session, op, entityID string, pld map[string]any) error {
-	req := callout.Request{
-		BaseRequest: callout.BaseRequest{
-			Operation:  op,
-			EntityType: policies.ClientType,
-			EntityID:   entityID,
-			CallerID:   session.UserID,
-			CallerType: policies.UserType,
-			DomainID:   session.DomainID,
-			Time:       time.Now().UTC(),
-		},
-		Payload: pld,
+func (am *authorizationMiddleware) callOut(ctx context.Context, session authn.Session, entityType string, op svcutil.Operation, params map[string]interface{}) error {
+	pl := map[string]any{
+		"entity_type":  entityType,
+		"subject_type": policies.UserType,
+		"subject_id":   session.UserID,
+		"domain":       session.DomainID,
+		"time":         time.Now().UTC(),
 	}
 
-	if err := am.callout.Callout(ctx, req); err != nil {
+	maps.Copy(params, pl)
+
+	if err := am.callout.Callout(ctx, am.entitiesOps.OperationName(entityType, op), params); err != nil {
 		return err
 	}
 
