@@ -72,7 +72,7 @@ type MessageHandler interface {
 // SubscriberConfig defines the configuration for a subscriber that processes messages from a topic.
 type SubscriberConfig struct {
 	ID             string         // Unique identifier for the subscriber.
-	ClientID       string         // Identifier of the client associated with this subscriber.
+	ClientID       string         // Identifier of the client (a.k.a thing) associated with this subscriber.
 	Topic          string         // Topic to subscribe to.
 	Handler        MessageHandler // Function that handles incoming messages.
 	DeliveryPolicy DeliveryPolicy // DeliverPolicy defines from which point to start delivering messages.
