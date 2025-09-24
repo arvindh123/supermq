@@ -4,11 +4,11 @@
 
 if [ -z "$SMQ_MQTT_CLUSTER" ]
 then
-      envsubst '${SMQ_MQTT_ADAPTER_MQTT_PORT}' < /etc/nginx/snippets/mqtt-upstream-single.conf > /etc/nginx/snippets/mqtt-upstream.conf
-      envsubst '${SMQ_MQTT_ADAPTER_WS_PORT}' < /etc/nginx/snippets/mqtt-ws-upstream-single.conf > /etc/nginx/snippets/mqtt-ws-upstream.conf
+      envsubst '${SMQ_RABBITMQ_MQTT_PORT} ${SMQ_RABBITMQ_MQTT_TLS_PORT}' < /etc/nginx/snippets/mqtt-upstream-single.conf > /etc/nginx/snippets/mqtt-upstream.conf
+      envsubst '${SMQ_RABBITMQ_MQTT_WS_PORT} ${SMQ_RABBITMQ_MQTT_WS_PATH}' < /etc/nginx/snippets/mqtt-ws-upstream-single.conf > /etc/nginx/snippets/mqtt-ws-upstream.conf
 else
-      envsubst '${SMQ_MQTT_ADAPTER_MQTT_PORT}' < /etc/nginx/snippets/mqtt-upstream-cluster.conf > /etc/nginx/snippets/mqtt-upstream.conf
-      envsubst '${SMQ_MQTT_ADAPTER_WS_PORT}' < /etc/nginx/snippets/mqtt-ws-upstream-cluster.conf > /etc/nginx/snippets/mqtt-ws-upstream.conf
+      envsubst '${SMQ_RABBITMQ_MQTT_PORT} ${SMQ_RABBITMQ_MQTT_TLS_PORT}' < /etc/nginx/snippets/mqtt-upstream-cluster.conf > /etc/nginx/snippets/mqtt-upstream.conf
+      envsubst '${SMQ_RABBITMQ_MQTT_WS_PORT}' < /etc/nginx/snippets/mqtt-ws-upstream-cluster.conf > /etc/nginx/snippets/mqtt-ws-upstream.conf
 fi
 
 envsubst '
@@ -22,7 +22,6 @@ envsubst '
     ${SMQ_CHANNELS_HTTP_PORT}
     ${SMQ_HTTP_ADAPTER_PORT}
     ${SMQ_NGINX_MQTT_PORT}
-    ${SMQ_NGINX_MQTTS_PORT}
-    ${SMQ_WS_ADAPTER_HTTP_PORT}' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf
+    ${SMQ_NGINX_MQTTS_PORT}' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf
 
 exec nginx -g "daemon off;"

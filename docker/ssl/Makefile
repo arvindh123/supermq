@@ -8,7 +8,8 @@ OU_CRT = supermq_crt
 EA = info@supermq.com
 CN_CA = SuperMQ_Self_Signed_CA
 CN_SRV = localhost
-CLIENT_SECRET = <CLIENTS_SECRET> # e.g. 8f65ed04-0770-4ce4-a291-6d1bf2000f4d
+# e.g. 8f65ed04-0770-4ce4-a291-6d1bf2000f4d
+CLIENT_SECRET = bb734897-78f4-4f8e-a271-7e6a6b23434b
 CRT_FILE_NAME = client
 AUTH_GRPC_SERVER_CONF_FILE_NAME=auth-grpc-server.conf
 AUTH_GRPC_CLIENT_CONF_FILE_NAME=auth-grpc-client.conf
@@ -91,13 +92,44 @@ server_cert:
 client_cert:
 	# Create supermq server key and CSR.
 	openssl req -new -sha256 -newkey rsa:4096 -nodes -keyout $(CRT_LOCATION)/$(CRT_FILE_NAME).key \
-				-out $(CRT_LOCATION)/$(CRT_FILE_NAME).csr -subj "/CN=$(CLIENTS_SECRET)/O=$(O)/OU=$(OU_CRT)/emailAddress=$(EA)"
+				-out $(CRT_LOCATION)/$(CRT_FILE_NAME).csr -subj "/CN=$(CLIENT_SECRET)/O=$(O)/OU=$(OU_CRT)/emailAddress=$(EA)"
 
 	# Sign client CSR.
 	openssl x509 -req -days 730 -in $(CRT_LOCATION)/$(CRT_FILE_NAME).csr -CA $(CRT_LOCATION)/ca.crt -CAkey $(CRT_LOCATION)/ca.key -CAcreateserial -out $(CRT_LOCATION)/$(CRT_FILE_NAME).crt
 
 	# Remove CSR.
 	rm $(CRT_LOCATION)/$(CRT_FILE_NAME).csr
+
+	# Generate client_unknown
+	openssl req -new -sha256 -newkey rsa:4096 -nodes \
+		-keyout $(CRT_LOCATION)/client_unknown.key \
+		-out $(CRT_LOCATION)/client_unknown.csr \
+		-subj "/CN=client_unknown/O=$(O)/OU=$(OU_CRT)/emailAddress=$(EA)"
+
+	openssl x509 -req -days 730 \
+		-in $(CRT_LOCATION)/client_unknown.csr \
+		-CA $(CRT_LOCATION)/ca.crt -CAkey $(CRT_LOCATION)/ca.key \
+		-out $(CRT_LOCATION)/client_unknown.crt
+
+	rm $(CRT_LOCATION)/client_unknown.csr
+
+	# Generate client_revoked
+	openssl req -new -sha256 -newkey rsa:4096 -nodes \
+		-keyout $(CRT_LOCATION)/client_revoked.key \
+		-out $(CRT_LOCATION)/client_revoked.csr \
+		-subj "/CN=client_revoked/O=$(O)/OU=$(OU_CRT)/emailAddress=$(EA)"
+
+	openssl x509 -req -days 730 \
+		-in $(CRT_LOCATION)/client_revoked.csr \
+		-CA $(CRT_LOCATION)/ca.crt -CAkey $(CRT_LOCATION)/ca.key \
+		-out $(CRT_LOCATION)/client_revoked.crt
+
+	rm $(CRT_LOCATION)/client_revoked.csr
+
+	# ------------------------------------------------------------------
+	# Revoke client_revoked certificate and update CRL
+	openssl ca -revoke $(CRT_LOCATION)/client_revoked.crt -keyfile $(CRT_LOCATION)/ca.key -cert $(CRT_LOCATION)/ca.crt
+	openssl ca -gencrl -keyfile $(CRT_LOCATION)/ca.key -cert $(CRT_LOCATION)/ca.crt -out $(CRT_LOCATION)/ca.crl
 
 # Function to generate gRPC certificates (server or client)
 # Usage: $(call gen_grpc_cert,cert_file_name,common_name)
