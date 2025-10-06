@@ -25,13 +25,10 @@ var (
 	ErrRollbackTx = errors.New("failed to rollback transaction")
 
 	// ErrAuthentication indicates failure occurred while authenticating the entity.
-	ErrAuthentication = NewAuthNError("failed to perform authentication over the entity")
+	ErrAuthentication = errors.New("failed to perform authentication over the entity")
 
 	// ErrAuthorization indicates failure occurred while authorizing the entity.
-	ErrAuthorization = NewAuthZError("failed to perform authorization over the entity")
-
-	// ErrDomainAuthorization indicates failure occurred while authorizing the domain.
-	ErrDomainAuthorization = NewAuthZError("failed to perform authorization over the domain")
+	ErrAuthorization = errors.New("failed to perform authorization over the entity")
 
 	// ErrMissingDomainMember indicates member is not part of a domain.
 	ErrMissingDomainMember = errors.New("member id is not member of domain")
