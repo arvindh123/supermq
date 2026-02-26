@@ -648,19 +648,20 @@ func TestAuthorize(t *testing.T) {
 	cases := []struct {
 		desc                 string
 		policyReq            policies.Policy
+		patAuthz             *auth.PATAuthz
+		checkDomainPolicyReq policies.Policy
 		checkPolicyReq       policies.Policy
-		patEntityType        auth.EntityType
-		patScopeErr          error
-		expectPATCheck       bool
-		expectCheckPolicy    bool
+		patErr               error
 		parseReq             string
 		parseRes             auth.Key
 		parseErr             error
 		callBackErr          error
 		checkPolicyErr       error
 		checkDomainPolicyErr error
+		authorizePATErr      error
 		err                  error
 	}{
+
 		{
 			desc: "authorize a user key successfully",
 			policyReq: policies.Policy{
@@ -677,41 +678,51 @@ func TestAuthorize(t *testing.T) {
 				ObjectType:  policies.PlatformType,
 				Permission:  policies.AdminPermission,
 			},
-			expectCheckPolicy: true,
-			err:               nil,
+			checkDomainPolicyReq: policies.Policy{
+				Subject:     userID,
+				SubjectType: policies.UserType,
+				Object:      validID,
+				ObjectType:  policies.DomainType,
+				Permission:  policies.MembershipPermission,
+			},
+			err: nil,
 		},
 		{
-			desc: "authorize with PAT scope successfully",
+			desc: "authorize with PAT successfully",
 			policyReq: policies.Policy{
 				SubjectType: policies.UserType,
 				SubjectKind: policies.UsersKind,
-				Object:      policies.SuperMQObject,
-				ObjectType:  policies.PlatformType,
-				Permission:  policies.AdminPermission,
-				PatID:       validID,
-				UserID:      userID,
-				EntityType:  auth.ChannelsScopeStr,
+				Subject:     userID,
+				Object:      validID,
+				ObjectType:  policies.ClientType,
+				Permission:  policies.ViewPermission,
 				Domain:      domainID,
-				Operation:   auth.OpListChannels,
-				EntityID:    auth.AnyIDs,
+			},
+			patAuthz: &auth.PATAuthz{
+				PatID:      validID,
+				UserID:     userID,
+				EntityType: auth.ClientsType,
+				EntityID:   validID,
+				Operation:  "read",
+				Domain:     domainID,
+			},
+			checkDomainPolicyReq: policies.Policy{
+				Subject:     userID,
+				SubjectType: policies.UserType,
+				Object:      domainID,
+				ObjectType:  policies.DomainType,
+				Permission:  policies.MembershipPermission,
 			},
 			checkPolicyReq: policies.Policy{
 				SubjectType: policies.UserType,
 				SubjectKind: policies.UsersKind,
-				Object:      policies.SuperMQObject,
-				ObjectType:  policies.PlatformType,
-				Permission:  policies.AdminPermission,
-				PatID:       validID,
-				UserID:      userID,
-				EntityType:  auth.ChannelsScopeStr,
+				Subject:     userID,
+				Object:      validID,
+				ObjectType:  policies.ClientType,
+				Permission:  policies.ViewPermission,
 				Domain:      domainID,
-				Operation:   auth.OpListChannels,
-				EntityID:    auth.AnyIDs,
 			},
-			patEntityType:     auth.ChannelsType,
-			expectPATCheck:    true,
-			expectCheckPolicy: true,
-			err:               nil,
+			err: nil,
 		},
 		{
 			desc: "authorize with PAT scope check failure",
@@ -721,12 +732,14 @@ func TestAuthorize(t *testing.T) {
 				Object:      policies.SuperMQObject,
 				ObjectType:  policies.PlatformType,
 				Permission:  policies.AdminPermission,
-				PatID:       validID,
-				UserID:      userID,
-				EntityType:  auth.ChannelsScopeStr,
-				Domain:      domainID,
-				Operation:   auth.OpListChannels,
-				EntityID:    auth.AnyIDs,
+			},
+			patAuthz: &auth.PATAuthz{
+				PatID:      validID,
+				UserID:     userID,
+				EntityType: auth.ChannelsType,
+				Domain:     domainID,
+				Operation:  auth.OpListChannels,
+				EntityID:   auth.AnyIDs,
 			},
 			checkPolicyReq: policies.Policy{
 				SubjectType: policies.UserType,
@@ -734,17 +747,9 @@ func TestAuthorize(t *testing.T) {
 				Object:      policies.SuperMQObject,
 				ObjectType:  policies.PlatformType,
 				Permission:  policies.AdminPermission,
-				PatID:       validID,
-				UserID:      userID,
-				EntityType:  auth.ChannelsScopeStr,
-				Domain:      domainID,
-				Operation:   auth.OpListChannels,
-				EntityID:    auth.AnyIDs,
 			},
-			patEntityType:  auth.ChannelsType,
-			patScopeErr:    repoerr.ErrNotFound,
-			expectPATCheck: true,
-			err:            svcerr.ErrAuthorization,
+			patErr: svcerr.ErrAuthorization,
+			err:    svcerr.ErrAuthorization,
 		},
 		{
 			desc: "authorize with invalid PAT entity type",
@@ -754,12 +759,14 @@ func TestAuthorize(t *testing.T) {
 				Object:      policies.SuperMQObject,
 				ObjectType:  policies.PlatformType,
 				Permission:  policies.AdminPermission,
-				PatID:       validID,
-				UserID:      userID,
-				EntityType:  "invalid",
-				Domain:      domainID,
-				Operation:   auth.OpListChannels,
-				EntityID:    auth.AnyIDs,
+			},
+			patAuthz: &auth.PATAuthz{
+				PatID:      validID,
+				UserID:     userID,
+				EntityType: auth.EntityType(100),
+				Domain:     domainID,
+				Operation:  auth.OpListChannels,
+				EntityID:   auth.AnyIDs,
 			},
 			checkPolicyReq: policies.Policy{
 				SubjectType: policies.UserType,
@@ -767,32 +774,55 @@ func TestAuthorize(t *testing.T) {
 				Object:      policies.SuperMQObject,
 				ObjectType:  policies.PlatformType,
 				Permission:  policies.AdminPermission,
-				PatID:       validID,
-				UserID:      userID,
-				EntityType:  "invalid",
-				Domain:      domainID,
-				Operation:   auth.OpListChannels,
-				EntityID:    auth.AnyIDs,
 			},
-			err: errors.New("unknown domain entity type invalid"),
+			patErr: errors.New("unknown domain entity type invalid"),
+			err:    errors.New("unknown domain entity type invalid"),
 		},
+
 		{
-			desc: "authorize invalid platform object",
+			desc: "authorize with PAT but PAT authorization fails",
 			policyReq: policies.Policy{
 				SubjectType: policies.UserType,
 				SubjectKind: policies.UsersKind,
-				Object:      "invalid",
-				ObjectType:  policies.PlatformType,
-				Permission:  policies.AdminPermission,
+				Subject:     userID,
+				Object:      validID,
+				ObjectType:  policies.ClientType,
+				Permission:  policies.ViewPermission,
 			},
-			checkPolicyReq: policies.Policy{
+			patAuthz: &auth.PATAuthz{
+				PatID:      validID,
+				UserID:     userID,
+				EntityType: auth.ClientsType,
+				EntityID:   validID,
+				Operation:  "read",
+				Domain:     domainID,
+			},
+			checkPolicyReq:  policies.Policy{},
+			authorizePATErr: svcerr.ErrAuthorization,
+			err:             svcerr.ErrAuthorization,
+		},
+
+		{
+			desc: "authorize with PAT - PAT authorization fails but policy check not reached",
+			policyReq: policies.Policy{
 				SubjectType: policies.UserType,
 				SubjectKind: policies.UsersKind,
-				Object:      "invalid",
-				ObjectType:  policies.PlatformType,
-				Permission:  policies.AdminPermission,
+				Subject:     userID,
+				Object:      validID,
+				ObjectType:  policies.ClientType,
+				Permission:  policies.ViewPermission,
 			},
-			err: svcerr.ErrMalformedEntity,
+			patAuthz: &auth.PATAuthz{
+				PatID:      validID,
+				UserID:     userID,
+				EntityType: auth.ClientsType,
+				EntityID:   validID,
+				Operation:  "write",
+				Domain:     domainID,
+			},
+			checkPolicyReq:  policies.Policy{},
+			authorizePATErr: svcerr.ErrAuthorization,
+			err:             svcerr.ErrAuthorization,
 		},
 		{
 			desc: "authorize with policy check error",
@@ -810,23 +840,26 @@ func TestAuthorize(t *testing.T) {
 				ObjectType:  policies.PlatformType,
 				Permission:  policies.AdminPermission,
 			},
-			checkPolicyErr:    repoerr.ErrNotFound,
-			expectCheckPolicy: true,
-			err:               svcerr.ErrAuthorization,
+			checkPolicyErr: repoerr.ErrNotFound,
+			err:            svcerr.ErrAuthorization,
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.desc, func(t *testing.T) {
 			var policyCall *mock.Call
-			if tc.expectCheckPolicy {
+			if tc.checkPolicyReq != (policies.Policy{}) {
 				policyCall = pEvaluator.On("CheckPolicy", mock.Anything, tc.checkPolicyReq).Return(tc.checkPolicyErr)
 			}
 			var patCall *mock.Call
-			if tc.expectPATCheck {
-				patCall = patsrepo.On("CheckScope", mock.Anything, tc.policyReq.UserID, tc.policyReq.PatID, tc.patEntityType, tc.policyReq.Domain, tc.policyReq.Operation, tc.policyReq.EntityID).Return(tc.patScopeErr)
+			if tc.patAuthz != nil {
+				patErr := tc.patErr
+				if patErr == nil {
+					patErr = tc.authorizePATErr
+				}
+				patCall = patsrepo.On("CheckScope", mock.Anything, tc.patAuthz.UserID, tc.patAuthz.PatID, tc.patAuthz.EntityType, tc.patAuthz.Domain, tc.patAuthz.Operation, tc.patAuthz.EntityID).Return(patErr)
 			}
 			repoCall := krepo.On("Remove", mock.Anything, mock.Anything, mock.Anything).Return(nil)
-			err := svc.Authorize(context.Background(), tc.policyReq)
+			err := svc.Authorize(context.Background(), tc.policyReq, tc.patAuthz)
 			assert.True(t, errors.Contains(err, tc.err), fmt.Sprintf("%s expected %s got %s\n", tc.desc, tc.err, err))
 			if policyCall != nil {
 				policyCall.Unset()
